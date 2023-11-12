@@ -1,4 +1,6 @@
-# TODO: repro pt2 bench script first
+# - match numerical with pt2 huggingface.py for inference accuracy test.
+# TODO support training
+# TODO do perf test (with larger batch size)
 
 import torch
 from transformers import BertForMaskedLM as model_cls
@@ -9,11 +11,13 @@ def download_model(model_cls, config):
 
 model_name = "BertForMaskedLM"
 config = model_cls.config_class()
+reset_rng_state()
 model = download_model(model_cls, config)
 device = "cuda"
 dtype = torch.float32
 model = model.to(device, dtype=dtype)
-batch_size = 16
+# batch_size = 16 # batch size is 1 for accuracy of HF
+batch_size = 1
 seq_length = 512
 vocab_size = model.config.vocab_size
 reset_rng_state()
@@ -24,8 +28,11 @@ input_dict = {
     "labels": labels,
 }
 
-# TODO: override dropout to 1e-30
+for attr in dir(config):
+    if "drop" in attr and isinstance(getattr(config, attr), float):
+        setattr(config, attr, 1e-30)
 
-breakpoint()
+model.eval()
+output = model(**input_dict)
 
 print("bye")
