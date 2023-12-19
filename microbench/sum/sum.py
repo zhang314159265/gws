@@ -12,6 +12,17 @@ from torch._inductor import config
 
 torch.set_default_device("cuda")
 
+from torch._inductor import codecache
+kernel_paths = []
+orig_load_kernel = codecache._load_kernel
+def _mock_load_kernel(*args):
+    kernel = orig_load_kernel(*args)
+    global kernel_paths
+    kernel_paths.append(kernel.fn.fn.__code__.co_filename)
+    return kernel
+
+codecache._load_kernel = _mock_load_kernel
+
 @torch.compile
 def f(x):
     return x.sum(dim=-1)
@@ -26,3 +37,6 @@ for M, N in (
     total_bytes = M * N * 4
     print(f"({M}, {N}), {ms:3f} ms, {total_bytes / ms / 1e9:3f} tbgs")
 print("bye")
+
+
+print(f"kernel paths: {kernel_paths}")
