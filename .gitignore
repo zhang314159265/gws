@@ -1,2 +1,3 @@
 .*.swp
 *.best_config
+__pycache__/
