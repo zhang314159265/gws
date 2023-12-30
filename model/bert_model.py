@@ -252,7 +252,7 @@ class BertForMaskedLM(nn.Module):
 
     def forward(self, input_ids, labels):
         outputs = self.bert(input_ids)
-        sequence_output = outputs[0]
+        sequence_output = outputs
         prediction_scores = self.cls(sequence_output)
 
         assert labels is not None

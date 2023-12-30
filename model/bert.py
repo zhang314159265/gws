@@ -6,10 +6,11 @@ import sys
 sys.path.append(".")
 
 class args:
-    training = True
+    training = False # training or inference
+    perf = True # perf or accuracy
 
     # args no need to change
-    iterations = 2
+    iterations = 2  # number of training steps to run. Only used for accuracy test
 
 class bench_state:
     optimizer = None
@@ -20,6 +21,10 @@ from transformers import BertForMaskedLM as model_cls
 from model.bert_model import MyBertModel
 from torch._dynamo.testing import reset_rng_state, collect_results
 from torch._dynamo.utils import same
+from torch._inductor.utils import do_bench
+from torch._inductor import config as inductor_config
+
+torch.backends.cuda.matmul.allow_tf32 = True
 
 def download_model(model_cls, config):
     return model_cls(config)
@@ -31,7 +36,7 @@ model = download_model(model_cls, config)
 device = "cuda"
 dtype = torch.float32
 model = model.to(device, dtype=dtype)
-batch_size = 1
+batch_size = 16 if args.perf else 1
 seq_length = 512
 vocab_size = model.config.vocab_size
 reset_rng_state()
@@ -41,11 +46,6 @@ input_dict = {
     "input_ids": input,
     "labels": labels,
 }
-
-# TODO: should this be done before constructing the model object?
-for attr in dir(config):
-    if "drop" in attr and isinstance(getattr(config, attr), float):
-        setattr(config, attr, 1e-30)
 
 def model_iter_fn_fwd(model, args, collect_outpus=True):
     return model(**args)
@@ -84,11 +84,6 @@ if args.training:
     model.train()
 else:
     model.eval()
-init_optimizer(model.parameters())
-
-# This is important to make sure dropout behavior is deterministic for training.
-reset_rng_state()
-ref_output = run_n_iterations(model, input_dict)
 
 reset_rng_state()
 my_model = MyBertModel().to(device="cuda")
@@ -96,12 +91,36 @@ if args.training:
     my_model.train()
 else:
     my_model.eval()
-init_optimizer(my_model.parameters())
-reset_rng_state()
-act_output = run_n_iterations(my_model, input_dict)
 
-if not same(ref_output, act_output):
-    breakpoint()
+if args.perf:
+    # XXX eager infernce, mymodel 38.86ms, hfmodel 42.60ms
+    # XXX eager training, mymodel 129.97ms hfmodel 133.60ms
+    # XXX compile inference, 
+    # XXX compile training, mymodel 114.74ms, hfmodel 115.51ms
+    # picked_model = my_model
+    picked_model = model
+    init_optimizer(picked_model.parameters())
 
-assert same(ref_output, act_output)
+    print(do_bench(lambda: bench_state.model_iter_fn(picked_model, input_dict)))
+    inductor_config.triton.cudagraphs = True
+    if not args.training:
+        inductor_config.freezing = True
+    opt_fn = torch.compile(bench_state.model_iter_fn)
+    print(do_bench(lambda: opt_fn(picked_model, input_dict)))
+else:
+    init_optimizer(model.parameters())
+    # This is important to make sure dropout behavior is deterministic for training.
+    reset_rng_state()
+    ref_output = run_n_iterations(model, input_dict)
+    
+    init_optimizer(my_model.parameters())
+    reset_rng_state()
+    act_output = run_n_iterations(my_model, input_dict)
+    
+    if not same(ref_output, act_output):
+        breakpoint()
+    
+    assert same(ref_output, act_output)
+    print("Pass")
+
 print("bye")
