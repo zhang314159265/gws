@@ -24,6 +24,10 @@ from torch._dynamo.utils import same
 from torch._inductor.utils import do_bench
 from torch._inductor import config as inductor_config
 
+# The compiled inference perf will be >10x worse for the original hf model
+# without the following line
+if not args.training: torch.set_grad_enabled(False)
+
 torch.backends.cuda.matmul.allow_tf32 = True
 
 def download_model(model_cls, config):
@@ -95,10 +99,11 @@ else:
 if args.perf:
     # XXX eager infernce, mymodel 38.86ms, hfmodel 42.60ms
     # XXX eager training, mymodel 129.97ms hfmodel 133.60ms
-    # XXX compile inference, 
+    # XXX compile inference, mymodel 30.41ms, hfmodel 30.48ms
     # XXX compile training, mymodel 114.74ms, hfmodel 115.51ms
-    # picked_model = my_model
-    picked_model = model
+
+    picked_model = my_model
+    # picked_model = model
     init_optimizer(picked_model.parameters())
 
     print(do_bench(lambda: bench_state.model_iter_fn(picked_model, input_dict)))
