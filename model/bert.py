@@ -6,11 +6,12 @@ import sys
 sys.path.append(".")
 
 class args:
-    training = False # training or inference
+    training = True # training or inference
     perf = True # perf or accuracy
 
     # args no need to change
     iterations = 2  # number of training steps to run. Only used for accuracy test
+    amp = True
 
 class bench_state:
     optimizer = None
@@ -23,6 +24,7 @@ from torch._dynamo.testing import reset_rng_state, collect_results
 from torch._dynamo.utils import same
 from torch._inductor.utils import do_bench
 from torch._inductor import config as inductor_config
+import contextlib
 
 # The compiled inference perf will be >10x worse for the original hf model
 # without the following line
@@ -33,6 +35,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 def download_model(model_cls, config):
     return model_cls(config)
 
+autocast = torch.cuda.amp.autocast if args.amp else contextlib.nullcontext
 model_name = "BertForMaskedLM"
 config = model_cls.config_class()
 reset_rng_state()
@@ -51,25 +54,27 @@ input_dict = {
     "labels": labels,
 }
 
-def model_iter_fn_fwd(model, args, collect_outpus=True):
-    return model(**args)
+def model_iter_fn_fwd(model, args, collect_outputs=True):
+    with autocast():
+        return model(**args)
 
 def model_iter_fn_fwd_bwd(model, args, collect_outputs=True):
-    bench_state.optimizer.zero_grad(True)
-    pred = model(**args)
-
-    # pred[0] works for MaskedLMOutput but does not work for a reguard dict retuend
-    # in my model
-    loss = pred[next(iter(pred))]
-    loss.backward()
-    bench_state.optimizer.step()
-    if collect_outputs:
-        results = collect_results(model, pred, loss, args)
-
-        # key may be different due to simplification of module tree
-        results[2] = tuple(results[2].values())
-        results[3] = tuple(results[3].values())
-        return results
+    with autocast():
+        bench_state.optimizer.zero_grad(True)
+        pred = model(**args)
+    
+        # pred[0] works for MaskedLMOutput but does not work for a reguard dict retuend
+        # in my model
+        loss = pred[next(iter(pred))]
+        loss.backward()
+        bench_state.optimizer.step()
+        if collect_outputs:
+            results = collect_results(model, pred, loss, args)
+    
+            # key may be different due to simplification of module tree
+            results[2] = tuple(results[2].values())
+            results[3] = tuple(results[3].values())
+            return results
 
 def init_optimizer(params):
     if args.training:
@@ -97,10 +102,18 @@ else:
     my_model.eval()
 
 if args.perf:
-    # XXX eager infernce, mymodel 38.86ms, hfmodel 42.60ms
-    # XXX eager training, mymodel 129.97ms hfmodel 133.60ms
-    # XXX compile inference, mymodel 30.41ms, hfmodel 30.48ms
-    # XXX compile training, mymodel 114.74ms, hfmodel 115.51ms
+    # No amp
+    #   eager infernce, mymodel 38.86ms, hfmodel 42.60ms
+    #   eager training, mymodel 129.97ms hfmodel 133.60ms
+    #   compile inference, mymodel 30.41ms, hfmodel 30.48ms
+    #   compile training, mymodel 114.74ms, hfmodel 115.51ms
+    # With amp
+    #   eager inference, mymodel 30.65ms, hfmodel 35.38ms
+    #   compile inference, mymodel 13.11ms, hfmodel 13.22ms
+    #     - XXX why my model is faster than pt2 bench script result (which takes 14ms)
+    #   eager training, mymodel 99.12ms,
+    #   compile training, mymodel 50.75ms
+    #     - XXX why my model is faster than pt2 bench script result (which takes 52.21ms)
 
     picked_model = my_model
     # picked_model = model
