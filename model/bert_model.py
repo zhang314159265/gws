@@ -1,3 +1,7 @@
+"""
+Implemented by following HF step by step.
+"""
+
 import torch
 from torch import nn
 import math
@@ -18,6 +22,10 @@ class config:
 
     hidden_dropout_prob = 0.1 # TODO may need tune dropout prob
     attention_probs_dropout_prob = 0.1
+
+    # Simplify the model to ease testing. Will cause numerical change
+    # compared to the original Bert implementation.
+    simplify = False
 
 def _init_weights(module):
     if getattr(module, "_inititialized_for_bert", False):
@@ -160,12 +168,15 @@ class BertEmbeddings(nn.Module):
         super().__init__()
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
         self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
-        self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
+        self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)), persistent=False)
+
+        if not config.simplify:
+            self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
+            self.register_buffer(
+                "token_type_ids", torch.zeros(self.position_ids.size(), dtype=torch.long), persistent=False)
+
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)), persistent=False)
-        self.register_buffer(
-            "token_type_ids", torch.zeros(self.position_ids.size(), dtype=torch.long), persistent=False)
 
     def forward(self, input_ids, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length = 0):
         assert inputs_embeds is None
@@ -174,15 +185,19 @@ class BertEmbeddings(nn.Module):
 
         input_shape = input_ids.size()
         seq_length = input_shape[1]
-
-        position_ids = self.position_ids[:, past_key_values_length : seq_length + past_key_values_length]
-        assert token_type_ids is not None
-
         inputs_embeds = self.word_embeddings(input_ids)
-        token_type_embeddings = self.token_type_embeddings(token_type_ids)
-
-        embeddings = inputs_embeds + token_type_embeddings
+        position_ids = self.position_ids[:, past_key_values_length : seq_length + past_key_values_length]
         position_embeddings = self.position_embeddings(position_ids)
+
+        embeddings = inputs_embeds
+
+        if not config.simplify:
+            assert token_type_ids is not None
+
+            token_type_embeddings = self.token_type_embeddings(token_type_ids)
+
+            embeddings += token_type_embeddings
+
         embeddings += position_embeddings
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
@@ -193,12 +208,14 @@ class BertModel(nn.Module):
         super().__init__()
         self.embeddings = BertEmbeddings()
         self.encoder = BertEncoder()
-        self.apply(_init_weights)
+
+        if not config.simplify:
+            self.apply(_init_weights)
 
     def forward(self, input_ids, token_type_ids=None):
         input_shape = input_ids.size()
         batch_size, seq_length = input_shape
-        if token_type_ids is None:
+        if token_type_ids is None and not config.simplify:
             assert hasattr(self.embeddings, "token_type_ids")
             buffered_token_type_ids = self.embeddings.token_type_ids[:, :seq_length]
             buffered_token_type_ids_expanded = buffered_token_type_ids.expand(batch_size, seq_length)
@@ -266,4 +283,32 @@ class BertForMaskedLM(nn.Module):
 MyBertModel = BertForMaskedLM
 
 if __name__ == "__main__":
+    from torch._dynamo.testing import reset_rng_state
+    reset_rng_state()
+    config.simplify = True
+    batch_size = 2
+    seq_length = 512
+    device = "cuda"
+    input = torch.randint(0, config.vocab_size, (batch_size, seq_length), device=device, dtype=torch.int64, requires_grad=False)
+    labels = torch.randint(0, config.vocab_size, (batch_size, seq_length), device=device, dtype=torch.int64, requires_grad=False)
+    input_dict = {
+        "input_ids": input,
+        "labels": labels,
+    }
+    torch.set_default_device("cuda")
+    model = MyBertModel().to("cuda")
+
+    inference = False
+    if inference:
+        out = model(**input_dict)
+        print(out)
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01, capturable=True, foreach=True)
+        for _ in range(3):
+            optimizer.zero_grad(True)
+            pred = model(**input_dict)
+            loss = pred[next(iter(pred))]
+            loss.backward()
+            optimizer.step()
+        print(model.bert.embeddings.word_embeddings.weight)
     print("bye")

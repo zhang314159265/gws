@@ -7,7 +7,7 @@ sys.path.append(".")
 
 class args:
     training = True # training or inference
-    perf = True # perf or accuracy
+    perf = False # perf or accuracy
 
     # args no need to change
     iterations = 2  # number of training steps to run. Only used for accuracy test
