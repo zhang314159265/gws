@@ -284,6 +284,7 @@ MyBertModel = BertForMaskedLM
 
 if __name__ == "__main__":
     from torch._dynamo.testing import reset_rng_state
+    torch.set_float32_matmul_precision('high')
     reset_rng_state()
     config.simplify = True
     batch_size = 2
@@ -298,8 +299,9 @@ if __name__ == "__main__":
     torch.set_default_device("cuda")
     model = MyBertModel().to("cuda")
 
-    inference = False
+    inference = True
     if inference:
+        model.eval()
         out = model(**input_dict)
         print(out)
     else:

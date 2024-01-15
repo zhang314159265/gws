@@ -16,7 +16,7 @@ class config:
     layer_norm_eps = 1e-12
     dropout_prob = 0.1
 
-    num_hidden_layers = 12
+    num_hidden_layers = 2 # TODO it was 12
     initializer_range = 0.02
     max_position = 512
 
@@ -148,13 +148,33 @@ class Bert(nn.Module):
 
 if __name__ == "__main__":
     from torch._dynamo.testing import reset_rng_state
+    from torch._inductor import config as inductor_config
+    from torch._inductor import lowering, graph
+
+    lowering.use_two_step_variance = lambda *args, **kwargs: True  # disable welford for now
+
+    # mock GraphLowering.__init__
+    old_init = graph.GraphLowering.__init__
+    def mock_init(self, gm, *args, **kwargs):
+        gm.print_readable()
+        return old_init(self, gm, *args, **kwargs)
+    graph.GraphLowering.__init__ = mock_init
+
+    torch.set_float32_matmul_precision('high')
+
+    inductor_config.benchmark_kernel = True
     reset_rng_state()
     x, label = Bert.generate_example()
     model = Bert()
-    inference = False
+    inference = True
     if inference:
-        print(model(x, label))
+        model.eval()
+        with torch.no_grad():
+            model = torch.compile(model)
+            out = model(x, label)
+            print(out)
     else:
+        model.train()
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01, capturable=True, foreach=True)
         for _ in range(3):
             optimizer.zero_grad(True)
