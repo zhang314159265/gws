@@ -26,6 +26,12 @@ LDFLAGS += $(TRITON_SRC_ROOT)/python/triton/_C/libtriton.so $(LIBPYTHON)
 
 OVERRIDE_LIB_PATH := $(TRITON_SRC_ROOT)/python/triton/_C:$(LIBPYTHON_DIR)
 
-add:
-	g++ main.cpp $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group -o a.out
+ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
+
+test_dot:
+	g++ test_dot.cpp $(ALLFLAGS) -o a.out
+	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
+
+test_add:
+	g++ test_add.cpp $(ALLFLAGS) -o a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out

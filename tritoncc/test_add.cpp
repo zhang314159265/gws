@@ -140,6 +140,7 @@ int main(void) {
       ans_ptr,
       idx
     ),
+    ans,
     mask,
     mlir::triton::CacheModifier::NONE,
     mlir::triton::EvictionPolicy::NORMAL
