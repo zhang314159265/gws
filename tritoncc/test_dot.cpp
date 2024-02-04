@@ -1,8 +1,11 @@
 #include <iostream>
 
+#include "mlir/Transforms/Passes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Pass/Pass.h"
 
 #include "triton/Dialect/Triton/IR/Dialect.h"
 #include "triton/Dialect/Triton/IR/Types.h"
@@ -11,7 +14,23 @@ mlir::Type i32ty, f32ty, f32pty;
 std::unique_ptr<mlir::OpBuilder> builder;
 mlir::Location* punkloc;
 mlir::Value icst32, icst5, fp32cst0;
+mlir::MLIRContext *pctx;
 mlir::triton::FuncOp funcop;
+mlir::ModuleOp module;
+
+namespace mlir { namespace triton {
+std::unique_ptr<mlir::Pass> createCombineOpsPass();
+} }
+std::unique_ptr<mlir::Pass> createOptimPass() {
+  return mlir::triton::createCombineOpsPass();
+}
+
+void optimize() {
+  mlir::PassManager pm(pctx);
+  pm.addPass(createOptimPass());
+  pm.addPass(mlir::createCSEPass());
+  assert(!mlir::failed(pm.run(module.getOperation())));
+}
 
 mlir::Value build_offset() {
   // range for row
@@ -38,7 +57,7 @@ mlir::Value build_offset() {
 
   mlir::Value exp_range2 = builder->create<mlir::triton::ExpandDimsOp>(
     *punkloc,
-    mlir::RankedTensorType::get({32, 1}, i32ty),
+    mlir::RankedTensorType::get({1, 32}, i32ty),
     range2,
     0
   );
@@ -46,7 +65,7 @@ mlir::Value build_offset() {
   // build offset
   mlir::Value row_scale = builder->create<mlir::arith::MulIOp>(
     *punkloc,
-    exp_range2,
+    exp_range1,
     bcast_stride
   );
   return builder->create<mlir::arith::AddIOp>(
@@ -143,10 +162,11 @@ void build_store(mlir::Value ans, mlir::Value offset) {
 
 int main(void) {
   mlir::MLIRContext ctx;
+  pctx = &ctx;
   builder = std::move(std::make_unique<mlir::OpBuilder>(&ctx));
   auto unkloc = builder->getUnknownLoc();
   punkloc = &unkloc;
-  auto module = builder->create<mlir::ModuleOp>(unkloc);
+  module = builder->create<mlir::ModuleOp>(unkloc);
   auto function_name = "dot_fn";
   int address_space = 1;
 
@@ -182,6 +202,9 @@ int main(void) {
   build_store(build_plus_scalar(build_dot(lhs, rhs)), off);
 
   builder->create<mlir::triton::ReturnOp>(unkloc);
+  module.dump();
+  optimize();
+  std::cout << "After optimize:" << std::endl;
   module.dump();
   std::cout << "bye dot" << std::endl;
   return 0;
