@@ -1,3 +1,4 @@
 .*.swp
 *.best_config
 __pycache__/
+a.out
