@@ -6,7 +6,7 @@ LIBPYTHON_DIR := /home/shunting/ws/miniconda3/envs/pytorch/lib
 LIBPYTHON := $(LIBPYTHON_DIR)/libpython3.10.so
 # XXX non-portable definitions END
 
-CFLAGS := -I$(LLVM_ROOT)/include -I$(TRITON_SRC_ROOT)/include -I$(TRITON_BUILD_ROOT)/include
+CFLAGS := -I$(LLVM_ROOT)/include -I$(TRITON_SRC_ROOT)/include -I$(TRITON_BUILD_ROOT)/include -I./include
 LDFLAGS := -L$(LLVM_ROOT)/lib
 
 # Newer triton does not build .a any more. All symbols can be found in libtriton.so
@@ -27,6 +27,10 @@ LDFLAGS += $(TRITON_SRC_ROOT)/python/triton/_C/libtriton.so $(LIBPYTHON)
 OVERRIDE_LIB_PATH := $(TRITON_SRC_ROOT)/python/triton/_C:$(LIBPYTHON_DIR)
 
 ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
+
+test_sum:
+	g++ test_sum.cpp $(ALLFLAGS) -o a.out
+	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
 
 test_dot:
 	g++ test_dot.cpp $(ALLFLAGS) -o a.out

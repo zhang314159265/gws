@@ -10,6 +10,10 @@
 #include "triton/Dialect/Triton/IR/Dialect.h"
 #include "triton/Dialect/Triton/IR/Types.h"
 
+#include "tritoncc/ProcessTTIR.h"
+
+using namespace tritoncc;
+
 mlir::Type i32ty, f32ty, f32pty;
 std::unique_ptr<mlir::OpBuilder> builder;
 mlir::Location* punkloc;
@@ -18,18 +22,8 @@ mlir::MLIRContext *pctx;
 mlir::triton::FuncOp funcop;
 mlir::ModuleOp module;
 
-namespace mlir { namespace triton {
-std::unique_ptr<mlir::Pass> createCombineOpsPass();
-} }
-std::unique_ptr<mlir::Pass> createOptimPass() {
-  return mlir::triton::createCombineOpsPass();
-}
-
 void optimize() {
-  mlir::PassManager pm(pctx);
-  pm.addPass(createOptimPass());
-  pm.addPass(mlir::createCSEPass());
-  assert(!mlir::failed(pm.run(module.getOperation())));
+  processTTIR(module);
 }
 
 mlir::Value build_offset() {
