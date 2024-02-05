@@ -3,9 +3,13 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "tritoncc/Util.h"
+#include "tritoncc/ProcessPipeline.h"
 
 #include "triton/Dialect/Triton/IR/Types.h"
 #include "triton/Dialect/Triton/IR/Dialect.h"
+
+using namespace tritoncc;
 
 int main(void) {
   mlir::MLIRContext ctx;
@@ -148,6 +152,14 @@ int main(void) {
 
   builder->create<mlir::triton::ReturnOp>(unkloc);
 
+  module.dump();
+  Option opt{
+     .num_warps=4, // how is this decided?
+     .num_ctas=1,
+     .capability=90, // H100
+  };
+  processPipeline(module, opt);
+  std::cout << "After optimize:" << std::endl;
   module.dump();
 
   std::cout << "bye" << std::endl;

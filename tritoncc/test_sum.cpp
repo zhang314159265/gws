@@ -1,7 +1,7 @@
 #include <iostream>
 
 #include "tritoncc/LocationOpBuilder.h"
-#include "tritoncc/ProcessTTIR.h"
+#include "tritoncc/ProcessPipeline.h"
 #include "tritoncc/Util.h"
 
 #include "mlir/IR/MLIRContext.h"
@@ -136,7 +136,12 @@ int main(void) {
 
   B.create<mlir::triton::ReturnOp>(std::vector<mlir::Value>());
   module.dump();
-  processTTIR(module);
+  Option opt{
+     .num_warps=4, // how is this decided?
+     .num_ctas=1,
+     .capability=90, // H100
+  };
+  processPipeline(module, opt);
   std::cout << "After optimize:" << std::endl;
   module.dump();
 
