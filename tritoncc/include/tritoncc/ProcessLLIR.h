@@ -14,6 +14,8 @@
 
 #include "TypeConverter.h"
 
+#include "tritoncc/ElementwiseOpToLLVM.h"
+
 #if 1
 namespace mlir {
 namespace triton {
@@ -110,8 +112,11 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
 
     // mlir::triton::populateDotOpToLLVMPatterns(typeConverter, patterns, benefit);
 
+    patterns.add<tritoncc::FAddOpConversion>(typeConverter);
+    #if 0
     mlir::triton::populateElementwiseOpToLLVMPatterns(
       typeConverter, patterns, axisInfoAnalysis, computeCapability, benefit);
+    #endif
 
     // This error:
     // a.out: /home/shunting/ws/triton/lib/Conversion/TritonGPUToLLVM/Utility.h:372: mlir::Value mlir::LLVM::getStackPointer(mlir::PatternRewriter&, mlir::FunctionOpInterface): Assertion `globalBase' failed.

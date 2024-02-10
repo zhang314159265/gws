@@ -54,7 +54,7 @@ OVERRIDE_LIB_PATH := $(TRITON_SRC_ROOT)/python/triton/_C:$(LIBPYTHON_DIR)
 
 ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 
-first: test_sum
+first: test_add
 
 test_sum:
 	g++ test_sum.cpp $(ALLFLAGS) -o a.out

@@ -1,5 +1,8 @@
 """
 Generated ttir before and after make_ttir: https://gist.github.com/shunting314/f2b578bc7da71459b67bebb2836dfdda
+
+Module dump after make_ttgir: https://gist.github.com/shunting314/60814ba13d93b99c5bf2707b70e9ebdd
+
 """
 import triton
 import triton.language as tl

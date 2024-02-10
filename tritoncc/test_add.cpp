@@ -9,6 +9,8 @@
 #include "triton/Dialect/Triton/IR/Types.h"
 #include "triton/Dialect/Triton/IR/Dialect.h"
 
+#define BLOCK_SIZE 256
+
 using namespace tritoncc;
 
 int main(void) {
@@ -45,15 +47,15 @@ int main(void) {
 
   auto pid = builder->create<mlir::triton::GetProgramIdOp>(unkloc, i32ty, mlir::triton::ProgramIDDimAttr::get(&ctx, mlir::triton::ProgramIDDim(0)));
   auto range = builder->create<mlir::triton::MakeRangeOp>(unkloc,
-    mlir::RankedTensorType::get({32}, i32ty),
-    0, 32);
+    mlir::RankedTensorType::get({BLOCK_SIZE}, i32ty),
+    0, BLOCK_SIZE);
 
   auto broadcasted = builder->createOrFold<mlir::triton::SplatOp>(
     unkloc,
-    mlir::RankedTensorType::get({32}, i32ty),
+    mlir::RankedTensorType::get({BLOCK_SIZE}, i32ty),
     builder->create<mlir::arith::MulIOp>(unkloc,
       pid,
-      builder->create<mlir::arith::ConstantIntOp>(unkloc, 32, i32ty))
+      builder->create<mlir::arith::ConstantIntOp>(unkloc, BLOCK_SIZE, i32ty))
   );
 
   auto idx = builder->create<mlir::arith::AddIOp>(
@@ -64,7 +66,7 @@ int main(void) {
 
   auto broadcasted_num = builder->createOrFold<mlir::triton::SplatOp>(
     unkloc,
-    mlir::RankedTensorType::get({32}, i32ty),
+    mlir::RankedTensorType::get({BLOCK_SIZE}, i32ty),
     funcop.getArgument(3)
   );
 
@@ -78,7 +80,7 @@ int main(void) {
   // lhs_ptr
   auto lhs_ptr = builder->createOrFold<mlir::triton::SplatOp>(
     unkloc,
-    mlir::RankedTensorType::get({32}, f32pty),
+    mlir::RankedTensorType::get({BLOCK_SIZE}, f32pty),
     funcop.getArgument(0)
   );
     
@@ -101,7 +103,7 @@ int main(void) {
   // rhs_ptr
   auto rhs_ptr = builder->createOrFold<mlir::triton::SplatOp>(
     unkloc,
-    mlir::RankedTensorType::get({32}, f32pty),
+    mlir::RankedTensorType::get({BLOCK_SIZE}, f32pty),
     funcop.getArgument(1)
   );
     
@@ -131,7 +133,7 @@ int main(void) {
   // ans_ptr
   auto ans_ptr = builder->createOrFold<mlir::triton::SplatOp>(
     unkloc,
-    mlir::RankedTensorType::get({32}, f32pty),
+    mlir::RankedTensorType::get({BLOCK_SIZE}, f32pty),
     funcop.getArgument(2)
   );
 
