@@ -1,5 +1,9 @@
 """
 ttir generated before and after make_ttir: https://gist.github.com/shunting314/b3b7c0ce246cc83ef09e5249853c3df4
+
+After running make_ttgir, got module: https://gist.github.com/shunting314/485d4a5614203b2d3170a446daaba37c
+
+After running the pass manager in make_llir, we get this module: https://gist.github.com/shunting314/454a632f06e2442dd67c8e93859538f7
 """
 import torch
 import triton

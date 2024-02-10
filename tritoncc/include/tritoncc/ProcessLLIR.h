@@ -4,6 +4,14 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
+#include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
+#include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
+#include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
+#include "mlir/Dialect/Index/IR/IndexDialect.h"
+#include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
+#include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 
 #include "tritoncc/Util.h"
 #include "triton/Conversion/TritonGPUToLLVM/Passes.h"
@@ -11,10 +19,14 @@
 #include "triton/Dialect/TritonNvidiaGPU/IR/Dialect.h"
 #include "triton/Dialect/NVGPU/IR/Dialect.h"
 #include "triton/Analysis/AxisInfo.h"
+#include "triton/Analysis/Membar.h"
+#include "triton/Analysis/Allocation.h"
 
 #include "TypeConverter.h"
+#include "PatternTritonGPUOpToLLVM.h"
 
 #include "tritoncc/ElementwiseOpToLLVM.h"
+#include "tritoncc/ReduceOpConversion.h"
 
 #if 1
 namespace mlir {
@@ -34,6 +46,10 @@ void populateElementwiseOpToLLVMPatterns(
 void populateReduceOpToLLVMPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
     int computeCapability, PatternBenefit benefit);
+void populateConvertLayoutOpToLLVMPatterns(
+    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
+    PatternBenefit benefit);
+
 } }
 
 namespace tritoncc {
@@ -77,15 +93,131 @@ public:
     addLegalOp<mlir::UnrealizedConversionCastOp>();
   }
 };
-}
 
 #if 1
+class TritonLLVMFunctionConversionTarget : public ConversionTarget {
+public:
+  explicit TritonLLVMFunctionConversionTarget(MLIRContext &ctx, Target target)
+      : ConversionTarget(ctx) {
+    #if 1
+    addLegalDialect<mlir::index::IndexDialect>();
+    #endif
+    addLegalDialect<LLVM::LLVMDialect>();
+    addLegalDialect<NVVM::NVVMDialect>();
+    addLegalOp<mlir::UnrealizedConversionCastOp>();
+  }
+};
+#endif
+
+}
+
+// copies from triton
+#if 1
+struct FuncOpConversion : public ConvertOpToLLVMPattern<triton::FuncOp> {
+  FuncOpConversion(LLVMTypeConverter &converter, int numWarps,
+                   PatternBenefit benefit)
+      : ConvertOpToLLVMPattern(converter, benefit), numWarps(numWarps) {}
+
+  /// Only retain those attributes that are not constructed by
+  /// `LLVMFuncOp::build`. If `filterArgAttrs` is set, also filter out argument
+  /// attributes.
+  static void filterFuncAttributes(triton::FuncOp op, bool filterArgAttrs,
+                                   SmallVectorImpl<NamedAttribute> &result) {
+
+    for (const auto &attr : op->getAttrs()) {
+      if (attr.getName() == SymbolTable::getSymbolAttrName() ||
+          attr.getName() == op.getFunctionTypeAttrName() ||
+          attr.getName() == "std.varargs" ||
+          (filterArgAttrs && attr.getName() == op.getArgAttrsAttrName()))
+        continue;
+      result.push_back(attr);
+    }
+  }
+
+  triton::FuncOp amendFuncOp(triton::FuncOp funcOp,
+                             ConversionPatternRewriter &rewriter) const {
+    // Push back a variable that indicates the current stack pointer of shared
+    // memory to the function arguments.
+    auto loc = funcOp.getLoc();
+    auto ctx = funcOp->getContext();
+    auto ptrTy = LLVM::LLVMPointerType::get(rewriter.getContext(), 3);
+    // 1. Modify the function type to add the new argument.
+    auto funcTy = funcOp.getFunctionType();
+    auto amendedInputTy = llvm::to_vector<4>(funcTy.getInputs());
+    amendedInputTy.push_back(ptrTy);
+    auto amendedFuncTy = FunctionType::get(funcTy.getContext(), amendedInputTy,
+                                           funcTy.getResults());
+    // 2. Modify the argument attributes to add the new argument.
+    SmallVector<NamedAttribute> amendedAttrs;
+    filterFuncAttributes(funcOp, /*filterArgAttrs=*/true, amendedAttrs);
+    auto amendedArgAttrs = llvm::to_vector<4>(funcOp.getAllArgAttrs());
+    amendedArgAttrs.emplace_back(DictionaryAttr::get(ctx));
+    amendedAttrs.push_back(rewriter.getNamedAttr(
+        funcOp.getArgAttrsAttrName(), rewriter.getArrayAttr(amendedArgAttrs)));
+    // 3. Add a new argument to the region
+    auto amendedFuncOp = rewriter.create<triton::FuncOp>(
+        funcOp.getLoc(), funcOp.getName(), amendedFuncTy, amendedAttrs);
+    auto &region = funcOp.getBody();
+    region.addArgument(ptrTy, loc);
+    rewriter.inlineRegionBefore(region, amendedFuncOp.getBody(),
+                                amendedFuncOp.end());
+    return amendedFuncOp;
+  }
+
+  LogicalResult
+  matchAndRewrite(triton::FuncOp funcOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // Prevent LLVM's inliner to inline this function
+    auto amendedFuncOp = funcOp;
+    if (!LLVM::isKernel(funcOp))
+      amendedFuncOp = amendFuncOp(funcOp, rewriter);
+
+    LLVM::LLVMFuncOp newFuncOp = *mlir::convertFuncOpToLLVMFuncOp(
+        amendedFuncOp, rewriter, *getTypeConverter());
+    if (!newFuncOp) {
+      return failure();
+    }
+
+    auto ctx = funcOp->getContext();
+
+    if (LLVM::isKernel(funcOp)) {
+      // Set an attribute to indicate this function is a kernel entry.
+      newFuncOp->setAttr("nvvm.kernel",
+                         rewriter.getIntegerAttr(type::u1Ty(ctx), 1));
+    } else {
+      // The noinline attribute will be used by the LLVM codegen to prevent
+      // inlining.
+      // https://github.com/llvm/llvm-project/blob/main/mlir/lib/Dialect/LLVMIR/IR/LLVMInlining.cpp#L267
+      newFuncOp.setPassthroughAttr(
+          ArrayAttr::get(ctx, rewriter.getStringAttr("noinline")));
+      rewriter.eraseOp(amendedFuncOp);
+    }
+    // Set an attribute for maxntidx, it could be used in latter LLVM codegen
+    // for `nvvm.annotation` metadata.
+    newFuncOp->setAttr("nvvm.maxntid",
+                       rewriter.getDenseI32ArrayAttr(32 * numWarps));
+
+    // required by AxisInfoAnalysis
+    rewriter.eraseOp(funcOp);
+    return success();
+  }
+
+private:
+  int numWarps{0};
+};
+#endif
+
+#if 1
+
 struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
  public:
-  MyConvertTritonGPUToLLVM(int32_t computeCapability, mlir::triton::Target target)
+  int computeCapability;
+  mlir::triton::Target target;
+  MyConvertTritonGPUToLLVM(int32_t computeCapability, mlir::triton::Target target, mlir::triton::gpu::TMAMetadataTy *tmaMetadata)
     : mlir::OperationPass<mlir::ModuleOp>(mlir::TypeID::get<MyConvertTritonGPUToLLVM>()) {
     this->computeCapability = computeCapability;
     this->target = target;
+    this->tmaMetadata = tmaMetadata;
   }
   MyConvertTritonGPUToLLVM(const MyConvertTritonGPUToLLVM& other) : mlir::OperationPass<mlir::ModuleOp>(other) { }
 
@@ -100,33 +232,85 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
   void runOnOperation() override {
     mlir::MLIRContext *context = &getContext();
     mlir::ModuleOp mod = getOperation();
+
     mlir::LowerToLLVMOptions option(context);
+
+    #if 1 // this is super critical to make sure
+    // the output does not contains tt.reduce and contains shfl
+    option.overrideIndexBitwidth(32);
+    #endif
+
     TritonLLVMConversionTarget convTarget(*context, target);
     TritonGPUToLLVMTypeConverter typeConverter(context, option);
-    ModuleAxisInfoAnalysis axisInfoAnalysis(mod);
     int benefit = 10;
+    int numWarps = triton::gpu::TritonGPUDialect::getNumWarps(mod);
+    int numCTAs = triton::gpu::TritonGPUDialect::getNumCTAs(mod);
+
+    #if 1
+    // lower functions
+    {
+      mlir::LowerToLLVMOptions option(context);
+      TritonGPUToLLVMTypeConverter typeConverter(context, option);
+      TritonLLVMFunctionConversionTarget funcTarget(*context, target);
+      RewritePatternSet funcPatterns(context);
+      funcPatterns.add<FuncOpConversion>(typeConverter, numWarps, /*benefit=*/1);
+      mlir::cf::populateControlFlowToLLVMConversionPatterns(typeConverter, funcPatterns);
+      if (failed(applyPartialConversion(mod, funcTarget, std::move(funcPatterns)))) {
+        return signalPassFailure();
+      }
+    }
+    #endif
+
+    #if 1
+    // allocate shared memory and set barrier
+    {
+      mlir::ModuleAllocation allocation(mod);
+      mlir::ModuleMembarAnalysis membarPass(&allocation);
+      membarPass.run();
+    }
+    #endif
 
     initSharedMemory(typeConverter);
 
     mlir::RewritePatternSet patterns(context);
 
+    ModuleAxisInfoAnalysis axisInfoAnalysis(mod);
+
+
+    #if 1
+    mlir::triton::populateConvertLayoutOpToLLVMPatterns(typeConverter, patterns, benefit);
+
     // mlir::triton::populateDotOpToLLVMPatterns(typeConverter, patterns, benefit);
 
-    patterns.add<tritoncc::FAddOpConversion>(typeConverter);
-    #if 0
+    #if 1
     mlir::triton::populateElementwiseOpToLLVMPatterns(
       typeConverter, patterns, axisInfoAnalysis, computeCapability, benefit);
+    #else
+    /*
+     * My own pattern for FAdd. It works for test_add but fail for test_sum
+     * right now. I guess the reason is I can not handle scalar fadd yet.
+     */
+    patterns.add<tritoncc::FAddOpConversion>(typeConverter);
     #endif
+    populateBarrierOpToLLVMPatterns(typeConverter, patterns, benefit);
 
     // This error:
     // a.out: /home/shunting/ws/triton/lib/Conversion/TritonGPUToLLVM/Utility.h:372: mlir::Value mlir::LLVM::getStackPointer(mlir::PatternRewriter&, mlir::FunctionOpInterface): Assertion `globalBase' failed.
     // may indicate we need some shared memory pass first.
-    #if 1
+    #if 0
     mlir::triton::populateReduceOpToLLVMPatterns(
       typeConverter, patterns, computeCapability, benefit);
+    #else
+    patterns.add<tritoncc::ReduceOpConversion>(typeConverter);
     #endif
 
-    assert(!failed(applyPartialConversion(mod, convTarget, std::move(patterns))));
+    populateControlFlowOpToLLVMPattern(typeConverter, patterns, benefit); // this is needed
+    mlir::populateGpuToNVVMConversionPatterns(typeConverter, patterns); // this is needed
+    #endif
+
+    if (failed(applyPartialConversion(mod, convTarget, std::move(patterns)))) {
+      return signalPassFailure();
+    }
   }
 
   /*
@@ -137,6 +321,7 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
                     NVVM::NVVMDialect>();
   }
  private:
+  mlir::triton::gpu::TMAMetadataTy *tmaMetadata = nullptr;
   // Copied from triton code
   void initSharedMemory(LLVMTypeConverter &typeConverter) {
     mlir::ModuleOp mod = getOperation();
@@ -156,9 +341,6 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
         // Add ROCm support.
         static_cast<unsigned>(NVVM::NVVMMemorySpace::kSharedMemorySpace));
   }
-
-  int32_t computeCapability;
-  mlir::triton::Target target;
 };
 #endif
 
@@ -173,12 +355,14 @@ void processLLIR(mlir::ModuleOp& M, Option& opt) {
   // don't know why yet.
   //
   // But the llir file for test_add still looks reasonable: https://gist.github.com/shunting314/02d2b35604353698a59d1628b74a1d06
+  //
+  // XXX after this pass tt.reduce is gone being replaced!
   pm.addPass(mlir::triton::createConvertTritonGPUToLLVMPass(
     opt.capability, mlir::triton::NVVM, tmaMetadata
   ));
-  #endif
-  #if 1
-  pm.addPass(std::make_unique<MyConvertTritonGPUToLLVM>(opt.capability, mlir::triton::NVVM));
+  #else
+  // XXX after my pass, tt.reduce still exist in the result.
+  pm.addPass(std::make_unique<MyConvertTritonGPUToLLVM>(opt.capability, mlir::triton::NVVM, tmaMetadata));
   #endif
 
   assert(!mlir::failed(pm.run(M.getOperation())));
