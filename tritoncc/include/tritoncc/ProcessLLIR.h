@@ -27,6 +27,10 @@
 
 #include "tritoncc/ElementwiseOpToLLVM.h"
 #include "tritoncc/ReduceOpConversion.h"
+#include "tritoncc/SPMDOpToLLVM.h"
+#include "tritoncc/MakeRangeOpToLLVM.h"
+#include "tritoncc/ViewOpToLLVM.h"
+#include "tritoncc/LoadStoreOpToLLVM.h"
 
 #if 1
 namespace mlir {
@@ -84,7 +88,7 @@ public:
     addLegalDialect<LLVM::LLVMDialect>();
     addLegalDialect<NVVM::NVVMDialect>();
     addLegalDialect<mlir::triton::nvgpu::NVGPUDialect>();
-    #if 0
+    #if 1
     addIllegalDialect<triton::TritonDialect>();
     addIllegalDialect<triton::gpu::TritonGPUDialect>();
     #endif
@@ -275,9 +279,8 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     mlir::RewritePatternSet patterns(context);
 
     ModuleAxisInfoAnalysis axisInfoAnalysis(mod);
+    TensorPtrMapT tensorPtrMap;
 
-
-    #if 1
     mlir::triton::populateConvertLayoutOpToLLVMPatterns(typeConverter, patterns, benefit);
 
     // mlir::triton::populateDotOpToLLVMPatterns(typeConverter, patterns, benefit);
@@ -306,7 +309,11 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
 
     populateControlFlowOpToLLVMPattern(typeConverter, patterns, benefit); // this is needed
     mlir::populateGpuToNVVMConversionPatterns(typeConverter, patterns); // this is needed
-    #endif
+
+    tritoncc::populateSPMDOpToLLVMPattern(typeConverter, patterns, benefit);
+    tritoncc::populateMakeRangeOpToLLVMPattern(typeConverter, patterns, benefit);
+    tritoncc::populateViewOpToLLVMPatterns(typeConverter, patterns, benefit); 
+    tritoncc::populateLoadStoreOpToLLVMPatterns(typeConverter, patterns, axisInfoAnalysis, tmaMetadata, &tensorPtrMap, benefit);
 
     if (failed(applyPartialConversion(mod, convTarget, std::move(patterns)))) {
       return signalPassFailure();
@@ -365,7 +372,12 @@ void processLLIR(mlir::ModuleOp& M, Option& opt) {
   pm.addPass(std::make_unique<MyConvertTritonGPUToLLVM>(opt.capability, mlir::triton::NVVM, tmaMetadata));
   #endif
 
-  assert(!mlir::failed(pm.run(M.getOperation())));
+  bool success = !mlir::failed(pm.run(M.getOperation()));
+  if (!success) {
+    std::cerr << "processLLIR fail" << std::endl;
+    M.dump();
+  }
+  assert(success);
 }
 
 }

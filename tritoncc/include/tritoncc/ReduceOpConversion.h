@@ -30,6 +30,9 @@ emitOffsetForLayout(Attribute layout, RankedTensorType type) {
   if (auto blockedLayout = layout.dyn_cast<mlir::triton::gpu::BlockedEncodingAttr>()) {
     return emitOffsetForBlockedLayout(blockedLayout, type);
   }
+  if (auto sliceLayout = layout.dyn_cast<SliceEncodingAttr>()) {
+    return emitOffsetForSliceLayout(sliceLayout, type);
+  }
   assert(false && "NYI");
 }
 
