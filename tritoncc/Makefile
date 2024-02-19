@@ -12,11 +12,16 @@ LDFLAGS := -L$(LLVM_ROOT)/lib
 # Newer triton does not build .a any more. All symbols can be found in libtriton.so
 # LDFLAGS += -L$(TRITON_BUILD_ROOT)/lib/Dialect/Triton/IR -L$(TRITON_BUILD_ROOT)/lib/Dialect/TritonGPU/IR -L$(TRITON_BUILD_ROOT)/lib/Dialect/TritonGPU/Transforms -L$(TRITON_BUILD_ROOT)/lib/Analysis -L$(TRITON_BUILD_ROOT)/lib/Dialect/TritonNvidiaGPU/IR
 
+# misc libs
+LDFLAGS += -lz
+
 # mlir libs
-LDFLAGS += -lMLIRIR -lMLIRDialect -lMLIRSupport -lMLIRControlFlowInterfaces -lMLIRInferTypeOpInterface -lMLIRControlFlowDialect -lMLIRArithDialect -lMLIRInferIntRangeCommon -lMLIRInferIntRangeInterface -lMLIRUBDialect -lMLIRCastInterfaces -lMLIRSCFDialect -lMLIRArithUtils -lMLIRComplexDialect -lMLIRDialectUtils -lMLIRTensorDialect -lMLIRDestinationStyleOpInterface -lMLIRAffineDialect -lMLIRMemRefDialect -lMLIRSideEffectInterfaces -lMLIRViewLikeInterface -lMLIRLoopLikeInterface -lMLIRShapedOpInterfaces -lMLIRParallelCombiningOpInterface -lMLIRMathDialect -lMLIRGPUDialect -lMLIRDLTIDialect -lMLIRDataLayoutInterfaces -lMLIRFunctionInterfaces -lMLIRAnalysis -lMLIRCallInterfaces
+LDFLAGS += -lMLIRIR -lMLIRDialect -lMLIRSupport -lMLIRControlFlowInterfaces -lMLIRInferTypeOpInterface -lMLIRControlFlowDialect -lMLIRArithDialect -lMLIRInferIntRangeCommon -lMLIRInferIntRangeInterface -lMLIRUBDialect -lMLIRCastInterfaces -lMLIRSCFDialect -lMLIRArithUtils -lMLIRComplexDialect -lMLIRDialectUtils -lMLIRTensorDialect -lMLIRDestinationStyleOpInterface -lMLIRAffineDialect -lMLIRMemRefDialect -lMLIRSideEffectInterfaces -lMLIRViewLikeInterface -lMLIRLoopLikeInterface -lMLIRShapedOpInterfaces -lMLIRParallelCombiningOpInterface -lMLIRMathDialect -lMLIRGPUDialect -lMLIRDLTIDialect -lMLIRDataLayoutInterfaces -lMLIRFunctionInterfaces -lMLIRAnalysis -lMLIRCallInterfaces -lMLIRNVVMToLLVMIRTranslation
 
 # llvm libs
-LDFLAGS += -lLLVMCore -lLLVMSupport -lLLVMDemangle
+LDFLAGS += -lLLVMCore -lLLVMSupport -lLLVMDemangle -lLLVMX86AsmParser -lLLVMAMDGPUAsmParser -lLLVMMCParser -lLLVMMC -lLLVMAMDGPUUtils -lLLVMAMDGPUInfo -lLLVMX86CodeGen -lLLVMSelectionDAG -lLLVMCodeGen -lLLVMTarget -lLLVMAnalysis -lLLVMTransformUtils -lLLVMObjCARCOpts -lLLVMCodeGenTypes -lLLVMGlobalISel -lLLVMX86Desc -lLLVMMCDisassembler -lLLVMX86Info -lLLVMScalarOpts -lLLVMIRPrinter -lLLVMAsmPrinter -lLLVMDebugInfoCodeView -lLLVMInstrumentation -lLLVMAMDGPUCodeGen -lLLVMAMDGPUDesc -lLLVMNVPTXCodeGen -lLLVMNVPTXDesc -lLLVMNVPTXInfo -lLLVMVectorize -lLLVMipo -lLLVMFrontendOpenMP -lLLVMBitReader -lLLVMFrontendOffloading -lLLVMPasses -lLLVMHipStdPar -lLLVMMIRParser -lLLVMAsmParser -lLLVMDebugInfoDWARF -lLLVMObject -lLLVMTextAPI -lLLVMIRReader
+
+LDFLAGS += -lLLVMProfileData -lLLVMCFGuard -lMLIRLLVMIRTransforms -lMLIRBuiltinToLLVMIRTranslation -lMLIRLLVMToLLVMIRTranslation
 
 # triton static libs
 # LDFLAGS += -lTritonIR -lTritonGPUIR -lTritonGPUTransforms -lTritonAnalysis -lTritonNvidiaGPUIR
@@ -40,6 +45,7 @@ LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/Triton
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/TritonGPUToLLVM.dir/ConvertLayoutOpToLLVM/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/TritonGPUToLLVM.dir/DotOpToLLVM/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonToTritonGPU/CMakeFiles/TritonToTritonGPU.dir/*.o
+LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/NVGPUToLLVM/CMakeFiles/NVGPUToLLVM.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/Triton/IR/CMakeFiles/TritonIR.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/Triton/Transforms/CMakeFiles/TritonTransforms.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/TritonGPU/IR/CMakeFiles/TritonGPUIR.dir/*.o

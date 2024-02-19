@@ -7,6 +7,9 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
+#include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
+#include "mlir/Target/LLVMIR/Dialect/NVVM/NVVMToLLVMIRTranslation.h"
 
 using namespace tritoncc;
 
@@ -57,7 +60,25 @@ int main(void) {
   LocationOpBuilder& B = builder;
   mlir::ModuleOp module = builder.create<mlir::ModuleOp>();
 
-  ctx.loadDialect<mlir::triton::TritonDialect>();
+  { // TODO make this a common function that can be called by other test_xx.cpp
+    // follows ir.load_dialects
+    mlir::DialectRegistry registry;
+    registry.insert<mlir::triton::TritonDialect>();
+    // ctx.loadDialect<mlir::triton::TritonDialect>();
+    mlir::registerBuiltinDialectTranslation(registry); 
+    mlir::registerLLVMDialectTranslation(registry);
+    ctx.appendDialectRegistry(registry);
+    ctx.loadAllAvailableDialects();
+  }
+
+  { // follws triton.load_dialects
+    mlir::DialectRegistry registry;
+    registry.insert<mlir::triton::nvidia_gpu::TritonNvidiaGPUDialect,
+                    mlir::triton::nvgpu::NVGPUDialect>();
+    mlir::registerNVVMDialectTranslation(registry);
+    ctx.appendDialectRegistry(registry);
+    ctx.loadAllAvailableDialects();
+  }
 
   mlir::Type i32ty = builder.getBuilder().getI32Type();
   mlir::Type f32ty = builder.getBuilder().getF32Type();
@@ -142,8 +163,10 @@ int main(void) {
      .capability=90, // H100
   };
   processPipeline(module, opt);
+  #if 0 // make_llir passes a string to make_ptx
   std::cout << "After optimize:" << std::endl;
   module.dump();
+  #endif
 
   std::cout << "sum bye" << std::endl;
   return 0;
