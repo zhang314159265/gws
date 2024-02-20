@@ -162,7 +162,7 @@ int main(void) {
      .num_ctas=1,
      .capability=90, // H100
   };
-  processPipeline(module, opt);
+  std::string cubinBytes = processPipeline(module, opt);
   #if 0 // make_llir passes a string to make_ptx
   std::cout << "After optimize:" << std::endl;
   module.dump();

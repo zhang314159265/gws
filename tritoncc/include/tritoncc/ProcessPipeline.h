@@ -9,12 +9,13 @@
 
 namespace tritoncc {
 
-void processPipeline(mlir::ModuleOp& M, Option& opt) {
+std::string processPipeline(mlir::ModuleOp& M, Option& opt) {
   processTTIR(M);
   processTTGIR(M, opt);
   std::string src = processLLIR(M, opt);
   std::string ptxCode = makePTX(src, opt);
   std::string cubinBytes = makeCubin(ptxCode, opt);
+  return cubinBytes;
 }
 
 }

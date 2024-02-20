@@ -60,7 +60,8 @@ OVERRIDE_LIB_PATH := $(TRITON_SRC_ROOT)/python/triton/_C:$(LIBPYTHON_DIR)
 
 ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 
-first: test_sum
+# first: test_sum
+first: test_load_sum_cubin_and_run
 
 test_sum:
 	g++ test_sum.cpp $(ALLFLAGS) -o a.out
@@ -73,3 +74,21 @@ test_dot:
 test_add:
 	g++ test_add.cpp $(ALLFLAGS) -o a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
+
+TORCH_ROOT = $(HOME)/ws/pytorch
+TORCH_CFLAGS = -I$(TORCH_ROOT)/torch/include -I$(TORCH_ROOT)/torch/include/torch/csrc/api/include
+TORCH_LDFLAGS = -L$(TORCH_ROOT)/torch/lib
+TORCH_LDFLAGS += -lc10 -ltorch_cpu -ltorch_cuda
+OVERRIDE_TORCH_LIB_PATH := $(TORCH_ROOT)/torch/lib
+
+CUDA_CFLAGS = -I$(TRITON_SRC_ROOT)/third_party/nvidia/backend/include
+CUDA_LDFLAGS = -lcuda
+
+# NOTE: this assumes /tmp/sum.cubin is already properly setup
+#
+# NOTE: /tmp/sum_ref.cubin passes the accuracy check! That means the launcher and runner and working correctly.
+# NOTE: XXX however /tmp/sum.cubin does not pass accuracy check yet!
+test_load_sum_cubin_and_run:
+	g++ test_load_sum_cubin_and_run.cpp $(TORCH_CFLAGS) $(TORCH_LDFLAGS) $(CUDA_CFLAGS) $(CUDA_LDFLAGS)
+	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out /tmp/sum.cubin
+	# LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out /tmp/sum_ref.cubin fn_0d1d2de3de
