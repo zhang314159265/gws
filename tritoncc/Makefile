@@ -1,3 +1,6 @@
+TORCH_ROOT = $(HOME)/ws/pytorch
+OVERRIDE_TORCH_LIB_PATH := $(TORCH_ROOT)/torch/lib
+
 # XXX non-portable definitions BEGIN
 LLVM_ROOT := $(HOME)/.triton/llvm/llvm-4017f04e-ubuntu-x64
 TRITON_SRC_ROOT := $(HOME)/ws/triton
@@ -60,12 +63,16 @@ OVERRIDE_LIB_PATH := $(TRITON_SRC_ROOT)/python/triton/_C:$(LIBPYTHON_DIR)
 
 ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 
-# first: test_sum
-first: test_load_add_cubin_and_run
+first: test_sum
+# first: test_load_add_cubin_and_run
+# first: test_add
+
+all: test_add test_sum
 
 test_sum:
 	g++ test_sum.cpp $(ALLFLAGS) -o a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
+	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_sum_cubin_and_run /tmp/tritoncc.cubin
 
 test_dot:
 	g++ test_dot.cpp $(ALLFLAGS) -o a.out
@@ -74,12 +81,11 @@ test_dot:
 test_add:
 	g++ test_add.cpp $(ALLFLAGS) -o a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
+	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_add_cubin_and_run /tmp/tritoncc.cubin
 
-TORCH_ROOT = $(HOME)/ws/pytorch
 TORCH_CFLAGS = -I$(TORCH_ROOT)/torch/include -I$(TORCH_ROOT)/torch/include/torch/csrc/api/include
 TORCH_LDFLAGS = -L$(TORCH_ROOT)/torch/lib
 TORCH_LDFLAGS += -lc10 -ltorch_cpu -ltorch_cuda
-OVERRIDE_TORCH_LIB_PATH := $(TORCH_ROOT)/torch/lib
 
 CUDA_CFLAGS = -I$(TRITON_SRC_ROOT)/third_party/nvidia/backend/include
 CUDA_LDFLAGS = -lcuda
@@ -89,11 +95,11 @@ CUDA_LDFLAGS = -lcuda
 # NOTE: /tmp/sum_ref.cubin passes the accuracy check! That means the launcher and runner and working correctly.
 # NOTE: XXX however /tmp/sum.cubin does not pass accuracy check yet!
 test_load_sum_cubin_and_run:
-	g++ test_load_sum_cubin_and_run.cpp $(TORCH_CFLAGS) $(TORCH_LDFLAGS) $(CUDA_CFLAGS) $(CUDA_LDFLAGS) -I./include
-	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out skip-checkin/sum.cubin 
+	g++ test_load_sum_cubin_and_run.cpp $(TORCH_CFLAGS) $(TORCH_LDFLAGS) $(CUDA_CFLAGS) $(CUDA_LDFLAGS) -I./include -o out/test_load_sum_cubin_and_run
+	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_sum_cubin_and_run skip-checkin/sum.cubin 
 	# LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out skip-checkin/sum_ref.cubin fn_0d1d2de3de
 
 test_load_add_cubin_and_run:
-	g++ test_load_add_cubin_and_run.cpp $(TORCH_CFLAGS) $(TORCH_LDFLAGS) $(CUDA_CFLAGS) $(CUDA_LDFLAGS) -I./include
+	g++ test_load_add_cubin_and_run.cpp $(TORCH_CFLAGS) $(TORCH_LDFLAGS) $(CUDA_CFLAGS) $(CUDA_LDFLAGS) -I./include -o out/test_load_add_cubin_and_run
 	# LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out skip-checkin/add_ref.cubin fn_0d1d2d3de
-	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out skip-checkin/add.cubin
+	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_add_cubin_and_run skip-checkin/add.cubin

@@ -7,6 +7,17 @@
 #include "tritoncc/DebugListener.h"
 #include "mlir/Transforms/DialectConversion.h"
 
+#if 0
+using mlir::triton::gpu::getTotalElemsPerThread;
+using mlir::unpackLLElements;
+using mlir::LLVM::linearize;
+using mlir::LLVM::loadShared;
+using mlir::triton::gpu::getOrder;
+using mlir::LLVM::storeShared;
+using mlir::emitOffsetForLayout;
+using mlir::LLVM::shflSync;
+#endif
+
 namespace tritoncc {
 
 #if 0
@@ -36,6 +47,7 @@ emitOffsetForLayout(Attribute layout, RankedTensorType type) {
   assert(false && "NYI");
 }
 
+#if 1
 class ReduceOpHelper {
  public:
   explicit ReduceOpHelper(triton::ReduceOp op) : op(op.getOperation()), axis(op.getAxis()) {
@@ -129,6 +141,7 @@ class ReduceOpHelper {
   SmallVector<Type> srcElementTypes;
   int axis;
 };
+#endif
 
 class ReduceOpConversion : public mlir::ConvertOpToLLVMPattern<triton::ReduceOp> {
  public:
@@ -231,7 +244,7 @@ class ReduceOpConversion : public mlir::ConvertOpToLLVMPattern<triton::ReduceOp>
     triton::ReduceOp op = helper.getOperation();
     unsigned sizeIntraWarps = 32;
     unsigned threadOffsetOnReductionAxis = 1;
-    for (auto it : accs) {
+    for (auto& it : accs) {
       SmallVector<Value>& acc = it.second;
       warpReduce(rewriter, op.getLoc(), acc, op, sizeIntraWarps, threadOffsetOnReductionAxis);
     }

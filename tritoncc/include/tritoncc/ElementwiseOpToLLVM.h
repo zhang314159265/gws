@@ -13,7 +13,7 @@ static Value packLLElements(Location loc, const LLVMTypeConverter* typeConverter
   for (const auto& v : llvm::enumerate(resultVals)) {
     assert(v.value());
     assert(v.value().getType() == elementTypes[v.index()]);
-    rewriter.create<LLVM::InsertValueOp>(loc, structType, llvmStruct, v.value(), v.index());
+    llvmStruct = rewriter.create<LLVM::InsertValueOp>(loc, structType, llvmStruct, v.value(), v.index());
   }
   return llvmStruct;
 }

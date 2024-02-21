@@ -324,7 +324,7 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     tritoncc::populateSPMDOpToLLVMPattern(typeConverter, patterns, benefit);
     tritoncc::populateMakeRangeOpToLLVMPattern(typeConverter, patterns, benefit);
     tritoncc::populateViewOpToLLVMPatterns(typeConverter, patterns, benefit); 
-    // tritoncc::populateLoadStoreOpToLLVMPatterns(typeConverter, patterns, axisInfoAnalysis, tmaMetadata, &tensorPtrMap, benefit);
+    mlir::arith::populateArithToLLVMConversionPatterns(typeConverter, patterns);
 
     if (failed(applyPartialConversion(mod, convTarget, std::move(patterns)))) {
       return signalPassFailure();
@@ -398,7 +398,7 @@ std::string processLLIR(mlir::ModuleOp& M, Option& opt) {
 
   pm.addPass(mlir::triton::gpu::createAllocateSharedMemoryPass());
   mlir::triton::gpu::TMAMetadataTy* tmaMetadata = nullptr;
-  #if 1
+  #if 0
   // after this pass the generate llir file for test_sum is super large: https://gist.github.com/shunting314/89db675f75cec48229fb95febb290574 
   // don't know why yet.
   //
