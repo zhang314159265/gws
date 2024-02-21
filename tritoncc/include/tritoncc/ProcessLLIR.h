@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <fstream>
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
@@ -304,6 +305,7 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
      */
     patterns.add<tritoncc::FAddOpConversion>(typeConverter);
     #endif
+    tritoncc::populateLoadStoreOpToLLVMPatterns(typeConverter, patterns, axisInfoAnalysis, tmaMetadata, &tensorPtrMap, benefit);
     populateBarrierOpToLLVMPatterns(typeConverter, patterns, benefit);
 
     // This error:
@@ -322,7 +324,7 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     tritoncc::populateSPMDOpToLLVMPattern(typeConverter, patterns, benefit);
     tritoncc::populateMakeRangeOpToLLVMPattern(typeConverter, patterns, benefit);
     tritoncc::populateViewOpToLLVMPatterns(typeConverter, patterns, benefit); 
-    tritoncc::populateLoadStoreOpToLLVMPatterns(typeConverter, patterns, axisInfoAnalysis, tmaMetadata, &tensorPtrMap, benefit);
+    // tritoncc::populateLoadStoreOpToLLVMPatterns(typeConverter, patterns, axisInfoAnalysis, tmaMetadata, &tensorPtrMap, benefit);
 
     if (failed(applyPartialConversion(mod, convTarget, std::move(patterns)))) {
       return signalPassFailure();
@@ -396,7 +398,7 @@ std::string processLLIR(mlir::ModuleOp& M, Option& opt) {
 
   pm.addPass(mlir::triton::gpu::createAllocateSharedMemoryPass());
   mlir::triton::gpu::TMAMetadataTy* tmaMetadata = nullptr;
-  #if 0
+  #if 1
   // after this pass the generate llir file for test_sum is super large: https://gist.github.com/shunting314/89db675f75cec48229fb95febb290574 
   // don't know why yet.
   //
@@ -422,7 +424,21 @@ std::string processLLIR(mlir::ModuleOp& M, Option& opt) {
   }
   assert(success);
 
-  return optimizeLLIR(M, opt);
+  #if 0
+  std::cerr << "llir before optimizeLLIR:" << std::endl;
+  M.dump(); // TODO the output may be too large for some cases. Disable or write to a file
+  #endif
+
+  auto llirSrc = optimizeLLIR(M, opt);
+  { // dump llir to a file
+    std::ofstream out_llir;
+    out_llir.open("/tmp/tritoncc.llir");
+    out_llir << llirSrc;
+    out_llir.close();
+
+    std::cerr << "Written llir code to /tmp/tritoncc.llir" << std::endl;
+  }
+  return llirSrc;
 }
 
 }

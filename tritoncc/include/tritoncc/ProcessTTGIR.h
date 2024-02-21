@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fstream>
 #include <iostream>
 #include <cstdlib>
 #include "mlir/IR/BuiltinOps.h"
@@ -30,6 +31,22 @@ void processTTGIR(mlir::ModuleOp& M, Option& opt) {
   #endif
 
   assert(!mlir::failed(pm.run(M.getOperation())));
+
+  { // dump ttgir to a file
+
+    // follow __str__ in src/ir.cc
+    std::string str;
+    llvm::raw_string_ostream os(str);
+    M.print(os);
+
+    std::ofstream out_file;
+    out_file.open("/tmp/tritoncc.ttgir");
+    out_file << os.str();
+    out_file.close();
+
+    std::cerr << "Written ttgir code to /tmp/tritoncc.ttgir" << std::endl;
+  }
+
 
   #if 0
   std::cout << "M after processTTGIR" << std::endl;

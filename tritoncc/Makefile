@@ -61,7 +61,7 @@ OVERRIDE_LIB_PATH := $(TRITON_SRC_ROOT)/python/triton/_C:$(LIBPYTHON_DIR)
 ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 
 # first: test_sum
-first: test_load_sum_cubin_and_run
+first: test_load_add_cubin_and_run
 
 test_sum:
 	g++ test_sum.cpp $(ALLFLAGS) -o a.out
@@ -89,6 +89,11 @@ CUDA_LDFLAGS = -lcuda
 # NOTE: /tmp/sum_ref.cubin passes the accuracy check! That means the launcher and runner and working correctly.
 # NOTE: XXX however /tmp/sum.cubin does not pass accuracy check yet!
 test_load_sum_cubin_and_run:
-	g++ test_load_sum_cubin_and_run.cpp $(TORCH_CFLAGS) $(TORCH_LDFLAGS) $(CUDA_CFLAGS) $(CUDA_LDFLAGS)
-	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out /tmp/sum.cubin
-	# LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out /tmp/sum_ref.cubin fn_0d1d2de3de
+	g++ test_load_sum_cubin_and_run.cpp $(TORCH_CFLAGS) $(TORCH_LDFLAGS) $(CUDA_CFLAGS) $(CUDA_LDFLAGS) -I./include
+	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out skip-checkin/sum.cubin 
+	# LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out skip-checkin/sum_ref.cubin fn_0d1d2de3de
+
+test_load_add_cubin_and_run:
+	g++ test_load_add_cubin_and_run.cpp $(TORCH_CFLAGS) $(TORCH_LDFLAGS) $(CUDA_CFLAGS) $(CUDA_LDFLAGS) -I./include
+	# LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out skip-checkin/add_ref.cubin fn_0d1d2d3de
+	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out skip-checkin/add.cubin

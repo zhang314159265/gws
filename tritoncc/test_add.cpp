@@ -5,16 +5,18 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "tritoncc/Util.h"
 #include "tritoncc/ProcessPipeline.h"
+#include "tritoncc/MLIRUtil.h"
 
 #include "triton/Dialect/Triton/IR/Types.h"
 #include "triton/Dialect/Triton/IR/Dialect.h"
 
-#define BLOCK_SIZE 256
+#define BLOCK_SIZE 32
 
 using namespace tritoncc;
 
 int main(void) {
   mlir::MLIRContext ctx;
+  tritoncc::loadDialects(ctx);
   auto builder = std::make_unique<mlir::OpBuilder>(&ctx);
   auto unkloc = builder->getUnknownLoc();
   auto module = builder->create<mlir::ModuleOp>(unkloc);
@@ -161,8 +163,6 @@ int main(void) {
      .capability=90, // H100
   };
   processPipeline(module, opt);
-  std::cout << "After optimize:" << std::endl;
-  module.dump();
 
   std::cout << "bye" << std::endl;
   return 0;
