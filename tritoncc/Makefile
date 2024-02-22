@@ -9,6 +9,8 @@ LIBPYTHON_DIR := /home/shunting/ws/miniconda3/envs/pytorch/lib
 LIBPYTHON := $(LIBPYTHON_DIR)/libpython3.10.so
 # XXX non-portable definitions END
 
+PTXAS := $(TRITON_SRC_ROOT)/third_party/nvidia/backend/bin/ptxas
+
 CFLAGS := -I$(LLVM_ROOT)/include -I$(TRITON_SRC_ROOT)/include -I$(TRITON_BUILD_ROOT)/include -I./include -I$(TRITON_SRC_ROOT) -I$(TRITON_SRC_ROOT)/lib/Conversion/TritonGPUToLLVM -fno-rtti
 LDFLAGS := -L$(LLVM_ROOT)/lib
 
@@ -63,7 +65,8 @@ OVERRIDE_LIB_PATH := $(TRITON_SRC_ROOT)/python/triton/_C:$(LIBPYTHON_DIR)
 
 ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 
-first: test_sum
+first: run_add_ptx
+# first: test_sum
 # first: test_load_add_cubin_and_run
 # first: test_add
 
@@ -103,3 +106,8 @@ test_load_add_cubin_and_run:
 	g++ test_load_add_cubin_and_run.cpp $(TORCH_CFLAGS) $(TORCH_LDFLAGS) $(CUDA_CFLAGS) $(CUDA_LDFLAGS) -I./include -o out/test_load_add_cubin_and_run
 	# LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out skip-checkin/add_ref.cubin fn_0d1d2d3de
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_add_cubin_and_run skip-checkin/add.cubin
+
+run_add_ptx:
+	# $(PTXAS) --gpu-name=sm_90a add.ptx -o /tmp/tritoncc.cubin
+	ptxas -arch=sm_90 add.ptx -o /tmp/tritoncc.cubin
+	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_add_cubin_and_run /tmp/tritoncc.cubin add_fn

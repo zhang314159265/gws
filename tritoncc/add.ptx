@@ -1,0 +1,55 @@
+.version 8.0
+.target sm_90
+.address_size 64
+
+.visible .entry add_fn(
+  .param .u64 lhs_ptr,
+  .param .u64 rhs_ptr,
+  .param .u64 res_ptr,
+  .param .u32 numel
+)
+.maxntid 128
+{
+  .reg .pred %p<5>;
+  .reg .b32 %r<11>;
+  .reg .f32 %f<4>;
+  .reg .b64 %rd<8>;
+
+  .reg .b32 %lane_id;
+  .reg .b32 %blk_id;
+
+  ld.param.u64 %rd4, [lhs_ptr];
+  ld.param.u64 %rd5, [rhs_ptr];
+  mov.u32 %r5, %tid.x; // tid.x
+  and.b32 %lane_id, %r5, 31;
+  ld.param.u64 %rd6, [res_ptr];
+  ld.param.u32 %r7, [numel];
+
+  mov.u32 %blk_id, %ctaid.x;
+  shl.b32 %r8, %blk_id, 5;
+
+  or.b32 %r9, %r8, %lane_id; // idx?
+  and.b32 %r10, %r5, 96; // warp_id * 32
+  setp.eq.s32 %p4, %r10, 0; // zero'th warp
+
+  mul.wide.s32 %rd7, %r9, 4; // idx * 4
+  add.s64 %rd1, %rd4, %rd7; // lhs_ptr + idx
+
+  setp.lt.s32 %p1, %r9, %r7;
+  mov.u32 %r2, 0;
+  @%p1 ld.global.b32 %r2, [%rd1];
+  mov.b32 %f1, %r2; // convert lhs_val to float
+
+  add.s64 %rd2, %rd5, %rd7; // rhs_ptr + idx
+  mov.u32 %r3, 0x0;
+  @%p1 ld.global.b32 %r3, [%rd2];
+  mov.b32 %f2, %r3;
+  add.f32 %f3, %f1, %f2;
+
+  add.s64 %rd3, %rd6, %rd7; // res_ptr + idx
+  mov.b32 %r4, %f3; // convert to b32
+  and.pred %p3, %p4, %p1;
+
+  @%p3 st.global.b32 [%rd3], %r4;
+  ret;
+}
