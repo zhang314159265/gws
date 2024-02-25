@@ -65,7 +65,8 @@ OVERRIDE_LIB_PATH := $(TRITON_SRC_ROOT)/python/triton/_C:$(LIBPYTHON_DIR)
 
 ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 
-first: run_add_ptx
+# first: run_add_ptx
+first: run_sum_ptx
 # first: test_sum
 # first: test_load_add_cubin_and_run
 # first: test_add
@@ -111,3 +112,7 @@ run_add_ptx:
 	# $(PTXAS) --gpu-name=sm_90a add.ptx -o /tmp/tritoncc.cubin
 	ptxas -arch=sm_90 add.ptx -o /tmp/tritoncc.cubin
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_add_cubin_and_run /tmp/tritoncc.cubin add_fn
+
+run_sum_ptx:
+	ptxas -arch=sm_90 sum.ptx -o /tmp/tritoncc.cubin
+	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_sum_cubin_and_run /tmp/tritoncc.cubin sum_fn

@@ -1,0 +1,280 @@
+.version 8.0
+.target sm_90
+.address_size 64
+
+.extern .shared .align 16 .b8 gsmem[];
+
+.entry sum_fn(
+  .param .u64 iptr,
+  .param .u64 optr,
+  .param .u32 xnumel,
+  .param .u32 rnumel
+)
+.maxntid 128
+{
+  .reg .pred %p<50>;
+  .reg .b16 %rs<18>;
+  .reg .b32 %r<102>;
+  .reg .f32 %f<58>;
+  .reg .b64 %rd<47>;
+
+  .reg .b32 %blk_id, %blk_id_x2, %r_xnumel, %r_rnumel;
+  .reg .b32 %thread_id, %thread_id_x4, %lane_id;
+  .reg .b32 %smbase;
+  .reg .b32 %tid_b0;
+  .reg .b64 %r_iptr, %r_optr;
+
+  ld.param.u64 %r_iptr, [iptr];
+  ld.param.u64 %r_optr, [optr];
+
+  mov.u32 %blk_id, %ctaid.x;
+  shl.b32 %blk_id_x2, %blk_id, 1;
+
+  ld.param.u32 %r_xnumel, [xnumel];
+  ld.param.u32 %r_rnumel, [rnumel];
+
+  mov.u32 %thread_id, %tid.x;
+  and.b32 %lane_id, %thread_id, 31;
+
+  mov.b32 %r34, %thread_id;
+  or.b32 %r35, %thread_id, 128;
+  or.b32 %r36, %thread_id, 128 * 2;
+  or.b32 %r37, %thread_id, 128 * 3;
+  or.b32 %r38, %thread_id, 128 * 4;
+  or.b32 %r39, %thread_id, 128 * 5;
+  or.b32 %r40, %thread_id, 128 * 6;
+  or.b32 %r41, %thread_id, 128 * 7;
+
+  mov.u32 %smbase, gsmem;
+  and.b32 %tid_b0, %thread_id, 1;
+  or.b32 %r33, %blk_id_x2, %tid_b0; // xidx?
+
+  shl.b32 %r42, %tid_b0, 2;
+  add.s32 %r44, %smbase, %r42;
+
+  shl.b32 %thread_id_x4, %thread_id, 2;
+
+  // first row start address
+  // iptr + blk_id_x2 * r_numel * 4
+  .reg .s32 %rnumel_x8;
+  .reg.b64 %first_row_start_off;
+  .reg .b64 %first_row_start_addr;
+  mul.lo.s32 %rnumel_x8, %r_rnumel, 8;
+  mul.wide.s32 %first_row_start_off, %rnumel_x8, %blk_id;
+  add.s64 %first_row_start_addr, %first_row_start_off, %r_iptr;
+
+  // row0 elem0
+  mul.wide.s32 %rd38, %r34, 4;
+  add.s64 %rd1, %first_row_start_addr, %rd38;
+  ld.global.b32 %r2, [%rd1];
+  mov.b32 %f1, %r2;
+
+  // row0 elem1
+  mul.wide.s32 %rd39, %r35, 4;
+  mul.wide.s32 %rd40, %r36, 4;
+  mul.wide.s32 %rd41, %r37, 4;
+  mul.wide.s32 %rd42, %r38, 4;
+  mul.wide.s32 %rd43, %r39, 4;
+  mul.wide.s32 %rd44, %r40, 4;
+  mul.wide.s32 %rd45, %r41, 4;
+
+  add.s64 %rd2, %first_row_start_addr, %rd39;
+  add.s64 %rd3, %first_row_start_addr, %rd40;
+  add.s64 %rd4, %first_row_start_addr, %rd41;
+  add.s64 %rd5, %first_row_start_addr, %rd42;
+  add.s64 %rd6, %first_row_start_addr, %rd43;
+  add.s64 %rd7, %first_row_start_addr, %rd44;
+  add.s64 %rd8, %first_row_start_addr, %rd45;
+
+  ld.global.b32 %r3, [%rd2];
+  ld.global.b32 %r4, [%rd3];
+  ld.global.b32 %r5, [%rd4];
+  ld.global.b32 %r6, [%rd5];
+  ld.global.b32 %r7, [%rd6];
+  ld.global.b32 %r8, [%rd7];
+  ld.global.b32 %r9, [%rd8];
+
+  mov.b32 %f2, %r3;
+  mov.b32 %f3, %r4;
+  mov.b32 %f4, %r5;
+  mov.b32 %f5, %r6;
+  mov.b32 %f6, %r7;
+  mov.b32 %f7, %r8;
+  mov.b32 %f8, %r9;
+
+  // second row start address
+  .reg.s64 %second_row_start_addr;
+  add.s64 %second_row_start_addr, %first_row_start_addr, 1024 * 4;
+
+  // row1, elem0
+  add.s64 %rd9, %second_row_start_addr, %rd38;
+  ld.global.b32 %r10, [%rd9];
+  mov.b32 %f9, %r10;
+
+  add.s64 %rd10, %second_row_start_addr, %rd39;
+  add.s64 %rd11, %second_row_start_addr, %rd40;
+  add.s64 %rd12, %second_row_start_addr, %rd41;
+  add.s64 %rd13, %second_row_start_addr, %rd42;
+  add.s64 %rd14, %second_row_start_addr, %rd43;
+  add.s64 %rd15, %second_row_start_addr, %rd44;
+  add.s64 %rd16, %second_row_start_addr, %rd45;
+
+  ld.global.b32 %r11, [%rd10];
+  ld.global.b32 %r12, [%rd11];
+  ld.global.b32 %r13, [%rd12];
+  ld.global.b32 %r14, [%rd13];
+  ld.global.b32 %r15, [%rd14];
+  ld.global.b32 %r16, [%rd15];
+  ld.global.b32 %r17, [%rd16];
+
+  mov.b32 %f10, %r11;
+  mov.b32 %f11, %r12;
+  mov.b32 %f12, %r13;
+  mov.b32 %f13, %r14;
+  mov.b32 %f14, %r15;
+  mov.b32 %f15, %r16;
+  mov.b32 %f16, %r17;
+
+  .reg.f32 %thread_sum;
+  add.f32 %thread_sum, %f1, %f2;
+  add.f32 %thread_sum, %thread_sum, %f3;
+  add.f32 %thread_sum, %thread_sum, %f4;
+  add.f32 %thread_sum, %thread_sum, %f5;
+  add.f32 %thread_sum, %thread_sum, %f6;
+  add.f32 %thread_sum, %thread_sum, %f7;
+  add.f32 %thread_sum, %thread_sum, %f8;
+
+  // 5 rounds of butterfly shuffle for row0
+  .reg.f32 %warp_sum;
+  mov.f32 %warp_sum, %thread_sum;
+
+  mov.b32 %r75, %warp_sum;
+  shfl.sync.bfly.b32 %r76, %r75, 16, 31, -1;
+  mov.b32 %f31, %r76;
+  add.f32 %warp_sum, %warp_sum, %f31;
+
+  mov.b32 %r75, %warp_sum;
+  shfl.sync.bfly.b32 %r76, %r75, 8, 31, -1;
+  mov.b32 %f31, %r76;
+  add.f32 %warp_sum, %warp_sum, %f31;
+
+  mov.b32 %r75, %warp_sum;
+  shfl.sync.bfly.b32 %r76, %r75, 4, 31, -1;
+  mov.b32 %f31, %r76;
+  add.f32 %warp_sum, %warp_sum, %f31;
+
+  mov.b32 %r75, %warp_sum;
+  shfl.sync.bfly.b32 %r76, %r75, 2, 31, -1;
+  mov.b32 %f31, %r76;
+  add.f32 %warp_sum, %warp_sum, %f31;
+
+  mov.b32 %r75, %warp_sum;
+  shfl.sync.bfly.b32 %r76, %r75, 1, 31, -1;
+  mov.b32 %f31, %r76;
+  add.f32 %warp_sum, %warp_sum, %f31;
+
+  mov.f32 %f40, %warp_sum;
+
+  .reg.f32 %thread_sum_2;
+  add.f32 %thread_sum_2, %f9, %f10;
+  add.f32 %thread_sum_2, %thread_sum_2, %f11;
+  add.f32 %thread_sum_2, %thread_sum_2, %f12;
+  add.f32 %thread_sum_2, %thread_sum_2, %f13;
+  add.f32 %thread_sum_2, %thread_sum_2, %f14;
+  add.f32 %thread_sum_2, %thread_sum_2, %f15;
+  add.f32 %thread_sum_2, %thread_sum_2, %f16;
+
+  // 5 rounds of warp shuffle for row1
+  .reg.f32 %warp_sum_2;
+  mov.f32 %warp_sum_2, %thread_sum_2;
+
+  mov.b32 %r75, %warp_sum_2;
+  shfl.sync.bfly.b32 %r76, %r75, 16, 31, -1;
+  mov.b32 %f31, %r76;
+  add.f32 %warp_sum_2, %warp_sum_2, %f31;
+
+  mov.b32 %r75, %warp_sum_2;
+  shfl.sync.bfly.b32 %r76, %r75, 8, 31, -1;
+  mov.b32 %f31, %r76;
+  add.f32 %warp_sum_2, %warp_sum_2, %f31;
+
+  mov.b32 %r75, %warp_sum_2;
+  shfl.sync.bfly.b32 %r76, %r75, 4, 31, -1;
+  mov.b32 %f31, %r76;
+  add.f32 %warp_sum_2, %warp_sum_2, %f31;
+
+  mov.b32 %r75, %warp_sum_2;
+  shfl.sync.bfly.b32 %r76, %r75, 2, 31, -1;
+  mov.b32 %f31, %r76;
+  add.f32 %warp_sum_2, %warp_sum_2, %f31;
+
+  mov.b32 %r75, %warp_sum_2;
+  shfl.sync.bfly.b32 %r76, %r75, 1, 31, -1;
+  mov.b32 %f31, %r76;
+  add.f32 %warp_sum_2, %warp_sum_2, %f31;
+
+  mov.f32 %f50, %warp_sum_2;
+
+  // in each warp, lann0 takes the responsibility to write
+  // the two warp sums to the shared memory
+  setp.eq.s32 %p17, %lane_id, 0;
+
+  .reg.u32 %warp_id;
+  shr.u32 %warp_id, %thread_id, 5;
+  shl.b32 %r96, %warp_id, 2;
+  add.s32 %r18, %smbase, %r96;
+  mov.b32 %r19, %f40;
+  @%p17 st.shared.b32 [%r18], %r19;
+
+  add.s32 %r20, %r18, 16;
+  mov.b32 %r21, %f50;
+  @%p17 st.shared.b32 [%r20], %r21;
+  bar.sync 0;
+
+  // each thread block only has 2 * 4 elements left to sum.
+  // So we only need 8 threads to do the work.
+  setp.lt.s32 %p19, %thread_id, 8;
+
+  shl.b32 %r97, %thread_id, 2;
+  add.s32 %r23, %smbase, %r97;
+  @%p19 ld.shared.b32 %r22, [%r23];
+  mov.b32 %f51, %r22;
+
+  // do 2 rounds of butterfly shuffle
+  shfl.sync.bfly.b32 %r98, %r22, 2, 31, -1;
+  mov.b32 %f52, %r98;
+  add.f32 %f53, %f51, %f52;
+
+  mov.b32 %r99, %f53;
+  shfl.sync.bfly.b32 %r100, %r99, 1, 31, -1;
+  mov.b32 %f54, %r100;
+  add.f32 %f55, %f53, %f54;
+
+  // 4 threads become a group. The 0th takes the responsibility to write
+  // the result to the shared memory
+  and.b32 %r101, %thread_id, 3;
+  setp.eq.s32 %p47, %r101, 0;
+
+  and.pred %p20, %p19, %p47;
+  mov.b32 %r25, %f55;
+
+  @%p20 st.shared.b32 [%r23], %r25;
+  bar.sync 0;
+
+  ld.shared.f32 %f56, [gsmem];
+  ld.shared.f32 %f57, [gsmem + 16];
+  bar.sync 0;
+  st.shared.v2.f32 [gsmem], {%f56, %f57};
+  bar.sync 0;
+
+  setp.lt.s32 %p48, %r33, %r_xnumel; // xidx < xnumel
+
+  ld.shared.u32 %r26, [%r44];
+  mul.wide.s32 %rd46, %r33, 4;
+  add.s64 %rd17, %r_optr, %rd46;
+  setp.lt.u32 %p49, %thread_id, 2;
+  and.pred %p21, %p49, %p48;
+  @%p21 st.global.b32 [%rd17], %r26;
+
+  ret;
+}
