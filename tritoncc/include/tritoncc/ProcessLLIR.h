@@ -8,6 +8,7 @@
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Dialect/Index/IR/IndexDialect.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
@@ -293,7 +294,7 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
 
     mlir::triton::populateConvertLayoutOpToLLVMPatterns(typeConverter, patterns, benefit);
 
-    // mlir::triton::populateDotOpToLLVMPatterns(typeConverter, patterns, benefit);
+    mlir::triton::populateDotOpToLLVMPatterns(typeConverter, patterns, benefit);
 
     #if 1
     mlir::triton::populateElementwiseOpToLLVMPatterns(
@@ -323,7 +324,11 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
 
     tritoncc::populateSPMDOpToLLVMPattern(typeConverter, patterns, benefit);
     tritoncc::populateMakeRangeOpToLLVMPattern(typeConverter, patterns, benefit);
+    #if 1
     tritoncc::populateViewOpToLLVMPatterns(typeConverter, patterns, benefit); 
+    #else
+    mlir::triton::populateViewOpToLLVMPatterns(typeConverter, patterns, benefit); 
+    #endif
     mlir::arith::populateArithToLLVMConversionPatterns(typeConverter, patterns);
 
     if (failed(applyPartialConversion(mod, convTarget, std::move(patterns)))) {

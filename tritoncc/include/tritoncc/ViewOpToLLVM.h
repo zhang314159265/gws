@@ -48,6 +48,47 @@ struct SplatOpConversion : public ConvertOpToLLVMPattern<triton::SplatOp> {
   }
 };
 
+// This pattern helps to convert arith::ConstantOp(with SplatElementsAttr),
+// the logic is the same as triton::SplatOp, so the underlying implementation
+// is reused.
+struct ArithConstantSplatOpConversion
+    : public ConvertOpToLLVMPattern<arith::ConstantOp> {
+  using ConvertOpToLLVMPattern<arith::ConstantOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(arith::ConstantOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto value = op.getValue();
+    if (!value.dyn_cast<SplatElementsAttr>())
+      return failure();
+
+    auto loc = op->getLoc();
+
+    LLVM::ConstantOp arithConstantOp;
+    auto values = op.getValue().dyn_cast<SplatElementsAttr>();
+    auto elemType = values.getElementType();
+
+    Attribute val;
+    if (elemType.isBF16() || type::isFloat(elemType)) {
+      val = values.getValues<FloatAttr>()[0];
+    } else if (type::isInt(elemType)) {
+      val = values.getValues<IntegerAttr>()[0];
+    } else {
+      llvm::errs() << "ArithConstantSplatOpConversion get unsupported type: "
+                   << value.getType() << "\n";
+      return failure();
+    }
+
+    auto constOp = rewriter.create<LLVM::ConstantOp>(loc, elemType, val);
+    auto typeConverter = getTypeConverter();
+    auto llStruct = SplatOpConversion::convertSplatLikeOp(
+        elemType, op.getType(), constOp, typeConverter, rewriter, loc);
+    rewriter.replaceOp(op, llStruct);
+
+    return success();
+  }
+};
+
 struct ExpandDimsOpConversion : public ConvertOpToLLVMPattern<ExpandDimsOp> {
   using ConvertOpToLLVMPattern<ExpandDimsOp>::ConvertOpToLLVMPattern;
 
@@ -151,6 +192,7 @@ void populateViewOpToLLVMPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
     PatternBenefit benefit) {
   patterns.add<SplatOpConversion>(typeConverter, benefit);
+  patterns.add<ArithConstantSplatOpConversion>(typeConverter, benefit);
   patterns.add<ExpandDimsOpConversion>(typeConverter, benefit);
   patterns.add<BroadcastOpConversion>(typeConverter, benefit);
 }

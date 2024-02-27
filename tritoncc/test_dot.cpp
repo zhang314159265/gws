@@ -11,6 +11,8 @@
 #include "triton/Dialect/Triton/IR/Types.h"
 
 #include "tritoncc/ProcessTTIR.h"
+#include "tritoncc/ProcessPipeline.h"
+#include "tritoncc/MLIRUtil.h"
 
 using namespace tritoncc;
 
@@ -21,10 +23,6 @@ mlir::Value icst32, icst5, fp32cst0;
 mlir::MLIRContext *pctx;
 mlir::triton::FuncOp funcop;
 mlir::ModuleOp module;
-
-void optimize() {
-  processTTIR(module);
-}
 
 mlir::Value build_offset() {
   // range for row
@@ -164,7 +162,7 @@ int main(void) {
   auto function_name = "dot_fn";
   int address_space = 1;
 
-  ctx.loadDialect<mlir::triton::TritonDialect>();
+  tritoncc::loadDialects(ctx);
   i32ty = builder->getI32Type();
   f32ty = builder->getF32Type();
   f32pty = mlir::triton::PointerType::get(f32ty, address_space);
@@ -197,9 +195,14 @@ int main(void) {
 
   builder->create<mlir::triton::ReturnOp>(unkloc);
   module.dump();
-  optimize();
-  std::cout << "After optimize:" << std::endl;
-  module.dump();
+
+  Option opt{
+     .num_warps=4, // how is this decided?
+     .num_ctas=1,
+     .capability=90, // H100
+  };
+  std::string cubinBytes = processPipeline(module, opt);
+
   std::cout << "bye dot" << std::endl;
   return 0;
 }

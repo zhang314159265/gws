@@ -19,6 +19,12 @@ void processTTGIR(mlir::ModuleOp& M, Option& opt) {
     opt.num_warps, 32, opt.num_ctas, opt.capability
   ));
 
+  // this pass make sure dot operands uses dot layout # not critical
+  // pm.addPass(mlir::triton::gpu::createAccelerateMatmulPass(opt.capability));
+
+  //XXX this pass is the key to avoid error: LLVM ERROR: DotOperandEncodingAttr non-NvidiaMmaEncodingAttr parent not supported yet
+  pm.addPass(mlir::triton::gpu::createReduceDataDuplicationPass());
+
   // the following passes makes sure the sizePerThread for the the reduction
   // in test_sum.cpp is <1, 4> rather than <1, 1>.
   // Not realy, need revisit. Also make the sizePerThread <1, 4> is not critical.

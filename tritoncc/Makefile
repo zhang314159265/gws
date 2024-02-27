@@ -67,10 +67,11 @@ ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 
 # first: run_add_ptx
 # first: run_sum_ptx
-# first: test_sum
 # first: test_load_add_cubin_and_run
-first: test_load_dot_cubin_and_run
+# first: test_load_dot_cubin_and_run
+# first: test_sum
 # first: test_add
+first: test_dot
 
 all: test_add test_sum
 
@@ -82,6 +83,7 @@ test_sum:
 test_dot:
 	g++ test_dot.cpp $(ALLFLAGS) -o a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
+	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_dot_cubin_and_run /tmp/tritoncc.cubin
 
 test_add:
 	g++ test_add.cpp $(ALLFLAGS) -o a.out
