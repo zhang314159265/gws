@@ -71,7 +71,10 @@ ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 # first: test_load_dot_cubin_and_run
 # first: test_sum
 # first: test_add
-first: test_dot
+# first: test_dot
+
+first: run_dot_ptx
+# first: test_dot
 
 all: test_add test_sum
 
@@ -80,6 +83,9 @@ test_sum:
 	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_sum_cubin_and_run /tmp/tritoncc.cubin
 
+# XXX my generted dot ptx does not contains ldmatrix/mma instr. It contains
+# a lot of fma instr. Looks like the matmul is implemented naively rather than
+# leveraging specialized HW instrs.
 test_dot:
 	g++ test_dot.cpp $(ALLFLAGS) -o a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
@@ -123,3 +129,7 @@ run_add_ptx:
 run_sum_ptx:
 	ptxas -arch=sm_90 sum.ptx -o /tmp/tritoncc.cubin
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_sum_cubin_and_run /tmp/tritoncc.cubin sum_fn
+
+run_dot_ptx:
+	ptxas -arch=sm_90 dot.ptx -o /tmp/tritoncc.cubin
+	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_dot_cubin_and_run /tmp/tritoncc.cubin dot_fn

@@ -1,0 +1,265 @@
+.version 8.0
+.target sm_90
+.address_size 64
+
+.extern .shared .align 16 .b8 global_smem[];
+.entry dot_fn(
+  .param .u64 param_aptr,
+  .param .u64 param_bptr,
+  .param .u64 param_optr
+)
+.maxntid 128 // 4 warps, 128 threads
+{
+  .reg .pred %p<7>;
+  .reg .b32 %r<168>;
+  .reg .f32 %f<65>;
+  .reg .b64 %rd<12>;
+
+  .reg .b64 %aptr, %bptr, %optr;
+
+  ld.param.u64 %aptr, [param_aptr];
+  ld.param.u64 %bptr, [param_bptr];
+  ld.param.u64 %optr, [param_optr];
+
+  .reg .b32 %thread_id;
+  mov.u32 %thread_id, %tid.x;
+
+  .reg .b32 %thread_id_b3b4; // 3th and 4th bits of thread_id (shifted to the 0th position)
+  bfe.u32 %thread_id_b3b4, %thread_id, 3, 2;
+
+  .reg .b32 %thread_id_b3b4b5b6;
+  shr.u32 %thread_id_b3b4b5b6, %thread_id, 3;
+  .reg .b32 %thread_id_b3b4b5;
+  bfe.u32 %thread_id_b3b4b5, %thread_id, 3, 3;
+  .reg .b32 %warp_id_x4;
+  and.b32 %warp_id_x4, %thread_id_b3b4b5b6, 12;
+  .reg .b32 %thread_id_b0b1b2;
+  and.b32 %thread_id_b0b1b2, %thread_id, 7;
+  .reg .b32 %thread_id_b0b1b2_x4;
+  shl.b32 %thread_id_b0b1b2_x4, %thread_id_b0b1b2, 2;
+  .reg .b32 %thread_id_b3b4b5b6_x32;
+  shl.b32 %thread_id_b3b4b5b6_x32, %thread_id_b3b4b5b6, 5;
+  .reg .b32 %thread_id_x4;
+  shl.b32 %thread_id_x4, %thread_id, 2;
+  .reg .b32 %thread_id_x4_p512; // thread_id_x4 has 9 bits, plus 512 is equiv. to adding a 1 bit to the left most
+  .reg .b32 %thread_id_b0b1;
+
+  and.b32 %thread_id_b0b1, %thread_id, 3;
+
+  or.b32 %thread_id_x4_p512, %thread_id_x4, 512;
+
+  .reg .b64 %thread_id_x16;
+  mul.wide.u32 %thread_id_x16, %thread_id_x4, 4;
+
+  // each thread read 2 group of items. Each group has 4 consecutive elements
+  .reg .b64 %ag1_start_addr, %ag2_start_addr;
+  .reg .b64 %thread_id_x16_p2048;
+
+  add.s64 %ag1_start_addr, %aptr, %thread_id_x16;
+  mul.wide.u32 %thread_id_x16_p2048, %thread_id_x4_p512, 4;
+  add.s64 %ag2_start_addr, %aptr, %thread_id_x16_p2048;
+
+  .reg .b64 %bg1_start_addr, %bg2_start_addr;
+
+  .reg .b32 %avalg1_<4>, %avalg2_<4>, %bvalg1_<4>, %bvalg2_<4>;
+
+  ld.global.v4.b32 {%avalg1_0, %avalg1_1, %avalg1_2, %avalg1_3}, [%ag1_start_addr];
+  ld.global.v4.b32 {%avalg2_0, %avalg2_1, %avalg2_2, %avalg2_3}, [%ag2_start_addr];
+
+  add.s64 %bg1_start_addr, %bptr, %thread_id_x16;
+  add.s64 %bg2_start_addr, %bptr, %thread_id_x16_p2048;
+
+  ld.global.v4.b32 {%bvalg1_0, %bvalg1_1, %bvalg1_2, %bvalg1_3}, [%bg1_start_addr];
+  ld.global.v4.b32 {%bvalg2_0, %bvalg2_1, %bvalg2_2, %bvalg2_3}, [%bg2_start_addr];
+
+  .reg.b32 %thread_id_b4;
+  .reg.b32 %thread_id_d4; // div4
+  .reg.b32 %thread_id_b6;
+  .reg.b32 %thread_id_b6_x16; // highest bit
+  .reg.b32 %thread_id_b0b1b2b3; // low 4 bits
+
+  bfe.u32   %thread_id_b4, %thread_id, 4, 1;
+  shr.u32   %thread_id_d4, %thread_id, 2;
+  bfe.u32 %thread_id_b6, %thread_id, 6, 1;
+  shl.b32 %thread_id_b6_x16, %thread_id_b6, 4;
+  and.b32  %thread_id_b0b1b2b3, %thread_id, 15;
+
+  .reg.b32 %thread_id_b5;
+  bfe.u32   %thread_id_b5, %thread_id, 5, 1;
+  .reg.b32 %thread_id_b2b3b4;
+  bfe.u32   %thread_id_b2b3b4, %thread_id, 2, 3;
+
+  .reg.b32 %thread_id_b0b1_x2;
+  .reg.b32 %thread_id_b5_x8;
+  shl.b32   %thread_id_b0b1_x2, %thread_id_b0b1, 1;
+  .reg.b32 %thread_id_b60b4b3b2; // has a 0 bit after b6
+  or.b32  %thread_id_b60b4b3b2, %thread_id_b2b3b4, %thread_id_b6_x16;
+  shl.b32   %thread_id_b5_x8, %thread_id_b5, 3;
+  .reg.b32 %thread_id_b5b1b0_x2; // b5 b1 b0 0
+  or.b32  %thread_id_b5b1b0_x2, %thread_id_b5_x8, %thread_id_b0b1_x2;
+
+  .reg.b32 %smbase;
+  mov.u32   %smbase, global_smem;
+
+  .reg.b32 %thread_id_1b5; // value 1 followed by b5
+  or.b32  %thread_id_1b5, %thread_id_b5, 2;
+
+  .reg.b32 %thread_id_b0b1_x32;
+  shl.b32   %thread_id_b0b1_x32, %thread_id_b0b1, 5;
+
+  .reg.b32 %smbase_p4096;
+  add.s32   %smbase_p4096, %smbase, 4096;
+  .reg.b32 %thread_id_b1b2;
+  bfe.u32   %thread_id_b1b2, %thread_id, 1, 2;
+  .reg.b32 %thread_id_b0_x4;
+  and.b32  %thread_id_b0_x4, %thread_id_x4, 4;
+
+  .reg.b32 %thread_id_b6b3b2b1b0;
+  or.b32  %thread_id_b6b3b2b1b0, %thread_id_b0b1b2b3, %thread_id_b6_x16;
+
+  .reg.b32 %thread_id_b6b3b2b1b0_x128;
+  shl.b32   %thread_id_b6b3b2b1b0_x128, %thread_id_b6b3b2b1b0, 7;
+  .reg.b32 %thread_id_1b4;
+  or.b32  %thread_id_1b4, %thread_id_b4, 2;
+  .reg.b32 %thread_id_10b4;
+  or.b32  %thread_id_10b4, %thread_id_b4, 4;
+  .reg.b32 %thread_id_11b4;
+  or.b32  %thread_id_11b4, %thread_id_b4, 6;
+
+  // load matrix A to shared memory
+  // xor.b32 %r103, %thread_id, %thread_id_b3b4b5; // XOR1: don't understand what optimization it is yet
+  xor.b32 %r103, %thread_id, 0;
+  shl.b32   %r106, %r103, 2;
+  shl.b32   %r107, %r106, 2;
+  add.s32   %r109, %smbase, %r107;
+  st.shared.v4.u32   [%r109], {%avalg1_0, %avalg1_1, %avalg1_2, %avalg1_3};
+  st.shared.v4.u32   [%r109+2048], {%avalg2_0, %avalg2_1, %avalg2_2, %avalg2_3};
+
+  bar.sync 0;
+
+  // load matrix A data to registers
+  // xor.b32  %r125, %thread_id_b4, %thread_id_b0b1b2; // XOR1: don't understand what optimization it is yet
+  xor.b32  %r125, %thread_id_b4, 0;
+  shl.b32   %r126, %r125, 4;
+  or.b32  %r128, %thread_id_b6b3b2b1b0_x128, %r126;
+  add.s32   %r21, %smbase, %r128;
+  ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%r37, %r38, %r39, %r40}, [%r21];
+
+  // xor.b32  %r130, %thread_id_1b4, %thread_id_b0b1b2; // XOR1: don't understand what optimization it is yet
+  xor.b32  %r130, %thread_id_1b4, 0;
+  shl.b32   %r131, %r130, 4;
+  or.b32  %r132, %r131, %thread_id_b6b3b2b1b0_x128;
+  add.s32   %r26, %smbase, %r132;
+  ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%r49, %r50, %r51, %r52}, [%r26];
+
+  // xor.b32  %r134, %thread_id_10b4, %thread_id_b0b1b2; // XOR1: don't understand what optimization it is yet  
+  xor.b32  %r134, %thread_id_10b4, 0;
+  shl.b32   %r135, %r134, 4;
+  or.b32  %r136, %r135, %thread_id_b6b3b2b1b0_x128;
+  add.s32   %r31, %smbase, %r136;
+  ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%r61, %r62, %r63, %r64}, [%r31];
+
+  // xor.b32  %r138, %thread_id_11b4, %thread_id_b0b1b2; // XOR1: don't understand what optimization it is yet  
+  xor.b32  %r138, %thread_id_11b4, 0;
+  shl.b32   %r139, %r138, 4;
+  or.b32  %r140, %r139, %thread_id_b6b3b2b1b0_x128;
+  add.s32   %r36, %smbase, %r140;
+  ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%r73, %r74, %r75, %r76}, [%r36];
+
+  // load matrix B to shared memory
+  // xor.b32  %r111, %thread_id_b1b2, %thread_id_b3b4; // XOR2: don't understand what optimization it is yet
+  xor.b32  %r111, %thread_id_b1b2, 0;
+  shl.b32   %r112, %r111, 3;
+  or.b32  %r115, %r112, %thread_id_b0_x4;
+  or.b32  %r116, %thread_id_b3b4b5b6_x32, %r115;
+  shl.b32   %r117, %r116, 2;
+  add.s32   %r119, %smbase_p4096, %r117;
+  st.shared.v4.u32   [%r119], {%bvalg1_0, %bvalg1_1, %bvalg1_2, %bvalg1_3};
+  st.shared.v4.u32   [%r119+2048], {%bvalg2_0, %bvalg2_1, %bvalg2_2, %bvalg2_3};
+  bar.sync   0;
+
+  // load matrix B to register
+  // xor.b32  %r144, %thread_id_b5, %thread_id_b0b1; // XOR2: don't understand what optimization it is yet
+  xor.b32  %r144, %thread_id_b5, 0;
+  shl.b32   %r145, %r144, 3;
+  or.b32  %r146, %r145, %thread_id_b2b3b4;
+  or.b32  %r148, %r146, %thread_id_b0b1_x32;
+  shl.b32   %r154, %r148, 2;
+  add.s32   %r155, %smbase_p4096, %r154;
+
+  // xor.b32  %r150, %thread_id_1b5, %thread_id_b0b1; // XOR2: don't understand what optimization it is yet
+  xor.b32  %r150, %thread_id_1b5, 0;
+  shl.b32   %r151, %r150, 3;
+  or.b32  %r152, %r151, %thread_id_b2b3b4;
+  or.b32  %r153, %r152, %thread_id_b0b1_x32;
+  shl.b32   %r156, %r153, 2;
+  add.s32   %r157, %smbase_p4096, %r156;
+
+  // load matrix B data from shared memory // at this moment, each rows contains 8 groups rather than 9.
+  ld.shared.u32   %r41, [%r155];
+  ld.shared.u32   %r42, [%r155+512];
+  ld.shared.u32   %r53, [%r155+1024];
+  ld.shared.u32   %r54, [%r155+1536];
+  ld.shared.u32   %r65, [%r155+2048];
+  ld.shared.u32   %r66, [%r155+2560];
+  ld.shared.u32   %r77, [%r155+3072];
+  ld.shared.u32   %r78, [%r155+3584];
+
+  ld.shared.u32   %r47, [%r157];
+  ld.shared.u32   %r48, [%r157+512];
+  ld.shared.u32   %r59, [%r157+1024];
+  ld.shared.u32   %r60, [%r157+1536];
+  ld.shared.u32   %r71, [%r157+2048];
+  ld.shared.u32   %r72, [%r157+2560];
+  ld.shared.u32   %r83, [%r157+3072];
+  ld.shared.u32   %r84, [%r157+3584];
+
+  // set %f25 to 5.0f
+  mov.f32   %f25, 0f40A00000;
+  mov.f32   %f17, %f25;
+  mov.f32   %f18, %f25;
+  mov.f32   %f19, %f25;
+  mov.f32   %f20, %f25;
+  mov.f32   %f26, %f25;
+  mov.f32   %f27, %f25;
+  mov.f32   %f28, %f25;
+
+  // matmul group 1
+  mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 { %f17, %f18, %f19, %f20 }, { %r37, %r38, %r39, %r40 }, { %r41, %r42 }, { %f17, %f18, %f19, %f20 };
+  mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 { %f17, %f18, %f19, %f20 }, { %r49, %r50, %r51, %r52 }, { %r53, %r54 }, { %f17, %f18, %f19, %f20 };
+  mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 { %f17, %f18, %f19, %f20 }, { %r61, %r62, %r63, %r64 }, { %r65, %r66 }, { %f17, %f18, %f19, %f20 };
+  mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 { %f17, %f18, %f19, %f20 }, { %r73, %r74, %r75, %r76 }, { %r77, %r78 }, { %f17, %f18, %f19, %f20 };
+
+  // matmul group 2
+  mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 { %f25, %f26, %f27, %f28 }, { %r37, %r38, %r39, %r40 }, { %r47, %r48 }, { %f25, %f26, %f27, %f28 };
+  mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 { %f25, %f26, %f27, %f28 }, { %r49, %r50, %r51, %r52 }, { %r59, %r60 }, { %f25, %f26, %f27, %f28 };
+  mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 { %f25, %f26, %f27, %f28 }, { %r61, %r62, %r63, %r64 }, { %r71, %r72 }, { %f25, %f26, %f27, %f28 };
+  mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 { %f25, %f26, %f27, %f28 }, { %r73, %r74, %r75, %r76 }, { %r83, %r84 }, { %f25, %f26, %f27, %f28 };
+
+  // store result to shared memory first // understood this leveraging how we store result to global memory below
+  mad.lo.s32   %r162, %thread_id_b60b4b3b2, 36, %thread_id_b5b1b0_x2;
+  shl.b32   %r163, %r162, 2;
+  add.s32   %r164, %smbase, %r163;
+  st.shared.v2.f32   [%r164], {%f17, %f18};
+  st.shared.v2.f32   [%r164+1152], {%f19, %f20}; // shift 288=36*8 elms. Or 8 rows (decided by mma output layout). Each rows contains 9 groups, each group contains 4 elms. Each element takes 4 bytes.
+
+  // there is another 16x8 matrix between the two output 16x8 matrix.
+  st.shared.v2.f32   [%r164+64], {%f25, %f26}; // shift 16 elms
+  st.shared.v2.f32   [%r164+1216], {%f27, %f28}; // shift 304 elms
+
+  bar.sync   0;
+
+  // store result to global memory. understand at this point, how is data organized in smem
+  mad.lo.s32   %r165, %thread_id_b3b4b5b6, 36, %thread_id_b0b1b2_x4;
+  shl.b32   %r166, %r165, 2;
+  add.s32   %r167, %smbase, %r166;
+
+  ld.shared.v4.u32   {%r85, %r86, %r87, %r88}, [%r167];
+  add.s64   %rd5, %optr, %thread_id_x16;
+  st.global.v4.b32 [%rd5], {%r85, %r86, %r87, %r88};
+
+  ld.shared.v4.u32   {%r89, %r90, %r91, %r92}, [%r167+2304]; // the two groups span 2304 bytes in smem rather than 2048 bytes. 2304 = 16 (group of 8 threads) * 9 * 4 * 4
+  add.s64   %rd6, %optr, %thread_id_x16_p2048;
+  st.global.v4.b32 [%rd6], {%r89, %r90, %r91, %r92};
+  ret;
+}

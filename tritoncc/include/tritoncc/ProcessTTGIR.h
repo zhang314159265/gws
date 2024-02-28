@@ -19,7 +19,11 @@ void processTTGIR(mlir::ModuleOp& M, Option& opt) {
     opt.num_warps, 32, opt.num_ctas, opt.capability
   ));
 
-  // this pass make sure dot operands uses dot layout # not critical
+  // This pass is critical to make sure we have mma layout in ttgir.
+  // But cause the following error right now:
+  //   unsupported layout conversion
+  //   UNREACHABLE executed at /home/shunting/ws/triton/lib/Conversion/TritonGPUToLLVM/ConvertLayoutOpToLLVM.cpp:102!
+  //
   // pm.addPass(mlir::triton::gpu::createAccelerateMatmulPass(opt.capability));
 
   //XXX this pass is the key to avoid error: LLVM ERROR: DotOperandEncodingAttr non-NvidiaMmaEncodingAttr parent not supported yet
