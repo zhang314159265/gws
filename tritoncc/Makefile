@@ -11,7 +11,7 @@ LIBPYTHON := $(LIBPYTHON_DIR)/libpython3.10.so
 
 PTXAS := $(TRITON_SRC_ROOT)/third_party/nvidia/backend/bin/ptxas
 
-CFLAGS := -I$(LLVM_ROOT)/include -I$(TRITON_SRC_ROOT)/include -I$(TRITON_BUILD_ROOT)/include -I./include -I$(TRITON_SRC_ROOT) -I$(TRITON_SRC_ROOT)/lib/Conversion/TritonGPUToLLVM -fno-rtti
+CFLAGS := -I$(LLVM_ROOT)/include -I$(TRITON_SRC_ROOT)/third_party -I$(TRITON_SRC_ROOT)/include -I$(TRITON_BUILD_ROOT)/include -I./include -I$(TRITON_SRC_ROOT) -I$(TRITON_SRC_ROOT)/lib/Conversion/TritonGPUToLLVM -I$(TRITON_SRC_ROOT)/include/triton/Conversion/TritonGPUToLLVM -fno-rtti
 LDFLAGS := -L$(LLVM_ROOT)/lib
 
 # Newer triton does not build .a any more. All symbols can be found in libtriton.so
@@ -50,7 +50,6 @@ LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/Triton
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/TritonGPUToLLVM.dir/ConvertLayoutOpToLLVM/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/TritonGPUToLLVM.dir/DotOpToLLVM/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonToTritonGPU/CMakeFiles/TritonToTritonGPU.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/NVGPUToLLVM/CMakeFiles/NVGPUToLLVM.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/Triton/IR/CMakeFiles/TritonIR.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/Triton/Transforms/CMakeFiles/TritonTransforms.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/TritonGPU/IR/CMakeFiles/TritonGPUIR.dir/*.o
@@ -58,6 +57,10 @@ LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/TritonGPU/Transforms/CMakeFiles/Trit
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/TritonNvidiaGPU/IR/CMakeFiles/TritonNvidiaGPUIR.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/TritonNvidiaGPU/Transforms/CMakeFiles/TritonNvidiaGPUTransforms.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/NVGPU/IR/CMakeFiles/NVGPUIR.dir/*.o
+LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/CMakeFiles/TritonNVIDIAGPUToLLVM.dir/*.o
+LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/CMakeFiles/TritonNVIDIAGPUToLLVM.dir/ConvertLayoutOpToLLVM/*.o
+LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/CMakeFiles/TritonNVIDIAGPUToLLVM.dir/DotOpToLLVM/*.o
+LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/NVGPUToLLVM/CMakeFiles/NVGPUToLLVM.dir/*.o
 # LDFLAGS += $(TRITON_BUILD_ROOT)
 endif
 
@@ -67,13 +70,11 @@ ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 
 # first: run_add_ptx
 # first: run_sum_ptx
+# first: run_dot_ptx
 # first: test_load_add_cubin_and_run
 # first: test_load_dot_cubin_and_run
-# first: test_sum
+first: test_dot
 # first: test_add
-# first: test_dot
-
-first: run_dot_ptx
 # first: test_dot
 
 all: test_add test_sum
@@ -92,7 +93,7 @@ test_dot:
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_dot_cubin_and_run /tmp/tritoncc.cubin
 
 test_add:
-	g++ test_add.cpp $(ALLFLAGS) -o a.out
+	time g++ test_add.cpp $(ALLFLAGS) -o a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_add_cubin_and_run /tmp/tritoncc.cubin
 

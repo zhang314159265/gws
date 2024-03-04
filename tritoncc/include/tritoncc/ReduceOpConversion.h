@@ -3,9 +3,14 @@
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "Utility.h"
+#ifdef call
+#undef call
+#endif
 
 #include "tritoncc/DebugListener.h"
 #include "mlir/Transforms/DialectConversion.h"
+
+#include "nvidia/lib/TritonNVIDIAGPUToLLVM/Utility.h"
 
 #if 0
 using mlir::triton::gpu::getTotalElemsPerThread;
@@ -392,7 +397,7 @@ class ReduceOpConversion : public mlir::ConvertOpToLLVMPattern<triton::ReduceOp>
         auto elemTy = getElementType(op, i);
         Value writePtr = gep(ptr_ty(rewriter.getContext(), 3), elemTy,
                              smemBases[i], writeOffset);
-        mlir::LLVM::storeShared(rewriter, loc, writePtr, acc[i], laneZero);
+        mlir::LLVM::NVIDIA::storeShared(rewriter, loc, writePtr, acc[i], laneZero);
       }
     }
   }
@@ -428,7 +433,7 @@ class ReduceOpConversion : public mlir::ConvertOpToLLVMPattern<triton::ReduceOp>
         auto elemTy = getElementType(op, i);
         Value readPtr = gep(ptr_ty(rewriter.getContext(), 3), elemTy,
             smemBases[i], readOffset);
-        acc[i] = mlir::LLVM::loadShared(rewriter, loc,readPtr, elemTy, threadIsNeeded);
+        acc[i] = mlir::LLVM::NVIDIA::loadShared(rewriter, loc,readPtr, elemTy, threadIsNeeded);
       }
       warpReduce(rewriter, loc, acc, op, sizeInterWarps, 1 /* interleave */);
       // only the first thread in each sizeInterWarps is writing
@@ -446,7 +451,7 @@ class ReduceOpConversion : public mlir::ConvertOpToLLVMPattern<triton::ReduceOp>
       Value pred = and_(threadIsNeeded, laneIdModSizeInterWarpsIsZero);
       
       for (unsigned i = 0; i < op.getNumOperands(); ++i) {
-        mlir::LLVM::storeShared(rewriter, loc, writePtrs[i], acc[i], pred);
+        mlir::LLVM::NVIDIA::storeShared(rewriter, loc, writePtrs[i], acc[i], pred);
       }
 
       if (round != elemsPerThread - 1) {

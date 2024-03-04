@@ -38,6 +38,7 @@
 #include "tritoncc/MakeRangeOpToLLVM.h"
 #include "tritoncc/ViewOpToLLVM.h"
 #include "tritoncc/LoadStoreOpToLLVM.h"
+#include "nvidia/lib/TritonNVIDIAGPUToLLVM/PatternTritonGPUOpToLLVM.h"
 
 #if 1
 namespace mlir {
@@ -61,10 +62,6 @@ void populateElementwiseOpToLLVMPatterns(
 void populateReduceOpToLLVMPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
     int computeCapability, PatternBenefit benefit);
-void populateConvertLayoutOpToLLVMPatterns(
-    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
-    PatternBenefit benefit);
-
 } }
 
 namespace tritoncc {
@@ -94,7 +91,7 @@ namespace { // copied from TritonGPUToLLVM.cpp
 using namespace mlir;
 class TritonLLVMConversionTarget : public ConversionTarget {
 public:
-  explicit TritonLLVMConversionTarget(MLIRContext &ctx, mlir::triton::Target target)
+  explicit TritonLLVMConversionTarget(MLIRContext &ctx)
       : ConversionTarget(ctx) {
     addLegalDialect<LLVM::LLVMDialect>();
     addLegalDialect<NVVM::NVVMDialect>();
@@ -112,7 +109,7 @@ public:
 #if 1
 class TritonLLVMFunctionConversionTarget : public ConversionTarget {
 public:
-  explicit TritonLLVMFunctionConversionTarget(MLIRContext &ctx, Target target)
+  explicit TritonLLVMFunctionConversionTarget(MLIRContext &ctx)
       : ConversionTarget(ctx) {
     #if 1
     addLegalDialect<mlir::index::IndexDialect>();
@@ -227,12 +224,9 @@ private:
 struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
  public:
   int computeCapability;
-  mlir::triton::Target target;
-  MyConvertTritonGPUToLLVM(int32_t computeCapability, mlir::triton::Target target, mlir::triton::gpu::TMAMetadataTy *tmaMetadata)
+  MyConvertTritonGPUToLLVM(int32_t computeCapability)
     : mlir::OperationPass<mlir::ModuleOp>(mlir::TypeID::get<MyConvertTritonGPUToLLVM>()) {
     this->computeCapability = computeCapability;
-    this->target = target;
-    this->tmaMetadata = tmaMetadata;
   }
   MyConvertTritonGPUToLLVM(const MyConvertTritonGPUToLLVM& other) : mlir::OperationPass<mlir::ModuleOp>(other) { }
 
@@ -255,7 +249,7 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     option.overrideIndexBitwidth(32);
     #endif
 
-    TritonLLVMConversionTarget convTarget(*context, target);
+    TritonLLVMConversionTarget convTarget(*context);
     TritonGPUToLLVMTypeConverter typeConverter(context, option);
     int benefit = 10;
     int numWarps = triton::gpu::TritonGPUDialect::getNumWarps(mod);
@@ -266,7 +260,7 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     {
       mlir::LowerToLLVMOptions option(context);
       TritonGPUToLLVMTypeConverter typeConverter(context, option);
-      TritonLLVMFunctionConversionTarget funcTarget(*context, target);
+      TritonLLVMFunctionConversionTarget funcTarget(*context);
       RewritePatternSet funcPatterns(context);
       funcPatterns.add<FuncOpConversion>(typeConverter, numWarps, /*benefit=*/1);
       mlir::cf::populateControlFlowToLLVMConversionPatterns(typeConverter, funcPatterns);
@@ -290,15 +284,15 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     mlir::RewritePatternSet patterns(context);
 
     ModuleAxisInfoAnalysis axisInfoAnalysis(mod);
-    TensorPtrMapT tensorPtrMap;
 
-    mlir::triton::populateConvertLayoutOpToLLVMPatterns(typeConverter, patterns, benefit);
+    mlir::triton::NVIDIA::populateConvertLayoutOpToLLVMPatterns(typeConverter, patterns, benefit);
 
-    mlir::triton::populateDotOpToLLVMPatterns(typeConverter, patterns, benefit);
+    mlir::triton::NVIDIA::populateDotOpToLLVMPatterns(typeConverter, patterns, benefit);
 
     #if 1
-    mlir::triton::populateElementwiseOpToLLVMPatterns(
-      typeConverter, patterns, axisInfoAnalysis, computeCapability, benefit);
+    mlir::triton::NVIDIA::TargetInfo targetInfo(computeCapability);
+    mlir::triton::NVIDIA::populateElementwiseOpToLLVMPatterns(
+      typeConverter, patterns, axisInfoAnalysis, computeCapability, targetInfo, benefit);
     #else
     /*
      * My own pattern for FAdd. It works for test_add but fail for test_sum
@@ -306,8 +300,8 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
      */
     patterns.add<tritoncc::FAddOpConversion>(typeConverter);
     #endif
-    tritoncc::populateLoadStoreOpToLLVMPatterns(typeConverter, patterns, axisInfoAnalysis, tmaMetadata, &tensorPtrMap, benefit);
-    populateBarrierOpToLLVMPatterns(typeConverter, patterns, benefit);
+    tritoncc::populateLoadStoreOpToLLVMPatterns(typeConverter, patterns, axisInfoAnalysis, benefit);
+    mlir::triton::NVIDIA::populateBarrierOpToLLVMPatterns(typeConverter, patterns, benefit);
 
     // This error:
     // a.out: /home/shunting/ws/triton/lib/Conversion/TritonGPUToLLVM/Utility.h:372: mlir::Value mlir::LLVM::getStackPointer(mlir::PatternRewriter&, mlir::FunctionOpInterface): Assertion `globalBase' failed.
@@ -319,7 +313,7 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     patterns.add<tritoncc::ReduceOpConversion>(typeConverter);
     #endif
 
-    populateControlFlowOpToLLVMPattern(typeConverter, patterns, benefit); // this is needed
+    mlir::triton::NVIDIA::populateControlFlowOpToLLVMPattern(typeConverter, patterns, benefit); // this is needed
     mlir::populateGpuToNVVMConversionPatterns(typeConverter, patterns); // this is needed
 
     tritoncc::populateSPMDOpToLLVMPattern(typeConverter, patterns, benefit);
@@ -344,7 +338,6 @@ struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
                     NVVM::NVVMDialect>();
   }
  private:
-  mlir::triton::gpu::TMAMetadataTy *tmaMetadata = nullptr;
   // Copied from triton code
   void initSharedMemory(LLVMTypeConverter &typeConverter) {
     mlir::ModuleOp mod = getOperation();
@@ -402,7 +395,6 @@ std::string processLLIR(mlir::ModuleOp& M, Option& opt) {
   mlir::PassManager pm(&ctx);
 
   pm.addPass(mlir::triton::gpu::createAllocateSharedMemoryPass());
-  mlir::triton::gpu::TMAMetadataTy* tmaMetadata = nullptr;
   #if 0
   // after this pass the generate llir file for test_sum is super large: https://gist.github.com/shunting314/89db675f75cec48229fb95febb290574 
   // don't know why yet.
@@ -415,7 +407,7 @@ std::string processLLIR(mlir::ModuleOp& M, Option& opt) {
   ));
   #else
   // XXX after my pass, tt.reduce still exist in the result.
-  pm.addPass(std::make_unique<MyConvertTritonGPUToLLVM>(opt.capability, mlir::triton::NVVM, tmaMetadata));
+  pm.addPass(std::make_unique<MyConvertTritonGPUToLLVM>(opt.capability));
   #endif
 
   // TODO use my own pass?
