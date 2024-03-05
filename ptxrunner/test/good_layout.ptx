@@ -1,0 +1,455 @@
+.version 8.0
+.target sm_80
+.address_size 64
+
+.extern .shared .align 1 .b8 global_smem[];
+
+.visible .entry triton_kernel_01d2d3(
+	.param .u64 triton_kernel_01d2d3_param_0,
+	.param .u64 triton_kernel_01d2d3_param_1,
+	.param .u64 triton_kernel_01d2d3_param_2,
+	.param .u64 triton_kernel_01d2d3_param_3
+)
+.maxntid 256, 1, 1
+{
+	.reg .pred 	%p<67>;
+	.reg .b16 	%rs<17>;
+	.reg .b32 	%r<148>;
+	.reg .f32 	%f<126>;
+	.reg .b64 	%rd<57>;
+
+    .reg.b64 %aptr, %bptr, %cptr, %optr;
+	ld.param.u64 	%aptr, [triton_kernel_01d2d3_param_0];
+	ld.param.u64 	%bptr, [triton_kernel_01d2d3_param_1];
+	ld.param.u64 	%cptr, [triton_kernel_01d2d3_param_2];
+	ld.param.u64 	%optr, [triton_kernel_01d2d3_param_3];
+
+    .reg.b32 %thread_id;
+	mov.u32 	%thread_id, %tid.x;
+    .reg.b32 %warp_id;
+	shr.u32 	%warp_id, %thread_id, 5;
+    .reg.b32 %thread_id_x4;
+	shl.b32 	%thread_id_x4, %thread_id, 2;
+    .reg.b32 %blk_id;
+	mov.u32 %blk_id, %ctaid.x;
+    .reg.b32 %row_start_idx;
+	mul.lo.s32 	%row_start_idx, %blk_id, 50272;
+
+    // accumulators
+	mov.f32 	%f118, 0f00000000;
+	mov.f32 	%f119, %f118;
+	mov.f32 	%f120, %f118;
+	mov.f32 	%f121, %f118;
+	mov.f32 	%f122, %f118;
+	mov.f32 	%f123, %f118;
+	mov.f32 	%f124, %f118;
+	mov.f32 	%f125, %f118;
+
+    .reg.b32 %off_m2048;
+	mov.b32 	%off_m2048, -2048;
+    .reg.b32 %elems_start_idx;
+	add.s32 	%elems_start_idx, %row_start_idx, %thread_id_x4;
+
+LOOP1:
+	add.s32 	%r34, %elems_start_idx, %off_m2048;
+
+    // indices for the 8 elements to load for tensor a
+	add.s32 	%r35, %r34, 2048;
+	add.s32 	%r36, %r34, 2049;
+	add.s32 	%r37, %r34, 2050;
+	add.s32 	%r38, %r34, 2051;
+	add.s32 	%r39, %r34, 3072;
+	add.s32 	%r40, %r34, 3073;
+	add.s32 	%r41, %r34, 3074;
+	add.s32 	%r42, %r34, 3075;
+
+    // build load addr for tensor a
+	mul.wide.s32 	%rd13, %r35, 4;
+	add.s64 	%rd5, %aptr, %rd13;
+	mul.wide.s32 	%rd14, %r36, 4;
+	add.s64 	%rd6, %aptr, %rd14;
+	mul.wide.s32 	%rd15, %r37, 4;
+	add.s64 	%rd7, %aptr, %rd15;
+	mul.wide.s32 	%rd16, %r38, 4;
+	add.s64 	%rd8, %aptr, %rd16;
+	mul.wide.s32 	%rd17, %r39, 4;
+	add.s64 	%rd9, %aptr, %rd17;
+	mul.wide.s32 	%rd18, %r40, 4;
+	add.s64 	%rd10, %aptr, %rd18;
+	mul.wide.s32 	%rd19, %r41, 4;
+	add.s64 	%rd11, %aptr, %rd19;
+	mul.wide.s32 	%rd20, %r42, 4;
+	add.s64 	%rd12, %aptr, %rd20;
+
+    // load from tensor a // ?? Why these loads does not need a predicate?
+    /*
+	ld.global.L1::evict_last.b32 { %r16 }, [ %rd5 + 0 ];
+	ld.global.L1::evict_last.b32 { %r18 }, [ %rd6 + 0 ];
+	ld.global.L1::evict_last.b32 { %r20 }, [ %rd7 + 0 ];
+	ld.global.L1::evict_last.b32 { %r22 }, [ %rd8 + 0 ];
+	ld.global.L1::evict_last.b32 { %r24 }, [ %rd9 + 0 ];
+	ld.global.L1::evict_last.b32 { %r26 }, [ %rd10 + 0 ];
+	ld.global.L1::evict_last.b32 { %r28 }, [ %rd11 + 0 ];
+	ld.global.L1::evict_last.b32 { %r30 }, [ %rd12 + 0 ];
+     */
+    ld.global.L1::evict_last.v4.b32 { %r16, %r18, %r20, %r22 }, [ %rd5 + 0 ];
+    ld.global.L1::evict_last.v4.b32 { %r24, %r26, %r28, %r30 }, [ %rd9 + 0 ];
+
+
+	mov.b32 	%f22, %r16;
+	mov.b32 	%f23, %r18;
+	mov.b32 	%f24, %r20;
+	mov.b32 	%f25, %r22;
+	mov.b32 	%f26, %r24;
+	mov.b32 	%f27, %r26;
+	mov.b32 	%f28, %r28;
+	mov.b32 	%f29, %r30;
+
+	add.f32 	%f118, %f118, %f22;
+	add.f32 	%f119, %f119, %f23;
+	add.f32 	%f120, %f120, %f24;
+	add.f32 	%f121, %f121, %f25;
+
+	add.s32 	%r32, %thread_id_x4, %off_m2048;
+	add.s32 	%r33, %r32, 3072;
+	setp.lt.u32 	%p9, %r33, 50272;
+
+	selp.f32 	%f30, %f26, 0f80000000, %p9;
+	add.f32 	%f122, %f122, %f30;
+	selp.f32 	%f31, %f27, 0f80000000, %p9;
+	add.f32 	%f123, %f123, %f31;
+	selp.f32 	%f32, %f28, 0f80000000, %p9;
+	add.f32 	%f124, %f124, %f32;
+	selp.f32 	%f33, %f29, 0f80000000, %p9;
+	add.f32 	%f125, %f125, %f33;
+
+	add.s32 	%off_m2048, %off_m2048, 2048;
+	setp.lt.u32 	%p17, %off_m2048, 48224; // 48224 = 50272 - 2048
+	@%p17 bra 	LOOP1;
+
+    .reg.b32 %lane_id;
+	and.b32  	%lane_id, %thread_id, 31;
+
+    // add the 8 elements inside a thread
+	add.f32 	%f34, %f118, %f119;
+	add.f32 	%f35, %f120, %f34;
+	add.f32 	%f36, %f121, %f35;
+	add.f32 	%f37, %f122, %f36;
+	add.f32 	%f38, %f123, %f37;
+	add.f32 	%f39, %f124, %f38;
+	add.f32 	%f40, %f125, %f39;
+    
+    // do 5 rounds of intra-warp shuffling
+    // rnd1
+	mov.b32 	%r52, %f40;
+	shfl.sync.bfly.b32	%r53, %r52, 16, 31, -1;
+	mov.b32 	%f41, %r53;
+	add.f32 	%f42, %f40, %f41;
+
+    // rnd2
+	mov.b32 	%r54, %f42;
+	shfl.sync.bfly.b32	%r55, %r54, 8, 31, -1;
+	mov.b32 	%f43, %r55;
+	add.f32 	%f44, %f42, %f43;
+
+    // rnd3
+	mov.b32 	%r56, %f44;
+	shfl.sync.bfly.b32	%r57, %r56, 4, 31, -1;
+	mov.b32 	%f45, %r57;
+	add.f32 	%f46, %f44, %f45;
+
+    // rnd4
+	mov.b32 	%r58, %f46;
+	shfl.sync.bfly.b32	%r59, %r58, 2, 31, -1;
+	mov.b32 	%f47, %r59;
+	add.f32 	%f48, %f46, %f47;
+
+    // rnd5
+	mov.b32 	%r60, %f48;
+	shfl.sync.bfly.b32	%r61, %r60, 1, 31, -1;
+	mov.b32 	%f49, %r61;
+	add.f32 	%f50, %f48, %f49;
+
+    // lane0 of each warp write intra-warp sum to smem
+	setp.eq.s32 	%p18, %lane_id, 0;
+	shl.b32 	%r62, %warp_id, 2;
+    .reg.u32 %smbase;
+	mov.u32 	%smbase, global_smem;
+	add.s32 	%r43, %smbase, %r62;
+	mov.b32 	%r44, %f50;
+	@%p18 st.shared.b32 [ %r43 + 0 ], %r44;
+	bar.sync 	0;
+
+    // 3 rounds for inter-warp shuffle
+    // only the first 8 threads of each block do that.
+	setp.lt.s32 	%p19, %thread_id, 8;
+	shl.b32 	%r64, %thread_id, 2;
+	add.s32 	%r46, %smbase, %r64;
+	@%p19 ld.shared.b32 %r45, [ %r46 + 0 ];
+
+    // rnd1
+	mov.b32 	%f51, %r45;
+	shfl.sync.bfly.b32	%r65, %r45, 4, 31, -1;
+	mov.b32 	%f52, %r65;
+	add.f32 	%f53, %f51, %f52;
+
+    // rnd2
+	mov.b32 	%r66, %f53;
+	shfl.sync.bfly.b32	%r67, %r66, 2, 31, -1;
+	mov.b32 	%f54, %r67;
+	add.f32 	%f55, %f53, %f54;
+
+    // rnd3
+	mov.b32 	%r68, %f55;
+	shfl.sync.bfly.b32	%r69, %r68, 1, 31, -1;
+	mov.b32 	%f56, %r69;
+	add.f32 	%f57, %f55, %f56;
+
+    // broad the row sum to all threads in each block
+	and.b32  	%r70, %thread_id, 7;
+	setp.eq.s32 	%p21, %r70, 0;
+	and.pred  	%p20, %p19, %p21;
+	mov.b32 	%r48, %f57;
+	@%p20 st.shared.b32 [ %r46 + 0 ], %r48;
+	bar.sync 	0;
+	ld.shared.f32 	%f20, [global_smem];
+
+    .reg.b32 %thread_id_x8;
+	shl.b32 	%thread_id_x8, %thread_id_x4, 1;
+
+    .reg.b32 %thread_id_x2;
+	shl.b32 	%thread_id_x2, %thread_id, 1;
+
+    .reg.f32 %neg_row_sum;
+	neg.f32 	%neg_row_sum, %f20;
+
+	add.s32 	%r9, %smbase, %thread_id_x8;
+	add.s32 	%r10, %smbase, %thread_id_x2;
+	add.s32 	%r11, %row_start_idx, %thread_id;
+
+	mov.b32 	%off_m2048, -2048;
+LOOP2:
+
+	add.s32 	%r128, %elems_start_idx, %off_m2048;
+
+    // compute load index for tensor a
+	add.s32 	%r129, %r128, 2048;
+	add.s32 	%r130, %r128, 2049;
+	add.s32 	%r131, %r128, 2050;
+	add.s32 	%r132, %r128, 2051;
+	add.s32 	%r133, %r128, 3072;
+	add.s32 	%r134, %r128, 3073;
+	add.s32 	%r135, %r128, 3074;
+	add.s32 	%r136, %r128, 3075;
+
+    // compute load address for tensor a
+	mul.wide.s32 	%rd41, %r129, 4;
+	add.s64 	%rd21, %aptr, %rd41;
+	mul.wide.s32 	%rd42, %r130, 4;
+	add.s64 	%rd22, %aptr, %rd42;
+	mul.wide.s32 	%rd43, %r131, 4;
+	add.s64 	%rd23, %aptr, %rd43;
+	mul.wide.s32 	%rd44, %r132, 4;
+	add.s64 	%rd24, %aptr, %rd44;
+	mul.wide.s32 	%rd45, %r133, 4;
+	add.s64 	%rd25, %aptr, %rd45;
+	mul.wide.s32 	%rd46, %r134, 4;
+	add.s64 	%rd26, %aptr, %rd46;
+	mul.wide.s32 	%rd47, %r135, 4;
+	add.s64 	%rd27, %aptr, %rd47;
+	mul.wide.s32 	%rd48, %r136, 4;
+	add.s64 	%rd28, %aptr, %rd48;
+
+    // load the 8 elements for tensor a
+	ld.global.L1::evict_first.b32 { %r73 }, [ %rd21 + 0 ];
+	ld.global.L1::evict_first.b32 { %r75 }, [ %rd22 + 0 ];
+	ld.global.L1::evict_first.b32 { %r77 }, [ %rd23 + 0 ];
+	ld.global.L1::evict_first.b32 { %r79 }, [ %rd24 + 0 ];
+
+    // p30 indicates if the second group of 4 elements exist
+	add.s32 	%r121, %thread_id_x4, %off_m2048;
+	add.s32 	%r122, %r121, 3072;
+	setp.lt.u32 	%p30, %r122, 50272;
+
+	mov.u32 %r81, 0x0;
+	@%p30 ld.global.L1::evict_first.b32 { %r81 }, [ %rd25 + 0 ];
+	mov.u32 %r83, 0x0;
+	@%p30 ld.global.L1::evict_first.b32 { %r83 }, [ %rd26 + 0 ];
+	mov.u32 %r85, 0x0;
+	@%p30 ld.global.L1::evict_first.b32 { %r85 }, [ %rd27 + 0 ];
+	mov.u32 %r87, 0x0;
+	@%p30 ld.global.L1::evict_first.b32 { %r87 }, [ %rd28 + 0 ];
+
+    // load tensor b
+	add.s64 	%rd29, %bptr, %rd41;
+	add.s64 	%rd30, %bptr, %rd45;
+	ld.global.L1::evict_first.v4.b32 { %r89, %r90, %r91, %r92 }, [ %rd29 + 0 ];
+	mov.u32 %r97, 0x0;
+	mov.u32 %r98, 0x0;
+	mov.u32 %r99, 0x0;
+	mov.u32 %r100, 0x0;
+	@%p30 ld.global.L1::evict_first.v4.b32 { %r97, %r98, %r99, %r100 }, [ %rd30 + 0 ];
+
+	add.s64 	%rd31, %cptr, %rd41;
+	add.s64 	%rd32, %cptr, %rd45;
+	mov.u32 %r105, 0x0;
+	mov.u32 %r106, 0x0;
+	mov.u32 %r107, 0x0;
+	mov.u32 %r108, 0x0;
+	ld.global.L1::evict_first.v4.b32 { %r105, %r106, %r107, %r108 }, [ %rd31 + 0 ];
+	mov.b32 	%f74, %r105;
+	mov.b32 	%f75, %r106;
+	mov.b32 	%f76, %r107;
+	mov.b32 	%f77, %r108;
+	mov.u32 %r113, 0x0;
+	mov.u32 %r114, 0x0;
+	mov.u32 %r115, 0x0;
+	mov.u32 %r116, 0x0;
+	@%p30 ld.global.L1::evict_first.v4.b32 { %r113, %r114, %r115, %r116 }, [ %rd32 + 0 ];
+
+	mov.b32 	%f78, %r113;
+	mov.b32 	%f79, %r114;
+	mov.b32 	%f80, %r115;
+	mov.b32 	%f81, %r116;
+
+	mul.f32 	%f59, %f74, 0f3FB8AA3B;
+	ex2.approx.f32 %f58, %f59;
+	mul.f32 	%f61, %f75, 0f3FB8AA3B;
+	ex2.approx.f32 %f60, %f61;
+	mul.f32 	%f63, %f76, 0f3FB8AA3B;
+	ex2.approx.f32 %f62, %f63;
+	mul.f32 	%f65, %f77, 0f3FB8AA3B;
+	ex2.approx.f32 %f64, %f65;
+	mul.f32 	%f67, %f78, 0f3FB8AA3B;
+	ex2.approx.f32 %f66, %f67;
+	mul.f32 	%f69, %f79, 0f3FB8AA3B;
+	ex2.approx.f32 %f68, %f69;
+	mul.f32 	%f71, %f80, 0f3FB8AA3B;
+	ex2.approx.f32 %f70, %f71;
+	mul.f32 	%f73, %f81, 0f3FB8AA3B;
+	ex2.approx.f32 %f72, %f73;
+
+    // compute output for the first 4 elements
+	mov.b32 	%f82, %r73;
+	mov.b32 	%f83, %r75;
+	mov.b32 	%f84, %r77;
+	mov.b32 	%f85, %r79;
+
+	mov.b32 	%f86, %r92;
+	mov.b32 	%f87, %r91;
+	mov.b32 	%f88, %r90;
+	mov.b32 	%f89, %r89;
+
+	fma.rn.f32 	%f91, %neg_row_sum, %f64, %f85;
+	fma.rn.f32 	%f93, %neg_row_sum, %f62, %f84;
+	fma.rn.f32 	%f95, %neg_row_sum, %f60, %f83;
+	fma.rn.f32 	%f97, %neg_row_sum, %f58, %f82;
+
+	add.f32 	%f98, %f97, %f89;
+	add.f32 	%f99, %f95, %f88;
+	add.f32 	%f100, %f93, %f87;
+	add.f32 	%f101, %f91, %f86;
+
+	cvt.rn.f16.f32 	%rs9, %f101;
+	cvt.rn.f16.f32 	%rs10, %f100;
+	cvt.rn.f16.f32 	%rs11, %f99;
+	cvt.rn.f16.f32 	%rs12, %f98;
+
+    // compute output for the second group of 4 elements
+	mov.b32 	%f102, %r81;
+	mov.b32 	%f103, %r83;
+	mov.b32 	%f104, %r85;
+	mov.b32 	%f105, %r87;
+
+	mov.b32 	%f106, %r100;
+	mov.b32 	%f107, %r99;
+	mov.b32 	%f108, %r98;
+	mov.b32 	%f109, %r97;
+
+	fma.rn.f32 	%f110, %neg_row_sum, %f72, %f105;
+	fma.rn.f32 	%f111, %neg_row_sum, %f70, %f104;
+	fma.rn.f32 	%f112, %neg_row_sum, %f68, %f103;
+	fma.rn.f32 	%f113, %neg_row_sum, %f66, %f102;
+
+	add.f32 	%f114, %f113, %f109;
+	add.f32 	%f115, %f112, %f108;
+	add.f32 	%f116, %f111, %f107;
+	add.f32 	%f117, %f110, %f106;
+
+	cvt.rn.f16.f32 	%rs13, %f117;
+	cvt.rn.f16.f32 	%rs14, %f116;
+	cvt.rn.f16.f32 	%rs15, %f115;
+	cvt.rn.f16.f32 	%rs16, %f114;
+
+    // shuffle around leverage smem
+	st.shared.v4.b16 	[%r9], {%rs12, %rs11, %rs10, %rs9};
+	bar.sync 	0;
+
+	ld.shared.u16 	%rs1, [%r10];
+	ld.shared.u16 	%rs2, [%r10+512];
+	ld.shared.u16 	%rs3, [%r10+1024];
+	ld.shared.u16 	%rs4, [%r10+1536];
+	bar.sync 	0;
+	st.shared.v4.b16 	[%r9], {%rs16, %rs15, %rs14, %rs13};
+	bar.sync 	0;
+	ld.shared.u16 	%rs5, [%r10];
+	ld.shared.u16 	%rs6, [%r10+512];
+	ld.shared.u16 	%rs7, [%r10+1024];
+	ld.shared.u16 	%rs8, [%r10+1536];
+
+	add.s32 	%r137, %r11, %off_m2048;
+
+    // [x * 256 + 2048 for x in range(8)]
+	add.s32 	%r138, %r137, 2048;
+	add.s32 	%r139, %r137, 2304;
+	add.s32 	%r140, %r137, 2560;
+	add.s32 	%r141, %r137, 2816;
+	add.s32 	%r142, %r137, 3072;
+	add.s32 	%r143, %r137, 3328;
+	add.s32 	%r144, %r137, 3584;
+	add.s32 	%r145, %r137, 3840;
+
+    // compute store ptr for tensor o
+	mul.wide.s32 	%rd49, %r138, 2;
+	add.s64 	%rd33, %optr, %rd49;
+	mul.wide.s32 	%rd50, %r139, 2;
+	add.s64 	%rd34, %optr, %rd50;
+	mul.wide.s32 	%rd51, %r140, 2;
+	add.s64 	%rd35, %optr, %rd51;
+	mul.wide.s32 	%rd52, %r141, 2;
+	add.s64 	%rd36, %optr, %rd52;
+	mul.wide.s32 	%rd53, %r142, 2;
+	add.s64 	%rd37, %optr, %rd53;
+	mul.wide.s32 	%rd54, %r143, 2;
+	add.s64 	%rd38, %optr, %rd54;
+	mul.wide.s32 	%rd55, %r144, 2;
+	add.s64 	%rd39, %optr, %rd55;
+	mul.wide.s32 	%rd56, %r145, 2;
+	add.s64 	%rd40, %optr, %rd56;
+
+	st.global.b16 [ %rd33 + 0 ], { %rs1 };
+	st.global.b16 [ %rd34 + 0 ], { %rs2 };
+	st.global.b16 [ %rd35 + 0 ], { %rs3 };
+	st.global.b16 [ %rd36 + 0 ], { %rs4 };
+
+	add.s32 	%r123, %thread_id, %off_m2048;
+	add.s32 	%r124, %r123, 3072;
+	add.s32 	%r125, %r123, 3328;
+	add.s32 	%r126, %r123, 3584;
+	add.s32 	%r127, %r123, 3840;
+
+	setp.lt.u32 	%p62, %r124, 50272;
+	setp.lt.u32 	%p63, %r125, 50272;
+	setp.lt.u32 	%p64, %r126, 50272;
+	setp.lt.u32 	%p65, %r127, 50272;
+
+	@%p62 st.global.b16 [ %rd37 + 0 ], { %rs5 };
+	@%p63 st.global.b16 [ %rd38 + 0 ], { %rs6 };
+	@%p64 st.global.b16 [ %rd39 + 0 ], { %rs7 };
+	@%p65 st.global.b16 [ %rd40 + 0 ], { %rs8 };
+
+	add.s32 	%off_m2048, %off_m2048, 2048;
+	setp.lt.u32 	%p66, %off_m2048, 48224;
+	@%p66 bra 	LOOP2;
+	ret;
+}

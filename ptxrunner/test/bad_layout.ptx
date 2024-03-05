@@ -1,0 +1,363 @@
+.version 8.0
+.target sm_80
+.address_size 64
+
+.extern.shared.align 1 .b8 global_smem[];
+
+.visible .entry triton_kernel_0d1d2d3d(
+	.param .u64 triton_kernel_0d1d2d3d_param_0,
+	.param .u64 triton_kernel_0d1d2d3d_param_1,
+	.param .u64 triton_kernel_0d1d2d3d_param_2,
+	.param .u64 triton_kernel_0d1d2d3d_param_3
+)
+.maxntid 256, 1, 1
+{
+	.reg .pred 	%p<48>;
+	.reg .f32 	%f<133>;
+	.reg .b16 	%rs<9>;
+	.reg .b32 	%r<120>;
+	.reg .b64 	%rd<19>;
+
+    .reg .u64 %aptr, %bptr, %cptr, %optr;
+
+	ld.param.u64 	%aptr, [triton_kernel_0d1d2d3d_param_0];
+	ld.param.u64 	%bptr, [triton_kernel_0d1d2d3d_param_1];
+	ld.param.u64 	%cptr, [triton_kernel_0d1d2d3d_param_2];
+	ld.param.u64 	%optr, [triton_kernel_0d1d2d3d_param_3];
+
+    .reg.u32 %thread_id;
+	mov.u32 	%thread_id, %tid.x;
+    .reg.u32 %warp_id;
+	shr.u32 	%warp_id, %thread_id, 5;
+
+    .reg.u32 %thread_id_x8;
+	shl.b32 	%thread_id_x8, %thread_id, 3;
+    .reg.u32 %blkid;
+	mov.u32 %blkid, %ctaid.x;
+
+    // each thread handles 8 elements
+	mov.f32 	%f125, 0f00000000;
+	mov.f32 	%f126, %f125;
+	mov.f32 	%f127, %f125;
+	mov.f32 	%f128, %f125;
+	mov.f32 	%f129, %f125;
+	mov.f32 	%f130, %f125;
+	mov.f32 	%f131, %f125;
+	mov.f32 	%f132, %f125;
+
+    .reg.u32 %roffset;
+	mov.u32 	%roffset, 0;
+	mad.lo.s32 	%r4, %blkid, 50272, %thread_id_x8;
+
+LOOP1:
+	add.s32 	%r28, %thread_id_x8, %roffset;
+	setp.lt.u32 	%p1, %r28, 50272;
+
+	add.s32 	%r29, %r4, %roffset;
+	add.s32 	%r30, %r29, 4;
+
+	mul.wide.s32 	%rd7, %r29, 4;
+	mul.wide.s32 	%rd8, %r30, 4;
+
+	add.s64 	%rd5, %aptr, %rd7;
+	add.s64 	%rd6, %aptr, %rd8;
+
+	mov.u32 %r12, 0x0;
+	mov.u32 %r13, 0x0;
+	mov.u32 %r14, 0x0;
+	mov.u32 %r15, 0x0;
+	@%p1 ld.global.L1::evict_last.v4.b32 {%r12, %r13, %r14, %r15}, [%rd5];
+
+	mov.u32 %r20, 0x0;
+	mov.u32 %r21, 0x0;
+	mov.u32 %r22, 0x0;
+	mov.u32 %r23, 0x0;
+	@%p1 ld.global.L1::evict_last.v4.b32 {%r20, %r21, %r22, %r23}, [%rd6];
+
+	mov.b32 	%f27, %r15;
+	mov.b32 	%f28, %r14;
+	mov.b32 	%f29, %r13;
+	mov.b32 	%f30, %r12;
+	mov.b32 	%f31, %r23;
+	mov.b32 	%f32, %r22;
+	mov.b32 	%f33, %r21;
+	mov.b32 	%f34, %r20;
+	selp.f32 	%f35, %f34, 0f80000000, %p1;
+	selp.f32 	%f36, %f33, 0f80000000, %p1;
+	selp.f32 	%f37, %f32, 0f80000000, %p1;
+	selp.f32 	%f38, %f31, 0f80000000, %p1;
+	selp.f32 	%f39, %f30, 0f80000000, %p1;
+	selp.f32 	%f40, %f29, 0f80000000, %p1;
+	selp.f32 	%f41, %f28, 0f80000000, %p1;
+	selp.f32 	%f42, %f27, 0f80000000, %p1;
+	add.f32 	%f128, %f128, %f42;
+	add.f32 	%f127, %f127, %f41;
+	add.f32 	%f126, %f126, %f40;
+	add.f32 	%f125, %f125, %f39;
+	add.f32 	%f132, %f132, %f38;
+	add.f32 	%f131, %f131, %f37;
+	add.f32 	%f130, %f130, %f36;
+	add.f32 	%f129, %f129, %f35;
+	add.s32 	%r6, %roffset, 2048;
+	setp.lt.u32 	%p11, %roffset, 48224; // 48224 = 50272 - RBLOCK
+	mov.u32 	%roffset, %r6;
+	@%p11 bra 	LOOP1;
+
+    // start doing the reduction
+    .reg.b32 %lane_id;
+	and.b32  	%lane_id, %thread_id, 31;
+
+    // inside thread accumulation
+	add.f32 	%f43, %f125, %f126;
+	add.f32 	%f44, %f127, %f43;
+	add.f32 	%f45, %f128, %f44;
+	add.f32 	%f46, %f129, %f45;
+	add.f32 	%f47, %f130, %f46;
+	add.f32 	%f48, %f131, %f47;
+	add.f32 	%f49, %f132, %f48;
+
+    // intra warp shuffle (total 5 rounds)
+    // round 1
+	mov.b32 	%r40, %f49;
+	shfl.sync.bfly.b32	%r41, %r40, 16, 31, -1;
+	mov.b32 	%f50, %r41;
+	add.f32 	%f51, %f49, %f50;
+
+    // round 2
+	mov.b32 	%r42, %f51;
+	shfl.sync.bfly.b32	%r43, %r42, 8, 31, -1;
+	mov.b32 	%f52, %r43;
+	add.f32 	%f53, %f51, %f52;
+
+    // round 3
+	mov.b32 	%r44, %f53;
+	shfl.sync.bfly.b32	%r45, %r44, 4, 31, -1;
+	mov.b32 	%f54, %r45;
+	add.f32 	%f55, %f53, %f54;
+
+    // round 4
+	mov.b32 	%r46, %f55;
+	shfl.sync.bfly.b32	%r47, %r46, 2, 31, -1;
+	mov.b32 	%f56, %r47;
+	add.f32 	%f57, %f55, %f56;
+
+    // round 5
+	mov.b32 	%r48, %f57;
+	shfl.sync.bfly.b32	%r49, %r48, 1, 31, -1;
+	mov.b32 	%f58, %r49;
+	add.f32 	%f59, %f57, %f58;
+
+    // lane0 of each warp write the result to shared memory
+	setp.eq.s32 	%p12, %lane_id, 0;
+	shl.b32 	%r50, %warp_id, 2;
+	mov.u32 	%r51, global_smem;
+	add.s32 	%r31, %r51, %r50;
+	mov.b32 	%r32, %f59;
+	@%p12 st.shared.b32 [%r31], %r32;
+	bar.sync 	0;
+
+    // only the first 8 threads will do the inter warp shuffle
+	setp.lt.s32 	%p13, %thread_id, 8;
+	shl.b32 	%r52, %thread_id, 2;
+	add.s32 	%r34, %r51, %r52;
+	@%p13 ld.shared.b32 %r33, [ %r34 + 0 ];
+
+    // inter warp shuffle (total 3 rounds)
+	mov.b32 	%f60, %r33;
+	shfl.sync.bfly.b32	%r53, %r33, 4, 31, -1;
+	mov.b32 	%f61, %r53;
+	add.f32 	%f62, %f60, %f61;
+
+	mov.b32 	%r54, %f62;
+	shfl.sync.bfly.b32	%r55, %r54, 2, 31, -1;
+	mov.b32 	%f63, %r55;
+	add.f32 	%f64, %f62, %f63;
+
+	mov.b32 	%r56, %f64;
+	shfl.sync.bfly.b32	%r57, %r56, 1, 31, -1;
+	mov.b32 	%f65, %r57;
+	add.f32 	%f66, %f64, %f65;
+
+    // %f66 is the row_sum. But only the first 8 threads have it.
+    // other threads contains undefined data in %f66.
+    // Leverage the shared memory to broadcast the row_sum to all threads
+    // in the block.
+	and.b32  	%r58, %thread_id, 7;
+	setp.eq.s32 	%p15, %r58, 0;
+	and.pred  	%p14, %p13, %p15;
+	mov.b32 	%r36, %f66;
+	@%p14 st.shared.b32 [ %r34 + 0 ], %r36;
+	bar.sync 	0;
+    .reg.f32 %row_sum;
+	ld.shared.f32 	%row_sum, [global_smem];
+
+	mov.b32 	%r63, 0;
+    .reg.f32 %neg_row_sum;
+	neg.f32 	%neg_row_sum, %row_sum;
+
+	mov.u32 	%roffset, 0;
+
+LOOP2:
+	add.s32 	%r111, %thread_id_x8, %roffset;
+	setp.lt.u32 	%p16, %r111, 50272;
+
+	add.s32 	%r112, %r4, %roffset;
+	add.s32 	%r113, %r112, 4;
+	mul.wide.s32 	%rd16, %r112, 4;
+	add.s64 	%rd9, %aptr, %rd16;
+	mul.wide.s32 	%rd17, %r113, 4;
+	add.s64 	%rd10, %aptr, %rd17;
+
+    // load a
+	mov.u32 %r59, 0x0;
+	mov.u32 %r60, 0x0;
+	mov.u32 %r61, 0x0;
+	mov.u32 %r62, 0x0;
+	@%p16 ld.global.L1::evict_first.v4.b32 { %r59, %r60, %r61, %r62 }, [ %rd9 + 0 ];
+
+    // Why removing the following 4 lines of nop cause perf change from
+    // 6.04ms to 6.67ms?
+	@!%p16 mov.u32 %r59, %r63;
+	@!%p16 mov.u32 %r60, %r63;
+	@!%p16 mov.u32 %r61, %r63;
+	@!%p16 mov.u32 %r62, %r63;
+
+	mov.u32 %r67, 0x0;
+	mov.u32 %r68, 0x0;
+	mov.u32 %r69, 0x0;
+	mov.u32 %r70, 0x0;
+	@%p16 ld.global.L1::evict_first.v4.b32 { %r67, %r68, %r69, %r70 }, [ %rd10 + 0 ];
+	@!%p16 mov.u32 %r67, %r63;
+	@!%p16 mov.u32 %r68, %r63;
+	@!%p16 mov.u32 %r69, %r63;
+	@!%p16 mov.u32 %r70, %r63;
+
+    // load b
+	add.s64 	%rd11, %bptr, %rd16;
+	add.s64 	%rd12, %bptr, %rd17;
+	mov.u32 %r75, 0x0;
+	mov.u32 %r76, 0x0;
+	mov.u32 %r77, 0x0;
+	mov.u32 %r78, 0x0;
+	@%p16 ld.global.L1::evict_first.v4.b32 { %r75, %r76, %r77, %r78 }, [ %rd11 + 0 ];
+	@!%p16 mov.u32 %r75, %r63;
+	@!%p16 mov.u32 %r76, %r63;
+	@!%p16 mov.u32 %r77, %r63;
+	@!%p16 mov.u32 %r78, %r63;
+
+	mov.u32 %r83, 0x0;
+	mov.u32 %r84, 0x0;
+	mov.u32 %r85, 0x0;
+	mov.u32 %r86, 0x0;
+	@%p16 ld.global.L1::evict_first.v4.b32 { %r83, %r84, %r85, %r86 }, [ %rd12 + 0 ];
+	@!%p16 mov.u32 %r83, %r63;
+	@!%p16 mov.u32 %r84, %r63;
+	@!%p16 mov.u32 %r85, %r63;
+	@!%p16 mov.u32 %r86, %r63;
+
+    // load c
+	add.s64 	%rd13, %cptr, %rd16;
+	add.s64 	%rd14, %cptr, %rd17;
+	mov.u32 %r91, 0x0;
+	mov.u32 %r92, 0x0;
+	mov.u32 %r93, 0x0;
+	mov.u32 %r94, 0x0;
+	@%p16 ld.global.L1::evict_first.v4.b32 { %r91, %r92, %r93, %r94 }, [ %rd13 + 0 ];
+	@!%p16 mov.u32 %r91, %r63;
+	@!%p16 mov.u32 %r92, %r63;
+	@!%p16 mov.u32 %r93, %r63;
+	@!%p16 mov.u32 %r94, %r63;
+
+	mov.b32 	%f83, %r91;
+	mov.b32 	%f84, %r92;
+	mov.b32 	%f85, %r93;
+	mov.b32 	%f86, %r94;
+
+	mov.u32 %r99, 0x0;
+	mov.u32 %r100, 0x0;
+	mov.u32 %r101, 0x0;
+	mov.u32 %r102, 0x0;
+	@%p16 ld.global.L1::evict_first.v4.b32 { %r99, %r100, %r101, %r102 }, [ %rd14 + 0 ];
+	@!%p16 mov.u32 %r99, %r63;
+	@!%p16 mov.u32 %r100, %r63;
+	@!%p16 mov.u32 %r101, %r63;
+	@!%p16 mov.u32 %r102, %r63;
+	mov.b32 	%f87, %r99;
+	mov.b32 	%f88, %r100;
+	mov.b32 	%f89, %r101;
+	mov.b32 	%f90, %r102;
+
+	mul.f32 	%f68, %f83, 0f3FB8AA3B;
+	ex2.approx.f32 %f67, %f68;
+	mul.f32 	%f70, %f84, 0f3FB8AA3B;
+	ex2.approx.f32 %f69, %f70;
+	mul.f32 	%f72, %f85, 0f3FB8AA3B;
+	ex2.approx.f32 %f71, %f72;
+	mul.f32 	%f74, %f86, 0f3FB8AA3B;
+	ex2.approx.f32 %f73, %f74;
+	mul.f32 	%f76, %f87, 0f3FB8AA3B;
+	ex2.approx.f32 %f75, %f76;
+	mul.f32 	%f78, %f88, 0f3FB8AA3B;
+	ex2.approx.f32 %f77, %f78;
+	mul.f32 	%f80, %f89, 0f3FB8AA3B;
+	ex2.approx.f32 %f79, %f80;
+	mul.f32 	%f82, %f90, 0f3FB8AA3B;
+	ex2.approx.f32 %f81, %f82;
+
+	mov.b32 	%f91, %r59;
+	mov.b32 	%f92, %r60;
+	mov.b32 	%f93, %r76;
+	mov.b32 	%f94, %r75;
+	fma.rn.f32 	%f96, %neg_row_sum, %f69, %f92;
+	fma.rn.f32 	%f98, %neg_row_sum, %f67, %f91;
+	add.f32 	%f99, %f98, %f94;
+	add.f32 	%f100, %f96, %f93;
+	cvt.rn.f16.f32 	%rs1, %f100;
+	cvt.rn.f16.f32 	%rs2, %f99;
+	mov.b32 	%r114, {%rs2, %rs1};
+
+	mov.b32 	%f101, %r61;
+	mov.b32 	%f102, %r62;
+	mov.b32 	%f103, %r78;
+	mov.b32 	%f104, %r77;
+	fma.rn.f32 	%f105, %neg_row_sum, %f73, %f102;
+	fma.rn.f32 	%f106, %neg_row_sum, %f71, %f101;
+	add.f32 	%f107, %f106, %f104;
+	add.f32 	%f108, %f105, %f103;
+	cvt.rn.f16.f32 	%rs3, %f108;
+	cvt.rn.f16.f32 	%rs4, %f107;
+	mov.b32 	%r115, {%rs4, %rs3};
+
+	mov.b32 	%f109, %r67;
+	mov.b32 	%f110, %r68;
+	mov.b32 	%f111, %r84;
+	mov.b32 	%f112, %r83;
+	fma.rn.f32 	%f113, %neg_row_sum, %f77, %f110;
+	fma.rn.f32 	%f114, %neg_row_sum, %f75, %f109;
+	add.f32 	%f115, %f114, %f112;
+	add.f32 	%f116, %f113, %f111;
+	cvt.rn.f16.f32 	%rs5, %f116;
+	cvt.rn.f16.f32 	%rs6, %f115;
+	mov.b32 	%r116, {%rs6, %rs5};
+
+	mov.b32 	%f117, %r69;
+	mov.b32 	%f118, %r70;
+	mov.b32 	%f119, %r86;
+	mov.b32 	%f120, %r85;
+	fma.rn.f32 	%f121, %neg_row_sum, %f81, %f118;
+	fma.rn.f32 	%f122, %neg_row_sum, %f79, %f117;
+	add.f32 	%f123, %f122, %f120;
+	add.f32 	%f124, %f121, %f119;
+	cvt.rn.f16.f32 	%rs7, %f124;
+	cvt.rn.f16.f32 	%rs8, %f123;
+	mov.b32 	%r117, {%rs8, %rs7};
+
+	mul.wide.s32 	%rd18, %r112, 2;
+	add.s64 	%rd15, %optr, %rd18;
+	@%p16 st.global.v4.b32 [ %rd15 + 0 ], { %r114, %r115, %r116, %r117 };
+	add.s32 	%r8, %roffset, 2048;
+	setp.lt.u32 	%p47, %roffset, 48224;
+	mov.u32 	%roffset, %r8;
+	@%p47 bra 	LOOP2;
+	ret;
+}
