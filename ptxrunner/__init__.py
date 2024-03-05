@@ -82,14 +82,24 @@ def parse_entry_from_ptx_code(ptx_code):
     assert m
     return m.group(1)
 
-def load_and_run(ptx_code, gridDim, blockDim, args, func_name=None, shared=0):
-    """
-    Main API. Load the kernel from ptx code and launch it with the provided
-    arguments.
-    """
+def load_cu_func_from_ptx_code(ptx_code, func_name=None):
     if func_name is None:
         func_name = parse_entry_from_ptx_code(ptx_code)
     assert func_name is not None
     cubin_bytes = ptx_to_cubin(ptx_code)
     cu_func = _C.load_cufunc_from_bytes(cubin_bytes, func_name)
+    return cu_func
+
+def load_and_run(ptx_code, gridDim, blockDim, args, func_name=None, shared=0):
+    """
+    Main API. Load the kernel from ptx code and launch it with the provided
+    arguments.
+
+    This API is not suitable for perf test since the `load_cu_func_from_ptx_code`
+    function takes a long time to run.
+
+    For perf testing, save the cu_func and measure the execution time of `launch`
+    function only.
+    """
+    cu_func = load_cu_func_from_ptx_code(ptx_code, func_name)
     launch(cu_func, gridDim=gridDim, blockDim=blockDim, shared=shared, args=args)

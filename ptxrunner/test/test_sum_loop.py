@@ -1,6 +1,7 @@
 import torch
 import ptxrunner
 from torch._inductor import config
+from torch._inductor.utils import do_bench
 
 config.benchmark_kernel = True
 config.compile_threads = 1
@@ -193,5 +194,10 @@ act = torch.zeros_like(ref)
 ptxrunner.load_and_run(ptx_code, args=(x, act, x.size(0), x.size(1)), gridDim=1024, blockDim=32*8, shared=32)
 
 assert torch.allclose(ref, act), f"ref:\n{ref}\nact:\n{act}"
+
+ms_torch_compile = do_bench(lambda: f(x))
+cu_func = ptxrunner.load_cu_func_from_ptx_code(ptx_code)
+ms_ptx_runner = do_bench(lambda: ptxrunner.launch(cu_func, args=(x, act, x.size(0), x.size(1)), gridDim=1024, blockDim=32*8, shared=32))
+print(f"ms_torch_compile {ms_torch_compile:.3f}ms v.s. ms_ptx_runner {ms_ptx_runner:.3f}ms")
 
 print("bye")
