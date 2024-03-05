@@ -10,7 +10,7 @@ torch.set_default_device("cuda")
 
 ptx_code = """
 .version 8.0
-.target sm_90
+.target sm_80
 .address_size 64
 
 .extern .shared .align 16 .b8 global_smem[];

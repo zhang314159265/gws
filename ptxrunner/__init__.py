@@ -13,7 +13,10 @@ def get_ptxas_path():
     """
     return shutil.which("ptxas")
 
-def ptx_to_cubin(ptx_code, arch="sm_90"):
+def ptx_to_cubin(ptx_code, arch=None):
+    if arch is None:
+        arch = parse_arch_from_ptx_code(ptx_code)
+    assert arch is not None
     with tempfile.TemporaryDirectory() as tmpdir:
         ptx_path = os.path.join(tmpdir, "input.ptx")
         cubin_path = os.path.join(tmpdir, "output.cubin")
@@ -55,6 +58,17 @@ def launch(cu_func, gridDim, blockDim, args, shared=0):
             assert isinstance(arg, int), "Argument must be a torch.Tensor or int"
 
     _C.launch(cu_func, gridDim, blockDim, args, shared)
+
+def parse_arch_from_ptx_code(ptx_code):
+    """
+    Expect the ptx code specify the arch with a line like
+        .target sm_80
+    """
+    all_matches = list(re.finditer(r"\.target\s+(\w+)", ptx_code))
+    assert len(all_matches) == 1
+    m = all_matches[0]
+    assert m
+    return m.group(1)
 
 def parse_entry_from_ptx_code(ptx_code):
     """
