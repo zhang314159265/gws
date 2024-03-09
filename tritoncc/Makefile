@@ -2,7 +2,12 @@ TORCH_ROOT = $(HOME)/ws/pytorch
 OVERRIDE_TORCH_LIB_PATH := $(TORCH_ROOT)/torch/lib
 
 # XXX non-portable definitions BEGIN
-LLVM_ROOT := $(HOME)/.triton/llvm/llvm-4017f04e-ubuntu-x64
+# USE_NEW_LLVM := 1
+ifdef USE_NEW_LLVM
+LLVM_ROOT := $(HOME)/.triton/llvm/llvm-5e5a22ca-ubuntu-x64
+else
+LLVM_ROOT := $(HOME)/old.triton/llvm/llvm-4017f04e-ubuntu-x64
+endif
 TRITON_SRC_ROOT := $(HOME)/ws/triton
 TRITON_BUILD_ROOT := $(TRITON_SRC_ROOT)/python/build/cmake.linux-x86_64-cpython-3.10
 LIBPYTHON_DIR := /home/shunting/ws/miniconda3/envs/pytorch/lib
@@ -39,7 +44,13 @@ ifdef USE_LIBTRITON
 LDFLAGS += $(TRITON_SRC_ROOT)/python/triton/_C/libtriton.so
 LDFLAGS += $(LIBPYTHON)
 else
-LDFLAGS += -lLLVMRemarks -lLLVMBitstreamReader -lLLVMBinaryFormat -lLLVMTargetParser -lMLIRPass -lMLIRTransformUtils -lMLIRRewrite -lMLIRRewritePDL
+
+ifdef USE_NEW_LLVM
+LDFLAGS += -lMLIRBufferizationDialect -lMLIRSparseTensorDialect -lMLIRLLVMDialect
+else
+LDFLAGS += -lMLIRRewritePDL
+endif
+LDFLAGS += -lLLVMRemarks -lLLVMBitstreamReader -lLLVMBinaryFormat -lLLVMTargetParser -lMLIRPass -lMLIRTransformUtils -lMLIRRewrite
 LDFLAGS += -lMLIRPDLInterpDialect -lMLIRPDLDialect -lMLIRPDLToPDLInterp -lMLIRLLVMCommonConversion -lMLIRLLVMDialect -lMLIRMemorySlotInterfaces
 LDFLAGS += -lMLIRTransforms -lMLIRNVVMDialect -lMLIRFuncToLLVM -lMLIRControlFlowToSCF -lMLIRFuncDialect -lMLIRArithToLLVM -lMLIRArithAttrToLLVMConversion
 LDFLAGS += -lMLIRControlFlowToLLVM -lMLIRGPUToNVVMTransforms -lMLIRGPUToGPURuntimeTransforms -lMLIRVectorToLLVM -lMLIRVectorDialect -lMLIRValueBoundsOpInterface
@@ -73,9 +84,8 @@ ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 # first: run_dot_ptx
 # first: test_load_add_cubin_and_run
 # first: test_load_dot_cubin_and_run
-first: test_dot
-# first: test_add
 # first: test_dot
+first: test_sum
 
 all: test_add test_sum
 
