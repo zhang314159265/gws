@@ -13,7 +13,7 @@ namespace tritoncc {
 void processTTIR(mlir::ModuleOp& M) {
   mlir::MLIRContext& ctx = *M.getContext();
   mlir::PassManager pm(&ctx);
-  pm.addPass(mlir::triton::createCombineOpsPass());
+  // pm.addPass(mlir::triton::createCombineOpsPass());
   pm.addPass(mlir::createCSEPass());
   pm.addPass(mlir::createInlinerPass());
   assert(!mlir::failed(pm.run(M.getOperation())));

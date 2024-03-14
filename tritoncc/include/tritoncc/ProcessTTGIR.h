@@ -1,11 +1,13 @@
 #pragma once
 
 #include "tritoncc/pass/coalesce.h"
+#include "tritoncc/pass/remove_layout_conversions.h"
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
 #include "mlir/IR/BuiltinOps.h"
 #include "tritoncc/Util.h"
+#include "tritoncc/pass/convert_triton_to_triton_gpu.h"
 
 #include "triton/Conversion/TritonToTritonGPU/TritonToTritonGPUPass.h"
 #include "triton/Dialect/TritonGPU/Transforms/Passes.h"
@@ -16,7 +18,7 @@ void processTTGIR(mlir::ModuleOp& M, Option& opt) {
   mlir::MLIRContext& ctx = *M.getContext();
   mlir::PassManager pm(&ctx);
 
-  pm.addPass(mlir::triton::createConvertTritonToTritonGPUPass(
+  pm.addPass(tritoncc::createConvertTritonToTritonGPUPass(
     opt.num_warps, 32, opt.num_ctas, opt.capability
   ));
 
@@ -46,7 +48,11 @@ void processTTGIR(mlir::ModuleOp& M, Option& opt) {
   #else
   pm.addPass(tritoncc::createCoalescePass());
   #endif
+  #if 1
   pm.addPass(mlir::triton::gpu::createRemoveLayoutConversionsPass());
+  #else
+  pm.addPass(tritoncc::createRemoveLayoutConversionsPass());
+  #endif
   assert(!mlir::failed(pm.run(M.getOperation())));
 
   { // dump ttgir to a file
