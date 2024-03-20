@@ -10,7 +10,8 @@ torch.set_default_device("cuda")
 
 ptx_code = """
 .version 8.0
-.target sm_80
+// sm_80 cause 'device kernel image is invalid' error on H100
+.target sm_90
 .address_size 64
 
 .extern .shared .align 16 .b8 global_smem[];

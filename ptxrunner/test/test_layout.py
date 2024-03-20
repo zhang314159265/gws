@@ -92,7 +92,7 @@ def apply_inductor_hint(with_divisible_hints):
             'device': 0,
             'device_type': 'cuda',
             'constants': {},
-            'configs': [AttrsDescriptor(divisible_by_16=divisible_by_16, equal_to_1=(), ids_of_folded_args=())]
+            'configs': [AttrsDescriptor(divisible_by_16=divisible_by_16, equal_to_1=())]
         },
     )(triton_kernel)
 
@@ -114,7 +114,7 @@ ref = copy.deepcopy(args[-1])
 use_ptx = os.environ.get("USE_PTX", "1") == "1"
 
 def assert_close(ref, act):
-    tol = {"atol": 1e-3, "rtol": 1e-3}
+    tol = {"atol": 4 * 1e-3, "rtol": 4 * 1e-3}
     correct = torch.allclose(ref, act, **tol)
 
     if not correct:

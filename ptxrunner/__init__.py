@@ -11,7 +11,7 @@ def get_ptxas_path():
     """
     Use the default ptx found in PATH.
     """
-    return shutil.which("ptxas")
+    return os.environ.get("PTXAS_PATH", shutil.which("ptxas"))
 
 def ptx_to_cubin(ptx_code, arch=None):
     if arch is None:
