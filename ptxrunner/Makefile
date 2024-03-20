@@ -5,7 +5,8 @@ CUDA_HOME := $(shell which nvcc | xargs dirname | xargs dirname)
 test: build_extension
 	# PYTHONPATH=.. time python test/test_sum_loop.py
 	# PYTHONPATH=.. time python test/test_layout.py
-	PYTHONPATH=.. time python test/test_cat_sum.py
+	# PYTHONPATH=.. time python test/test_cat_sum.py
+	PYTHONPATH=.. time python test/test_cat.py
 
 tutor: build_extension
 	PYTHONPATH=.. python tutor.py
