@@ -83,14 +83,15 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
       }
     }
 
-    assert(memAccessesSameOrder.size() == 0 && "Only support empty memAccessesSameOrder for now");
-
     llvm::SmallVector<int64_t> shapePerCTA = mlir::triton::gpu::getShapePerCTA(refTensorType);
     int numElems = product<int64_t>(shapePerCTA);
     int numThreads = numWarps * threadsPerWarp;
     int numElemsPerThread = std::max(numElems / numThreads, 1);
     unsigned perThread = mlir::getNumElementsPerThread(op, order, axisInfoAnalysis);
-    assert(memAccessesSameOrder.size() == 0 && "don't support non empty memAccessesSameOrder yet");
+    for (mlir::Operation *opSameOrder : memAccessesSameOrder) {
+      unsigned currPerThread = mlir::getNumElementsPerThread(opSameOrder, order, axisInfoAnalysis);
+      perThread = std::max(perThread, currPerThread);
+    }
     perThread = std::min<int>(perThread, numElemsPerThread);
 
     if (!llvm::dyn_cast<mlir::triton::LoadOp>(op)) {

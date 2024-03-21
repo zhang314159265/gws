@@ -44,7 +44,7 @@ void processTTGIR(mlir::ModuleOp& M, Option& opt) {
   #if 0
   pm.addPass(mlir::triton::gpu::createCoalescePass());
   #else
-  // pm.addPass(tritoncc::createCoalescePass());
+  pm.addPass(tritoncc::createCoalescePass());
   #endif
   pm.addPass(mlir::triton::gpu::createRemoveLayoutConversionsPass());
   assert(!mlir::failed(pm.run(M.getOperation())));

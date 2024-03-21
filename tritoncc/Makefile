@@ -91,8 +91,8 @@ first: tritoncc
 all: test_add test_sum
 
 tritoncc:
-	time g++ tritoncc.cpp $(ALLFLAGS) -o /tmp/tritoncc
-	/tmp/tritoncc skip-checkin/add_ref.ttir
+	time g++ tritoncc.cpp $(ALLFLAGS) -o out/tritoncc
+	out/tritoncc skip-checkin/add_ref.ttir
 
 test_sum:
 	g++ test_sum.cpp $(ALLFLAGS) -o a.out
