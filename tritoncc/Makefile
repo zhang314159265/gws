@@ -55,7 +55,7 @@ LDFLAGS += -lMLIRPDLInterpDialect -lMLIRPDLDialect -lMLIRPDLToPDLInterp -lMLIRLL
 LDFLAGS += -lMLIRTransforms -lMLIRNVVMDialect -lMLIRFuncToLLVM -lMLIRControlFlowToSCF -lMLIRFuncDialect -lMLIRArithToLLVM -lMLIRArithAttrToLLVMConversion
 LDFLAGS += -lMLIRControlFlowToLLVM -lMLIRGPUToNVVMTransforms -lMLIRGPUToGPURuntimeTransforms -lMLIRVectorToLLVM -lMLIRVectorDialect -lMLIRValueBoundsOpInterface
 LDFLAGS += -lMLIRPresburger -lMLIRMaskingOpInterface -lMLIRMaskableOpInterface -lMLIRVectorInterfaces -lMLIRVectorTransforms -lMLIRTargetLLVMIRExport
-LDFLAGS += -lMLIRMemRefToLLVM -lMLIRMemRefUtils -lMLIRGPUTransforms -lMLIRIndexDialect -lMLIRMathToLLVM
+LDFLAGS += -lMLIRMemRefToLLVM -lMLIRMemRefUtils -lMLIRGPUTransforms -lMLIRIndexDialect -lMLIRMathToLLVM -lMLIRParser -lMLIRBytecodeReader -lMLIRAsmParser
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Analysis/CMakeFiles/TritonAnalysis.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/TritonGPUToLLVM.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/TritonGPUToLLVM.dir/ConvertLayoutOpToLLVM/*.o
@@ -85,9 +85,14 @@ ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 # first: test_load_add_cubin_and_run
 # first: test_load_dot_cubin_and_run
 # first: test_dot
-first: test_sum
+# first: test_sum
+first: tritoncc
 
 all: test_add test_sum
+
+tritoncc:
+	time g++ tritoncc.cpp $(ALLFLAGS) -o /tmp/tritoncc
+	/tmp/tritoncc skip-checkin/add_ref.ttir
 
 test_sum:
 	g++ test_sum.cpp $(ALLFLAGS) -o a.out
