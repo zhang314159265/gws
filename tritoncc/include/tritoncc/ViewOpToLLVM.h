@@ -2,6 +2,38 @@
 
 namespace tritoncc {
 
+#if 1 // copied from triton
+struct CatOpConversion : public ConvertOpToLLVMPattern<CatOp> {
+  using OpAdaptor = typename CatOp::Adaptor;
+  explicit CatOpConversion(LLVMTypeConverter &typeConverter,
+                           PatternBenefit benefit = patternBenefitDefault)
+      : ConvertOpToLLVMPattern<CatOp>(typeConverter, benefit) {}
+  LogicalResult
+  matchAndRewrite(CatOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    auto resultTy = op.getType().template cast<RankedTensorType>();
+    unsigned elems = mlir::triton::gpu::getTotalElemsPerThread(resultTy);
+    auto typeConverter = getTypeConverter();
+    Type elemTy = typeConverter->convertType(resultTy.getElementType());
+    SmallVector<Type> types(elems, elemTy);
+    // unpack input values
+    auto lhsVals = tritoncc::unpackLLElements(loc, adaptor.getLhs(), rewriter);
+    auto rhsVals = tritoncc::unpackLLElements(loc, adaptor.getRhs(), rewriter);
+    // concatenate (and potentially reorder) values
+    SmallVector<Value> retVals;
+    for (Value v : lhsVals)
+      retVals.push_back(v);
+    for (Value v : rhsVals)
+      retVals.push_back(v);
+    // pack and replace
+    Value ret = tritoncc::packLLElements(loc, typeConverter, retVals, rewriter, resultTy);
+    rewriter.replaceOp(op, ret);
+    return success();
+  }
+};
+#endif
+
 struct SplatOpConversion : public ConvertOpToLLVMPattern<triton::SplatOp> {
   using ConvertOpToLLVMPattern<triton::SplatOp>::ConvertOpToLLVMPattern;
 
@@ -195,6 +227,7 @@ void populateViewOpToLLVMPatterns(
   patterns.add<ArithConstantSplatOpConversion>(typeConverter, benefit);
   patterns.add<ExpandDimsOpConversion>(typeConverter, benefit);
   patterns.add<BroadcastOpConversion>(typeConverter, benefit);
+  patterns.add<CatOpConversion>(typeConverter, benefit);
 }
 
 }

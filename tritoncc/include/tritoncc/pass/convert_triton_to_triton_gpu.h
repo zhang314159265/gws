@@ -207,6 +207,44 @@ class TritonReducePattern : public mlir::OpConversionPattern<mlir::triton::Reduc
   }
 };
 
+class TritonCatPattern : public mlir::OpConversionPattern<mlir::triton::CatOp> {
+ public:
+  using OpConversionPattern::OpConversionPattern;
+
+  mlir::LogicalResult matchAndRewrite(mlir::triton::CatOp op, OpAdaptor adaptor,
+      mlir::ConversionPatternRewriter &rewriter) const override {
+    mlir::RankedTensorType retType = getTypeConverter()->convertType(op.getType()).cast<mlir::RankedTensorType>();
+    mlir::triton::gpu::BlockedEncodingAttr retEncoding
+        = retType.getEncoding().cast<mlir::triton::gpu::BlockedEncodingAttr>();
+    mlir::Type lhsType = adaptor.getLhs().getType();
+    mlir::Type rhsType = adaptor.getRhs().getType();
+    int lhsTotalElemsPerThread = mlir::triton::gpu::getTotalElemsPerThread(lhsType);
+    int rhsTotalElemsPerThread = mlir::triton::gpu::getTotalElemsPerThread(rhsType);
+    int retTotalElemsPerThread = mlir::triton::gpu::getTotalElemsPerThread(retType);
+    llvm::ArrayRef<long> retShape = retType.getShape();
+    llvm::ArrayRef<unsigned> retOrder = retEncoding.getOrder();
+    llvm::SmallVector<unsigned> retSizePerThread = retEncoding.getSizePerThread();
+    llvm::SmallVector<unsigned> retThreadsPerWarp = retEncoding.getThreadsPerWarp();
+    llvm::SmallVector<unsigned> retWarpsPerCTA = retEncoding.getWarpsPerCTA();
+
+    int newRetTotalElemsPerThread = mlir::nextPowOf2(lhsTotalElemsPerThread + rhsTotalElemsPerThread);
+    // An assetion added by shunting
+    assert(newRetTotalElemsPerThread == retTotalElemsPerThread);
+    llvm::SmallVector<unsigned> newRetSizePerThread = retSizePerThread;
+    newRetSizePerThread[retOrder[0]] *= newRetTotalElemsPerThread / retTotalElemsPerThread;
+    mlir::triton::gpu::BlockedEncodingAttr newRetEncoding =
+      mlir::triton::gpu::BlockedEncodingAttr::get(
+        getContext(), newRetSizePerThread, retThreadsPerWarp,
+        retWarpsPerCTA, retOrder, retEncoding.getCTALayout());
+    mlir::RankedTensorType newRetType = mlir::RankedTensorType::get(retShape, retType.getElementType(), newRetEncoding);
+    addNamedAttrs(rewriter.replaceOpWithNewOp<mlir::triton::CatOp>(
+      op, newRetType, adaptor.getOperands()),
+      adaptor.getAttributes());
+    std::cerr << "For cat: lhsTotalElemsPerThread " << lhsTotalElemsPerThread << ", rhsTotalElemsPerThread " << rhsTotalElemsPerThread << ", retTotalElemsPerThread " << retTotalElemsPerThread << std::endl;
+    return mlir::success();
+  }
+};
+
 void populateArithPatterns(TritonGPUTypeConverter &typeConverter,
     mlir::RewritePatternSet &patterns) {
   mlir::MLIRContext *context = patterns.getContext();
@@ -272,7 +310,8 @@ class ConvertTritonToTritonGPUPass : public mlir::OperationPass<mlir::ModuleOp> 
       TritonFuncOpPattern,
       TritonExpandDimsPattern,
       TritonBroadcastPattern,
-      TritonReducePattern
+      TritonReducePattern,
+      TritonCatPattern
     >(typeConverter, context);
 
     TritonGPUConversionTarget target(*context, typeConverter);
