@@ -1,8 +1,8 @@
 #include <iostream>
 
-#include "tritoncc/LocationOpBuilder.h"
-#include "tritoncc/ProcessPipeline.h"
-#include "tritoncc/Util.h"
+#include "tritoncc/legacy/LocationOpBuilder.h"
+#include "tritoncc/legacy/ProcessPipeline.h"
+#include "tritoncc/legacy/Util.h"
 
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Builders.h"
@@ -11,7 +11,7 @@
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/NVVM/NVVMToLLVMIRTranslation.h"
 
-#include "tritoncc/MLIRUtil.h"
+#include "tritoncc/legacy/MLIRUtil.h"
 
 using namespace tritoncc;
 

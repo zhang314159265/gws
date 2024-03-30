@@ -17,7 +17,7 @@
 #include "mlir/Target/LLVMIR/LLVMTranslationInterface.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
 
-#include "tritoncc/Util.h"
+#include "tritoncc/legacy/Util.h"
 #include "triton/Conversion/TritonGPUToLLVM/Passes.h"
 #include "triton/Dialect/TritonGPU/IR/Dialect.h"
 #include "triton/Dialect/TritonNvidiaGPU/IR/Dialect.h"
@@ -32,12 +32,12 @@
 #include "TypeConverter.h"
 #include "PatternTritonGPUOpToLLVM.h"
 
-#include "tritoncc/ElementwiseOpToLLVM.h"
-#include "tritoncc/ReduceOpConversion.h"
-#include "tritoncc/SPMDOpToLLVM.h"
-#include "tritoncc/MakeRangeOpToLLVM.h"
-#include "tritoncc/ViewOpToLLVM.h"
-#include "tritoncc/LoadStoreOpToLLVM.h"
+#include "tritoncc/legacy/ElementwiseOpToLLVM.h"
+#include "tritoncc/legacy/ReduceOpConversion.h"
+#include "tritoncc/legacy/SPMDOpToLLVM.h"
+#include "tritoncc/legacy/MakeRangeOpToLLVM.h"
+#include "tritoncc/legacy/ViewOpToLLVM.h"
+#include "tritoncc/legacy/LoadStoreOpToLLVM.h"
 #include "nvidia/lib/TritonNVIDIAGPUToLLVM/PatternTritonGPUOpToLLVM.h"
 
 #if 1

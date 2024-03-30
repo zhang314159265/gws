@@ -1,11 +1,11 @@
 #pragma once
 
 #include "tritoncc/stage/make_ttir.h"
-#include "tritoncc/ProcessTTGIR.h"
-#include "tritoncc/ProcessLLIR.h"
-#include "tritoncc/MakePTX.h"
-#include "tritoncc/MakeCubin.h"
-#include "tritoncc/Util.h"
+#include "tritoncc/legacy/ProcessTTGIR.h"
+#include "tritoncc/legacy/ProcessLLIR.h"
+#include "tritoncc/legacy/MakePTX.h"
+#include "tritoncc/legacy/MakeCubin.h"
+#include "tritoncc/legacy/Util.h"
 
 namespace tritoncc {
 

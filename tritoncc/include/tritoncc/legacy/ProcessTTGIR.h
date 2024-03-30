@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/PassManager.h"
-#include "tritoncc/Util.h"
+#include "tritoncc/legacy/Util.h"
 #include "tritoncc/pass/convert_triton_to_triton_gpu.h"
 
 #include "triton/Conversion/TritonToTritonGPU/TritonToTritonGPUPass.h"
@@ -49,11 +49,8 @@ void processTTGIR(mlir::ModuleOp& M, Option& opt) {
   #else
   pm.addPass(tritoncc::createCoalescePass());
   #endif
-  #if 1
-  pm.addPass(mlir::triton::gpu::createRemoveLayoutConversionsPass());
-  #else
+
   pm.addPass(tritoncc::createRemoveLayoutConversionsPass());
-  #endif
   assert(!mlir::failed(pm.run(M.getOperation())));
 
   { // dump ttgir to a file

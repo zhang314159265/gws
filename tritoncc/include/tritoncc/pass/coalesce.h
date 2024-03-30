@@ -9,6 +9,11 @@
 
 #include "tritoncc/pass/util.h"
 
+#ifdef DEBUG
+#undef DEBUG
+#endif
+#define DEBUG 0
+
 namespace tritoncc {
 
 static mlir::Value getMemAccessPtr(mlir::Operation* op) {
@@ -63,7 +68,9 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     // multiRootGetSlice is defined in triton rather than llvm/mlir
     // it collects transitive uses/defs of op
     llvm::SmallSetVector<mlir::Operation*, 32> memAccessesSameOrder;
+    #if DEBUG
     llvm::errs() << "Find memAccessesSameOrder for " << *op << "\n";
+    #endif
     for (mlir::Operation *use : mlir::multiRootGetSlice(op)) {
       #if 0
       llvm::errs() << "OpUse: " << *use << '\n';
@@ -78,7 +85,9 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
       llvm::SmallVector<unsigned> currOrder =
         argSortDesc(axisInfoAnalysis.getAxisInfo(val)->getContiguity());
       if (order == currOrder) {
+        #if DEBUG
         llvm::errs() << "Insert to memAccessSameOrder: " << *use << '\n';
+        #endif
         memAccessesSameOrder.insert(use);
       }
     }

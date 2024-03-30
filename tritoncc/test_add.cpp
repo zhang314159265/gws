@@ -3,9 +3,9 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "tritoncc/Util.h"
-#include "tritoncc/ProcessPipeline.h"
-#include "tritoncc/MLIRUtil.h"
+#include "tritoncc/legacy/Util.h"
+#include "tritoncc/legacy/ProcessPipeline.h"
+#include "tritoncc/legacy/MLIRUtil.h"
 
 #include "triton/Dialect/Triton/IR/Types.h"
 #include "triton/Dialect/Triton/IR/Dialect.h"

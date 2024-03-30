@@ -1,5 +1,8 @@
 #pragma once
 
+#ifdef USE_TRITON
+#undef USE_TRITON
+#endif
 #define USE_TRITON 0
 
 #if USE_TRITON

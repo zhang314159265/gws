@@ -7,7 +7,7 @@
 #undef call
 #endif
 
-#include "tritoncc/DebugListener.h"
+#include "tritoncc/legacy/DebugListener.h"
 #include "mlir/Transforms/DialectConversion.h"
 
 #include "nvidia/lib/TritonNVIDIAGPUToLLVM/Utility.h"

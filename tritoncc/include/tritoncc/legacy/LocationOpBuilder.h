@@ -4,7 +4,7 @@
 #include "triton/Dialect/Triton/IR/Types.h"
 #include "triton/Dialect/Triton/IR/Dialect.h"
 
-#include "tritoncc/Util.h"
+#include "tritoncc/legacy/Util.h"
 
 namespace tritoncc {
 
