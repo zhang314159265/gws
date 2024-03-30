@@ -9,7 +9,10 @@
 #include "triton/Conversion/TritonToTritonGPU/TritonToTritonGPUPass.h"
 #endif
 
+#include "llvm/Support/Debug.h"
 #include "mlir/Transforms/DialectConversion.h"
+
+#define DEBUG_TYPE "convert-triton-to-triton-gpu"
 
 namespace tritoncc {
 
@@ -324,8 +327,10 @@ class ConvertTritonToTritonGPUPass : public mlir::OperationPass<mlir::ModuleOp> 
       return signalPassFailure();
     }
 
-    llvm::errs() << "Module after triton to triton gpu pass\n";
-    mod.dump();
+    LLVM_DEBUG({
+      llvm::dbgs() << "Module after triton to triton gpu pass\n";
+      mod.dump();
+    });
   }
  private:
   int numWarps;
@@ -350,3 +355,5 @@ static std::unique_ptr<mlir::OperationPass<mlir::ModuleOp>> createConvertTritonT
 #endif
 
 }
+
+#undef DEBUG_TYPE

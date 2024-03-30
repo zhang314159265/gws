@@ -4,6 +4,7 @@
 #include "tritoncc/legacy/ProcessPipeline.h"
 #include "tritoncc/legacy/Util.h"
 
+#include "llvm/Support/CommandLine.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -56,7 +57,8 @@ mlir::triton::FuncOp createSumReduceFunc(mlir::MLIRContext& ctx, mlir::ModuleOp&
   return F;
 }
 
-int main(void) {
+int main(int argc, char** argv) {
+  llvm::cl::ParseCommandLineOptions(argc, argv);
   mlir::MLIRContext ctx;
   LocationOpBuilder builder(&ctx);
   LocationOpBuilder& B = builder;

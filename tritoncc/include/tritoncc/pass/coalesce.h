@@ -7,7 +7,7 @@
 #include "triton/Dialect/TritonGPU/IR/Dialect.h"
 #include "triton/Dialect/TritonGPU/Transforms/Utility.h"
 
-#include "tritoncc/pass/util.h"
+#include "tritoncc/util.h"
 
 #ifdef DEBUG
 #undef DEBUG

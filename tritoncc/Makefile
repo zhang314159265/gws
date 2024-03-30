@@ -85,8 +85,8 @@ ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 # first: test_load_add_cubin_and_run
 # first: test_load_dot_cubin_and_run
 # first: test_dot
-# first: test_sum
-first: test_add
+first: test_sum
+# first: test_add  # does not generate any anchor nodes for remove-layout-conversion due to small block size
 # first: tritoncc
 
 all: test_add test_sum
@@ -97,7 +97,7 @@ tritoncc:
 
 test_sum:
 	g++ test_sum.cpp $(ALLFLAGS) -o a.out
-	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
+	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out # -debug-only=remove-layout-conversions
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_sum_cubin_and_run /tmp/tritoncc.cubin
 
 # XXX my generted dot ptx does not contains ldmatrix/mma instr. It contains

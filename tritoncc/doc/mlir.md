@@ -3,6 +3,19 @@
 llvm/include/llvm/ADT/APInt.h
 - APInt
 
+llvm/include/llvm/ADT/MapVector.h
+- MapVector # like OrderedDict in python
+
+llvm/include/llvm/ADT/SetVector.h
+- SmallSetVector
+
+llvm/include/llvm/Support/CommandLine.h
+- ParseCommandLineOptions
+
+llvm/include/llvm/Support/Debug.h
+- dbgs
+- `LLVM_DEBUG`
+
 mlir/include/mlir/Pass/Pass.h
 - OperationPass
 - Pass
@@ -20,14 +33,21 @@ mlir/include/mlir/IR/BuiltinTypes.td
 - IntegerType
 - RankedTensorType
 
+mlir/include/mlir/IR/IRMapping.h
+- IRMapping
+
 mlir/include/mlir/IR/Operation.h
 - Operation
 
 mlir/include/mlir/IR/PatternMatch.h
+- IRRewriter
 - PatternRewriter
 - RewriterBase
 - RewritePattern
 - RewritePatternSet
+
+mlir/include/mlir/IR/Value.h
+- class Value
 
 mlir/include/mlir/Pass/PassManager.h
 - PassManager
@@ -46,6 +66,9 @@ mlir/include/mlir/Transforms/DialectConversion.h
 - OpConversionPattern
   - OpAdaptor = SourceOp::Adaptor
 - TypeConverter
+
+mlir/include/mlir/Transforms/GreedyPatternRewriteDriver.h
+- applyPatternsAndFoldGreedily
 
 mlir/include/mlir/Transforms/Passes.h
 - createCSEPass
