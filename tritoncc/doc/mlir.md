@@ -29,6 +29,9 @@ mlir/include/mlir/IR/PatternMatch.h
 - RewritePattern
 - RewritePatternSet
 
+mlir/include/mlir/Pass/PassManager.h
+- PassManager
+
 mlir/include/mlir/Rewrite/FrozenRewritePatternSet.h
 - FrozenRewritePatternSet
 
@@ -43,6 +46,10 @@ mlir/include/mlir/Transforms/DialectConversion.h
 - OpConversionPattern
   - OpAdaptor = SourceOp::Adaptor
 - TypeConverter
+
+mlir/include/mlir/Transforms/Passes.h
+- createCSEPass
+- createInlinerPass
 
 mlir/lib/Transforms/Utils/DialectConversion.cpp
 - applyPartialConversion

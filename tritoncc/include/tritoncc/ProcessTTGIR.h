@@ -6,6 +6,7 @@
 #include <iostream>
 #include <cstdlib>
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Pass/PassManager.h"
 #include "tritoncc/Util.h"
 #include "tritoncc/pass/convert_triton_to_triton_gpu.h"
 

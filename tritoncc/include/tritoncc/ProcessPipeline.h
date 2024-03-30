@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tritoncc/ProcessTTIR.h"
+#include "tritoncc/stage/make_ttir.h"
 #include "tritoncc/ProcessTTGIR.h"
 #include "tritoncc/ProcessLLIR.h"
 #include "tritoncc/MakePTX.h"
@@ -10,7 +10,7 @@
 namespace tritoncc {
 
 std::string processPipeline(mlir::ModuleOp& M, Option& opt) {
-  processTTIR(M);
+  make_ttir(M);
   processTTGIR(M, opt);
   std::string src = processLLIR(M, opt);
   std::string ptxCode = makePTX(src, opt);

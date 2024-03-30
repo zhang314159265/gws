@@ -85,8 +85,8 @@ ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 # first: test_load_add_cubin_and_run
 # first: test_load_dot_cubin_and_run
 # first: test_dot
-first: test_sum
-# first: test_add
+# first: test_sum
+first: test_add
 # first: tritoncc
 
 all: test_add test_sum
