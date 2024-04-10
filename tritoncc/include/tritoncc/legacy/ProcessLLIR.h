@@ -37,7 +37,7 @@
 #include "tritoncc/legacy/SPMDOpToLLVM.h"
 #include "tritoncc/legacy/MakeRangeOpToLLVM.h"
 #include "tritoncc/legacy/ViewOpToLLVM.h"
-#include "tritoncc/legacy/LoadStoreOpToLLVM.h"
+#include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/load_store.h"
 #include "nvidia/lib/TritonNVIDIAGPUToLLVM/PatternTritonGPUOpToLLVM.h"
 
 #if 1
@@ -65,27 +65,6 @@ void populateReduceOpToLLVMPatterns(
 } }
 
 namespace tritoncc {
-
-// encounter link error for missing typeinfo with this:
-// https://gist.github.com/shunting314/6c1eba0c51b3d6a49e3da75bc5343cef
-// Update: this is resolve by add -fno-rtti compliation options.
-// Thanks to this post https://discourse.llvm.org/t/python-api-problem/945
-#if 0
-struct MyConvertTritonGPUToLLVM : public mlir::triton::impl::ConvertTritonGPUToLLVMBase<MyConvertTritonGPUToLLVM> {
- public:
-  using ConvertTritonGPUToLLVMBase::ConvertTritonGPUToLLVMBase;
-  MyConvertTritonGPUToLLVM(int32_t computeCapability, mlir::triton::Target target)
-    : ConvertTritonGPUToLLVMBase({computeCapability, target}) { }
-
-  void getDependentDialects(mlir::DialectRegistry &registry) const override {
-    // TODO
-  }
-
-  void runOnOperation() override {
-  }
- private:
-};
-#endif
 
 namespace { // copied from TritonGPUToLLVM.cpp
 using namespace mlir;
@@ -221,21 +200,21 @@ private:
 
 #if 1
 
-struct MyConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
+struct ConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
  public:
   int computeCapability;
-  MyConvertTritonGPUToLLVM(int32_t computeCapability)
-    : mlir::OperationPass<mlir::ModuleOp>(mlir::TypeID::get<MyConvertTritonGPUToLLVM>()) {
+  ConvertTritonGPUToLLVM(int32_t computeCapability)
+    : mlir::OperationPass<mlir::ModuleOp>(mlir::TypeID::get<ConvertTritonGPUToLLVM>()) {
     this->computeCapability = computeCapability;
   }
-  MyConvertTritonGPUToLLVM(const MyConvertTritonGPUToLLVM& other) : mlir::OperationPass<mlir::ModuleOp>(other) { }
+  ConvertTritonGPUToLLVM(const ConvertTritonGPUToLLVM& other) : mlir::OperationPass<mlir::ModuleOp>(other) { }
 
   llvm::StringRef getName() const override {
-    return "MyConvertTritonGPUToLLVM";
+    return "ConvertTritonGPUToLLVM";
   }
 
   std::unique_ptr<mlir::Pass> clonePass() const override {
-    return std::make_unique<MyConvertTritonGPUToLLVM>(*this);
+    return std::make_unique<ConvertTritonGPUToLLVM>(*this);
   }
 
   void runOnOperation() override {
@@ -395,23 +374,8 @@ std::string processLLIR(mlir::ModuleOp& M, Option& opt) {
   mlir::PassManager pm(&ctx);
 
   pm.addPass(mlir::triton::gpu::createAllocateSharedMemoryPass());
-  #if 0
-  // after this pass the generate llir file for test_sum is super large: https://gist.github.com/shunting314/89db675f75cec48229fb95febb290574 
-  // don't know why yet.
-  //
-  // But the llir file for test_add still looks reasonable: https://gist.github.com/shunting314/02d2b35604353698a59d1628b74a1d06
-  //
-  // XXX after this pass tt.reduce is gone being replaced!
-  pm.addPass(mlir::triton::createConvertTritonGPUToLLVMPass(
-    opt.capability, mlir::triton::NVVM, tmaMetadata
-  ));
-  #else
-  // XXX after my pass, tt.reduce still exist in the result.
-  pm.addPass(std::make_unique<MyConvertTritonGPUToLLVM>(opt.capability));
-  #endif
+  pm.addPass(std::make_unique<tritoncc::ConvertTritonGPUToLLVM>(opt.capability));
 
-  // TODO use my own pass?
-  // pm.addPass(std::make_unique<ConvertNVGPUToLLVM>());
   pm.addPass(mlir::triton::createConvertNVGPUToLLVMPass());
 
   bool success = !mlir::failed(pm.run(M.getOperation()));
@@ -420,11 +384,6 @@ std::string processLLIR(mlir::ModuleOp& M, Option& opt) {
     M.dump();
   }
   assert(success);
-
-  #if 0
-  std::cerr << "llir before optimizeLLIR:" << std::endl;
-  M.dump(); // TODO the output may be too large for some cases. Disable or write to a file
-  #endif
 
   auto llirSrc = optimizeLLIR(M, opt);
   { // dump llir to a file

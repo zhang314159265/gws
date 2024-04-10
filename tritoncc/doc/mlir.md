@@ -16,6 +16,9 @@ llvm/include/llvm/Support/Debug.h
 - dbgs
 - `LLVM_DEBUG`
 
+mlir/include/mlir/Conversion/LLVMCommon/TypeConverter.h
+- LLVMTypeConverter
+
 mlir/include/mlir/Pass/Pass.h
 - OperationPass
 - Pass

@@ -217,4 +217,26 @@ getConvertBackwardSlice(mlir::Value root, llvm::SetVector<mlir::Value> &slice,
   return mlir::success();
 }
 
+mlir::Type getPointeeType(mlir::Type type) {
+  if (auto tensorTy = type.dyn_cast<mlir::RankedTensorType>()) {
+    // Tensor of pointers
+    auto shape = tensorTy.getShape();
+    auto ptrType = tensorTy.getElementType().dyn_cast<mlir::triton::PointerType>();
+    mlir::Type pointeeType = ptrType.getPointeeType();
+    return mlir::RankedTensorType::get(shape, pointeeType, tensorTy.getEncoding());
+  } else if (auto ptrType = type.dyn_cast<mlir::triton::PointerType>()) {
+    // scalar pointer
+    return ptrType.getPointeeType();
+  }
+  return type;
+}
+
+unsigned getPointeeBitWidth(mlir::Type type) {
+  mlir::Type pointeeType = getPointeeType(type);
+  if (mlir::RankedTensorType tensorTy = pointeeType.dyn_cast<mlir::RankedTensorType>()) {
+    return tensorTy.getElementType().getIntOrFloatBitWidth();
+  }
+  return pointeeType.getIntOrFloatBitWidth();
+}
+
 }
