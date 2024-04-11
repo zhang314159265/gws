@@ -3,6 +3,7 @@ import sys
 import os
 import contextlib
 from torch import nn
+from transformers import AutoConfig, AutoModelForMaskedLM, AutoModelForCausalLM
 
 def create_timm_model(model_name):
     from timm.models import create_model
@@ -59,7 +60,6 @@ def create_model(model_name):
 ##################### HF Models ##############
 
 def create_AllenaiLongformerBase(bs=4):
-    from transformers import AutoConfig, AutoModelForMaskedLM
     config = AutoConfig.from_pretrained("allenai/longformer-base-4096")
     model = AutoModelForMaskedLM.from_config(config)
 
@@ -68,6 +68,15 @@ def create_AllenaiLongformerBase(bs=4):
     input_dict = gen_transformer_inputs(vocab_size, bs, seq_length)
     return model, input_dict
 
+def create_DistillGPT2():
+    config = AutoConfig.from_pretrained("distilgpt2")
+    model = AutoModelForCausalLM.from_config(config)
+    bs = 16
+    seq_length = 512
+    input_dict = gen_transformer_inputs(config.vocab_size,
+        bs, seq_length)
+
+    return model, input_dict
 
 ################### TIMM Models ################
 def create_lcnet_050():

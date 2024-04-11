@@ -7,7 +7,7 @@ from torch._inductor import config as inductor_config
 from torch._inductor.utils import do_bench
 from torch._dynamo.testing import reduce_to_scalar_loss
 
-MODEL_NAME = os.environ.get("MODEL_NAME", "AllenaiLongformerBase")
+MODEL_NAME = os.environ.get("MODEL_NAME", "DistillGPT2")
 
 DO_ACC_TEST = os.environ.get("DO_ACC_TEST", "1") == "1"
 DO_PERF_TEST = os.environ.get("DO_PERF_TEST", "1") == "1"
