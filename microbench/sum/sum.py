@@ -7,21 +7,24 @@
 import torch
 from torch._inductor.utils import do_bench
 from torch._inductor import config
+from torch._dynamo import config as dynamo_config
 
-# config.benchmark_kernel = True
+dynamo_config.automatic_dynamic_shapes = False
+config.benchmark_kernel = True
 
 torch.set_default_device("cuda")
 
-from torch._inductor import codecache
-kernel_paths = []
-orig_load_kernel = codecache._load_kernel
-def _mock_load_kernel(*args):
-    kernel = orig_load_kernel(*args)
-    global kernel_paths
-    kernel_paths.append(kernel.fn.fn.__code__.co_filename)
-    return kernel
-
-codecache._load_kernel = _mock_load_kernel
+# XXX _load_kernel has been removed
+# from torch._inductor import codecache
+# kernel_paths = []
+# orig_load_kernel = codecache._load_kernel
+# def _mock_load_kernel(*args):
+#     kernel = orig_load_kernel(*args)
+#     global kernel_paths
+#     kernel_paths.append(kernel.fn.fn.__code__.co_filename)
+#     return kernel
+# 
+# codecache._load_kernel = _mock_load_kernel
 
 @torch.compile
 def f(x):
@@ -39,4 +42,4 @@ for M, N in (
 print("bye")
 
 
-print(f"kernel paths: {kernel_paths}")
+# print(f"kernel paths: {kernel_paths}")
