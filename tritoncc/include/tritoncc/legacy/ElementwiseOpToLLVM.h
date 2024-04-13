@@ -5,35 +5,6 @@
 
 namespace tritoncc {
 
-static Value packLLElements(Location loc, const LLVMTypeConverter* typeConverter, ValueRange resultVals, ConversionPatternRewriter& rewriter, Type type) {
-  LLVM::LLVMStructType structType = typeConverter->convertType(type).dyn_cast<LLVM::LLVMStructType>();
-  assert(structType);
-  Value llvmStruct = rewriter.create<LLVM::UndefOp>(loc, structType);
-  auto elementTypes = structType.getBody();
-  for (const auto& v : llvm::enumerate(resultVals)) {
-    assert(v.value());
-    assert(v.value().getType() == elementTypes[v.index()]);
-    llvmStruct = rewriter.create<LLVM::InsertValueOp>(loc, structType, llvmStruct, v.value(), v.index());
-  }
-  return llvmStruct;
-}
-
-static SmallVector<Value> unpackLLElements(Location loc, Value llvmStruct, ConversionPatternRewriter& rewriter) {
-  assert(bool(llvmStruct) && "can not unpack null values");
-  if (llvmStruct.getType().isIntOrIndexOrFloat() ||
-      llvmStruct.getType().isa<triton::PointerType>() ||
-      llvmStruct.getType().isa<LLVM::LLVMPointerType>()) {
-    return {llvmStruct};
-  }
-  ArrayRef<Type> types = llvmStruct.getType().cast<LLVM::LLVMStructType>().getBody();
-  std::cout << "Unpack to " << types.size() << " elements" << std::endl;
-  SmallVector<Value> results(types.size());
-  for (int i = 0; i < types.size(); ++i) {
-    results[i] = rewriter.create<LLVM::ExtractValueOp>(loc, types[i], llvmStruct, i);
-  }
-  return results;
-}
-
 class FAddOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::arith::AddFOp> {
  public:
   using SourceOp = mlir::arith::AddFOp;

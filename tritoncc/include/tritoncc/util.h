@@ -1,6 +1,10 @@
 #pragma once
 
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/ValueRange.h"
+#include "mlir/Conversion/LLVMCommon/TypeConverter.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/ArrayRef.h"
 
@@ -237,6 +241,34 @@ unsigned getPointeeBitWidth(mlir::Type type) {
     return tensorTy.getElementType().getIntOrFloatBitWidth();
   }
   return pointeeType.getIntOrFloatBitWidth();
+}
+
+mlir::Value packLLElements(mlir::Location loc, const mlir::LLVMTypeConverter *typeConverter, mlir::ValueRange resultVals, mlir::ConversionPatternRewriter &rewriter, mlir::Type type) {
+  mlir::LLVM::LLVMStructType structType = typeConverter->convertType(type).dyn_cast<mlir::LLVM::LLVMStructType>();
+  assert(structType);
+  mlir::Value llvmStruct = rewriter.create<mlir::LLVM::UndefOp>(loc, structType);
+  auto elementTypes = structType.getBody();
+  for (const auto &v : llvm::enumerate(resultVals)) {
+    assert(v.value());
+    assert(v.value().getType() == elementTypes[v.index()]);
+    llvmStruct = rewriter.create<mlir::LLVM::InsertValueOp>(loc, structType, llvmStruct, v.value(), v.index());
+  }
+  return llvmStruct;
+}
+
+llvm::SmallVector<mlir::Value> unpackLLElements(mlir::Location loc, mlir::Value llvmStruct, mlir::ConversionPatternRewriter &rewriter) {
+  assert(bool(llvmStruct) && "can not unpack null values");
+  if (llvmStruct.getType().isIntOrIndexOrFloat() ||
+      llvmStruct.getType().isa<mlir::triton::PointerType>() ||
+      llvmStruct.getType().isa<mlir::LLVM::LLVMPointerType>()) {
+    return {llvmStruct};
+  }
+  llvm::ArrayRef<mlir::Type> types = llvmStruct.getType().cast<mlir::LLVM::LLVMStructType>().getBody();
+  llvm::SmallVector<mlir::Value> results(types.size());
+  for (int i = 0; i < types.size(); ++i) {
+    results[i] = rewriter.create<mlir::LLVM::ExtractValueOp>(loc, types[i], llvmStruct, i);
+  }
+  return results;
 }
 
 }

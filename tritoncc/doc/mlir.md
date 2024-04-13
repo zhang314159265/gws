@@ -19,6 +19,9 @@ llvm/include/llvm/Support/Debug.h
 mlir/include/mlir/Conversion/LLVMCommon/TypeConverter.h
 - LLVMTypeConverter
 
+mlir/include/mlir/Dialect/LLVMIR/LLVMTypes.h
+- LLVMStructType
+
 mlir/include/mlir/Pass/Pass.h
 - OperationPass
 - Pass
@@ -51,6 +54,9 @@ mlir/include/mlir/IR/PatternMatch.h
 
 mlir/include/mlir/IR/Value.h
 - class Value
+
+mlir/include/mlir/IR/ValueRange.h
+- class ValueRange
 
 mlir/include/mlir/Pass/PassManager.h
 - PassManager
