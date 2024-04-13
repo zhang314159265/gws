@@ -245,7 +245,10 @@ unsigned getPointeeBitWidth(mlir::Type type) {
 
 mlir::Value packLLElements(mlir::Location loc, const mlir::LLVMTypeConverter *typeConverter, mlir::ValueRange resultVals, mlir::ConversionPatternRewriter &rewriter, mlir::Type type) {
   mlir::LLVM::LLVMStructType structType = typeConverter->convertType(type).dyn_cast<mlir::LLVM::LLVMStructType>();
-  assert(structType);
+  if (!structType) {
+    assert(resultVals.size() == 1);
+    return *resultVals.begin();
+  }
   mlir::Value llvmStruct = rewriter.create<mlir::LLVM::UndefOp>(loc, structType);
   auto elementTypes = structType.getBody();
   for (const auto &v : llvm::enumerate(resultVals)) {
@@ -269,6 +272,30 @@ llvm::SmallVector<mlir::Value> unpackLLElements(mlir::Location loc, mlir::Value 
     results[i] = rewriter.create<mlir::LLVM::ExtractValueOp>(loc, types[i], llvmStruct, i);
   }
   return results;
+}
+
+llvm::SmallVector<mlir::Value> unpackI32(const llvm::SmallVector<mlir::Value> &inValues, mlir::Type srcTy, mlir::ConversionPatternRewriter &rewriter, mlir::Location loc, const mlir::LLVMTypeConverter *typeConverter) {
+  auto tensorTy = srcTy.dyn_cast<mlir::RankedTensorType>();
+  if (!tensorTy) {
+    return inValues;
+  }
+  auto encoding = tensorTy.getEncoding().dyn_cast<mlir::triton::gpu::DotOperandEncodingAttr>();
+  if (!(encoding && encoding.getParent().isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>())) {
+    return inValues;
+  }
+  assert(false && "unpackI32");
+}
+
+llvm::SmallVector<mlir::Value> packI32(const llvm::SmallVector<mlir::Value> &inValues, mlir::Type srcTy, mlir::ConversionPatternRewriter &rewriter, mlir::Location loc, const mlir::LLVMTypeConverter *typeConverter) {
+  auto tensorTy = srcTy.dyn_cast<mlir::RankedTensorType>();
+  if (!tensorTy) {
+    return inValues;
+  }
+  auto encoding = tensorTy.getEncoding().dyn_cast<mlir::triton::gpu::DotOperandEncodingAttr>();
+  if (!(encoding && encoding.getParent().isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>())) {
+    return inValues;
+  }
+  assert(false && "packI32");
 }
 
 }

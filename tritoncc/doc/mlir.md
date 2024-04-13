@@ -16,6 +16,10 @@ llvm/include/llvm/Support/Debug.h
 - dbgs
 - `LLVM_DEBUG`
 
+mlir/include/mlir/Conversion/LLVMCommon/Pattern.h
+- ConvertOpToLLVMPattern
+- ConvertToLLVMPattern
+
 mlir/include/mlir/Conversion/LLVMCommon/TypeConverter.h
 - LLVMTypeConverter
 

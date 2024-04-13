@@ -5,6 +5,7 @@
 
 namespace tritoncc {
 
+#if 0
 class FAddOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::arith::AddFOp> {
  public:
   using SourceOp = mlir::arith::AddFOp;
@@ -58,5 +59,6 @@ class FAddOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::arith::AddFOp
   }
  private:
 };
+#endif
 
 }

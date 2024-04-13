@@ -38,6 +38,7 @@
 #include "tritoncc/legacy/MakeRangeOpToLLVM.h"
 #include "tritoncc/legacy/ViewOpToLLVM.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/load_store.h"
+#include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/elementwise_op.h"
 #include "nvidia/lib/TritonNVIDIAGPUToLLVM/PatternTritonGPUOpToLLVM.h"
 
 #if 1
@@ -53,11 +54,6 @@ namespace triton {
 namespace mlir { namespace triton {
 
 std::unique_ptr<OperationPass<ModuleOp>> createConvertNVGPUToLLVMPass();
-
-void populateElementwiseOpToLLVMPatterns(
-    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
-    ModuleAxisInfoAnalysis &axisInfoAnalysis, int computeCapability,
-    PatternBenefit benefit);
 
 void populateReduceOpToLLVMPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
@@ -268,17 +264,16 @@ struct ConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
 
     mlir::triton::NVIDIA::populateDotOpToLLVMPatterns(typeConverter, patterns, benefit);
 
-    #if 1
-    mlir::triton::NVIDIA::TargetInfo targetInfo(computeCapability);
-    mlir::triton::NVIDIA::populateElementwiseOpToLLVMPatterns(
-      typeConverter, patterns, axisInfoAnalysis, computeCapability, targetInfo, benefit);
-    #else
+    tritoncc::populateElementwiseOpToLLVMPatterns(typeConverter, patterns, axisInfoAnalysis, computeCapability, benefit);
+
+    #if 0
     /*
      * My own pattern for FAdd. It works for test_add but fail for test_sum
      * right now. I guess the reason is I can not handle scalar fadd yet.
      */
     patterns.add<tritoncc::FAddOpConversion>(typeConverter);
     #endif
+
     tritoncc::populateLoadStoreOpToLLVMPatterns(typeConverter, patterns, axisInfoAnalysis, benefit);
     mlir::triton::NVIDIA::populateBarrierOpToLLVMPatterns(typeConverter, patterns, benefit);
 
