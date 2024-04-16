@@ -97,7 +97,7 @@ tritoncc:
 
 test_sum:
 	g++ test_sum.cpp $(ALLFLAGS) -o a.out
-	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out # -debug-only=remove-layout-conversions
+	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out -debug-only=convert-layout-op-to-llvm
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_sum_cubin_and_run /tmp/tritoncc.cubin
 
 # XXX my generted dot ptx does not contains ldmatrix/mma instr. It contains

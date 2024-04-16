@@ -298,4 +298,24 @@ llvm::SmallVector<mlir::Value> packI32(const llvm::SmallVector<mlir::Value> &inV
   assert(false && "packI32");
 }
 
+bool isaDistributedLayout(mlir::Attribute layout) {
+  return layout.isa<mlir::triton::gpu::BlockedEncodingAttr>()
+    || layout.isa<mlir::triton::gpu::MmaEncodingTrait>()
+    || layout.isa<mlir::triton::gpu::SliceEncodingAttr>();
+}
+
+bool shouldUseDistSmem(mlir::Attribute srcLayout, mlir::Attribute dstLayout) {
+  // numCTAs here means numCTAsPerCGA rather than numCTAs per grid.
+  unsigned numCTAs = mlir::triton::gpu::getNumCTAs(srcLayout);
+  assert(numCTAs == mlir::triton::gpu::getNumCTAs(dstLayout) &&
+    "Invalid layout conversion: the numbers of CTAs of src and dst "
+    "layouts are different");
+
+  // case (1): Neber use dsmem when numCTAs == 1
+  if (numCTAs == 1) {
+    return false;
+  }
+  assert(false && "shouldUseDistSmem");
+}
+
 }

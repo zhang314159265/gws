@@ -32,13 +32,13 @@
 #include "TypeConverter.h"
 #include "PatternTritonGPUOpToLLVM.h"
 
-#include "tritoncc/legacy/ElementwiseOpToLLVM.h"
 #include "tritoncc/legacy/ReduceOpConversion.h"
 #include "tritoncc/legacy/SPMDOpToLLVM.h"
 #include "tritoncc/legacy/MakeRangeOpToLLVM.h"
 #include "tritoncc/legacy/ViewOpToLLVM.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/load_store.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/elementwise_op.h"
+#include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/convert_layout.h"
 #include "nvidia/lib/TritonNVIDIAGPUToLLVM/PatternTritonGPUOpToLLVM.h"
 
 #if 1
@@ -260,43 +260,22 @@ struct ConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
 
     ModuleAxisInfoAnalysis axisInfoAnalysis(mod);
 
-    mlir::triton::NVIDIA::populateConvertLayoutOpToLLVMPatterns(typeConverter, patterns, benefit);
 
-    mlir::triton::NVIDIA::populateDotOpToLLVMPatterns(typeConverter, patterns, benefit);
+    tritoncc::populateConvertLayoutOpToLLVMPatterns(typeConverter, patterns, benefit);
+    // mlir::triton::NVIDIA::populateDotOpToLLVMPatterns(typeConverter, patterns, benefit);
 
     tritoncc::populateElementwiseOpToLLVMPatterns(typeConverter, patterns, axisInfoAnalysis, computeCapability, benefit);
-
-    #if 0
-    /*
-     * My own pattern for FAdd. It works for test_add but fail for test_sum
-     * right now. I guess the reason is I can not handle scalar fadd yet.
-     */
-    patterns.add<tritoncc::FAddOpConversion>(typeConverter);
-    #endif
-
     tritoncc::populateLoadStoreOpToLLVMPatterns(typeConverter, patterns, axisInfoAnalysis, benefit);
     mlir::triton::NVIDIA::populateBarrierOpToLLVMPatterns(typeConverter, patterns, benefit);
 
-    // This error:
-    // a.out: /home/shunting/ws/triton/lib/Conversion/TritonGPUToLLVM/Utility.h:372: mlir::Value mlir::LLVM::getStackPointer(mlir::PatternRewriter&, mlir::FunctionOpInterface): Assertion `globalBase' failed.
-    // may indicate we need some shared memory pass first.
-    #if 0
-    mlir::triton::populateReduceOpToLLVMPatterns(
-      typeConverter, patterns, computeCapability, benefit);
-    #else
     patterns.add<tritoncc::ReduceOpConversion>(typeConverter);
-    #endif
 
     mlir::triton::NVIDIA::populateControlFlowOpToLLVMPattern(typeConverter, patterns, benefit); // this is needed
     mlir::populateGpuToNVVMConversionPatterns(typeConverter, patterns); // this is needed
 
     tritoncc::populateSPMDOpToLLVMPattern(typeConverter, patterns, benefit);
     tritoncc::populateMakeRangeOpToLLVMPattern(typeConverter, patterns, benefit);
-    #if 1
     tritoncc::populateViewOpToLLVMPatterns(typeConverter, patterns, benefit); 
-    #else
-    mlir::triton::populateViewOpToLLVMPatterns(typeConverter, patterns, benefit); 
-    #endif
     mlir::arith::populateArithToLLVMConversionPatterns(typeConverter, patterns);
 
     if (failed(applyPartialConversion(mod, convTarget, std::move(patterns)))) {
