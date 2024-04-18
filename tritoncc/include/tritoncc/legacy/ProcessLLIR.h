@@ -39,6 +39,7 @@
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/load_store.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/elementwise_op.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/control_flow_op.h"
+#include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/func_op.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/convert_layout.h"
 #include "nvidia/lib/TritonNVIDIAGPUToLLVM/PatternTritonGPUOpToLLVM.h"
 
@@ -100,7 +101,7 @@ public:
 }
 
 // copies from triton
-#if 1
+#if 0
 struct FuncOpConversion : public ConvertOpToLLVMPattern<triton::FuncOp> {
   FuncOpConversion(LLVMTypeConverter &converter, int numWarps,
                    PatternBenefit benefit)
@@ -271,7 +272,6 @@ struct ConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
 
     patterns.add<tritoncc::ReduceOpConversion>(typeConverter);
 
-    // mlir::triton::NVIDIA::populateControlFlowOpToLLVMPattern(typeConverter, patterns, benefit); // this is needed
     tritoncc::populateControlFlowOpToLLVMPattern(typeConverter, patterns, benefit); // this is needed
     mlir::populateGpuToNVVMConversionPatterns(typeConverter, patterns); // this is needed
 
