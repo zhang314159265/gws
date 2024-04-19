@@ -1,12 +1,14 @@
 #pragma once
 
+#include "tritoncc/util.h"
+
 namespace tritoncc {
 
 #if 1 // copied from triton
 struct CatOpConversion : public ConvertOpToLLVMPattern<CatOp> {
   using OpAdaptor = typename CatOp::Adaptor;
   explicit CatOpConversion(LLVMTypeConverter &typeConverter,
-                           PatternBenefit benefit = patternBenefitDefault)
+                           PatternBenefit benefit = 1)
       : ConvertOpToLLVMPattern<CatOp>(typeConverter, benefit) {}
   LogicalResult
   matchAndRewrite(CatOp op, OpAdaptor adaptor,

@@ -1,10 +1,12 @@
 #pragma once
 
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
+
 namespace tritoncc {
 
 struct FuncOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::FuncOp> {
   FuncOpConversion(mlir::LLVMTypeConverter &converter, int numWarps,
-      PatternBenefit benefit)
+      mlir::PatternBenefit benefit)
       : ConvertOpToLLVMPattern(converter, benefit), numWarps(numWarps) { }
 
   mlir::LogicalResult

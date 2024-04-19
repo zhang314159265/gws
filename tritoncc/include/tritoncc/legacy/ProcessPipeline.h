@@ -3,7 +3,6 @@
 #include "tritoncc/stage/make_ttir.h"
 #include "tritoncc/stage/make_ttgir.h"
 #include "tritoncc/stage/make_llir.h"
-#include "tritoncc/legacy/ProcessLLIR.h"
 #include "tritoncc/legacy/MakePTX.h"
 #include "tritoncc/legacy/MakeCubin.h"
 #include "tritoncc/legacy/Util.h"

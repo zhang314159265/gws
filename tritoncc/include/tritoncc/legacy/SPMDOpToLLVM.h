@@ -1,11 +1,14 @@
 #pragma once
 
 #include <cassert>
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
+
+#include "nvidia/lib/TritonNVIDIAGPUToLLVM/Utility.h"
 
 namespace tritoncc {
 
 struct GetProgramIdOpConversion
-    : public ConvertOpToLLVMPattern<triton::GetProgramIdOp> {
+    : public mlir::ConvertOpToLLVMPattern<triton::GetProgramIdOp> {
   using ConvertOpToLLVMPattern<triton::GetProgramIdOp>::ConvertOpToLLVMPattern;
 
   LogicalResult

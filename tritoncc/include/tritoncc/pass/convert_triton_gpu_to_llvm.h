@@ -1,5 +1,10 @@
 #pragma once
 
+#include "TypeConverter.h"
+#include "tritoncc/legacy/SPMDOpToLLVM.h"
+#include "tritoncc/legacy/MakeRangeOpToLLVM.h"
+#include "tritoncc/legacy/ReduceOpConversion.h"
+#include "tritoncc/legacy/ViewOpToLLVM.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/func_op.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/load_store.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/elementwise_op.h"

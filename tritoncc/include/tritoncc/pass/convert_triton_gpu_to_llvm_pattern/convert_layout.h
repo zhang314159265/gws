@@ -355,3 +355,5 @@ void populateConvertLayoutOpToLLVMPatterns(
 }
 #endif
 }
+
+#undef DEBUG_TYPE
