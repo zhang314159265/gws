@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "tritoncc/legacy/LocationOpBuilder.h"
+#include "tritoncc/LocationOpBuilder.h"
 #include "tritoncc/legacy/ProcessPipeline.h"
 #include "tritoncc/legacy/Util.h"
 
