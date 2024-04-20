@@ -317,5 +317,4 @@ bool shouldUseDistSmem(mlir::Attribute srcLayout, mlir::Attribute dstLayout) {
   }
   assert(false && "shouldUseDistSmem");
 }
-
 }

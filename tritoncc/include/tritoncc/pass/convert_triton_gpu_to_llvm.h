@@ -3,7 +3,7 @@
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "nvidia/lib/TritonNVIDIAGPUToLLVM/Utility.h"
 #include "TypeConverter.h"
-#include "tritoncc/legacy/ReduceOpConversion.h"
+#include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/reduce.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/make_range.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/func_op.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/view.h"
