@@ -105,7 +105,10 @@ std::string make_ptx(std::string &llvmIR, Option &opt) {
         *module, triple, proc, features, flags, enable_fp_fusion, isObject);
   }
 
-  // replace ptx version
+  #if 0
+  // Need replace ptx version if we are using the ptxas in triton
+  //   third_party/nvidia/backend/bin/ptxas
+  // No need to do this if we are using the system ptxas
   std::string ptx_version = "8.3"; // hardcode for the ptxas shipped with triton
   {
     // assume that the version stored in ptxcode was 8.0. Avoid hardcode here..
@@ -113,6 +116,7 @@ std::string make_ptx(std::string &llvmIR, Option &opt) {
     assert(pos != std::string::npos);
     ptxCode.replace(pos + 9, 3, ptx_version);
   }
+  #endif
 
   return ptxCode;
 }
