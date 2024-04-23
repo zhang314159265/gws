@@ -1,8 +1,7 @@
 #include <iostream>
 
 #include "tritoncc/LocationOpBuilder.h"
-#include "tritoncc/legacy/ProcessPipeline.h"
-#include "tritoncc/legacy/Util.h"
+#include "tritoncc/stage/pipeline.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "mlir/IR/MLIRContext.h"
@@ -155,7 +154,7 @@ int main(int argc, char** argv) {
      .num_ctas=1,
      .capability=90, // H100
   };
-  std::string cubinBytes = processPipeline(module, opt);
+  std::string cubinBytes = compile(module, opt);
   #if 0 // make_llir passes a string to make_ptx
   std::cout << "After optimize:" << std::endl;
   module.dump();

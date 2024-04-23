@@ -6,7 +6,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/PassManager.h"
 
-#include "tritoncc/legacy/Util.h"
 #include "tritoncc/pass/coalesce.h"
 #include "tritoncc/pass/remove_layout_conversions.h"
 #include "tritoncc/pass/convert_triton_to_triton_gpu.h"
