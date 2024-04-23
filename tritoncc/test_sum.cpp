@@ -2,6 +2,7 @@
 
 #include "tritoncc/LocationOpBuilder.h"
 #include "tritoncc/stage/pipeline.h"
+#include "tritoncc/dialect_util.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "mlir/IR/MLIRContext.h"
@@ -10,8 +11,6 @@
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/NVVM/NVVMToLLVMIRTranslation.h"
-
-#include "tritoncc/legacy/MLIRUtil.h"
 
 using namespace tritoncc;
 
