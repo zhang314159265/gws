@@ -86,13 +86,6 @@ struct ConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
       }
     }
 
-    // allocate shared memory and set barrier
-    {
-      mlir::ModuleAllocation allocation(mod);
-      mlir::ModuleMembarAnalysis membarPass(&allocation);
-      membarPass.run();
-    }
-
     initSharedMemory(typeConverter);
 
     mlir::RewritePatternSet patterns(context);

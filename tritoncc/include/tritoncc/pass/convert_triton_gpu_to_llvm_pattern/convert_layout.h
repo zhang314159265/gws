@@ -18,6 +18,100 @@
 
 namespace tritoncc {
 
+llvm::SmallVector<unsigned> getRepShapeForCvtLayout(mlir::triton::gpu::ConvertLayoutOp op) {
+  auto srcTy = op.getSrc().getType();
+  auto dstTy = op.getType();
+  mlir::Attribute srcLayout = srcTy.getEncoding();
+  mlir::Attribute dstLayout = dstTy.getEncoding();
+
+  if (tritoncc::shouldUseDistSmem(srcLayout, dstLayout)) {
+    assert(false && "shouldUseDistSmem");
+  }
+
+  if (auto srcMmaLayout = srcLayout.dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>()) {
+    assert(false && "mma layout");
+  }
+
+  assert(srcLayout && dstLayout && "Unexpected layout in getRepShape()");
+
+  auto srcShapePerCTA = mlir::triton::gpu::getShapePerCTA(srcTy);
+  auto dstShapePerCTA = mlir::triton::gpu::getShapePerCTA(dstTy);
+  auto srcShapePerCTATile = mlir::triton::gpu::getShapePerCTATile(srcLayout, srcTy.getShape());
+  auto dstShapePerCTATile = mlir::triton::gpu::getShapePerCTATile(dstLayout, dstTy.getShape());
+
+  unsigned rank = dstTy.getRank();
+  llvm::SmallVector<unsigned> repShape(rank);
+  for (unsigned d = 0; d < rank; ++d) {
+    repShape[d] =
+      std::max(std::min<unsigned>(srcShapePerCTA[d], srcShapePerCTATile[d]),
+               std::min<unsigned>(dstShapePerCTA[d], dstShapePerCTATile[d]));
+  }
+  return repShape;
+}
+
+std::pair<llvm::SmallVector<unsigned>, llvm::SmallVector<unsigned>>
+getCvtOrder(mlir::Attribute srcLayout, mlir::Attribute dstLayout) {
+  auto srcMmaLayout = srcLayout.dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>();
+  auto srcDotLayout = srcLayout.dyn_cast<mlir::triton::gpu::DotOperandEncodingAttr>();
+  auto dstMmaLayout = dstLayout.dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>();
+  auto dstDotLayout = dstLayout.dyn_cast<mlir::triton::gpu::DotOperandEncodingAttr>();
+  assert(!(srcMmaLayout && dstMmaLayout && !srcMmaLayout.isAmpere()) &&
+    "mma -> mma layout conversion is only supported on Ampere");
+
+  // mma or dot layout does not have an order, so the order depends on the
+  // layout of the other operand.
+  auto inOrd = (srcMmaLayout || srcDotLayout) ? mlir::triton::gpu::getOrder(dstLayout)
+                                              : mlir::triton::gpu::getOrder(srcLayout);
+
+  auto outOrd = (dstMmaLayout || dstDotLayout) ? mlir::triton::gpu::getOrder(srcLayout)
+                                               : mlir::triton::gpu::getOrder(dstLayout);
+
+  return {inOrd, outOrd};
+}
+
+llvm::SmallVector<unsigned>
+getScratchConfigForCvtLayout(mlir::triton::gpu::ConvertLayoutOp op, unsigned &inVec, unsigned &outVec) {
+  auto repShape = getRepShapeForCvtLayout(op);
+  if (repShape.empty()) {
+    return repShape;
+  }
+  auto rank = repShape.size();
+  auto srcTy = op.getSrc().getType();
+  auto dstTy = op.getType();
+  mlir::Attribute srcLayout = srcTy.getEncoding();
+  mlir::Attribute dstLayout = dstTy.getEncoding();
+
+  auto [inOrd, outOrd] = getCvtOrder(srcLayout, dstLayout);
+  unsigned srcContigPerThread =
+      mlir::triton::gpu::getUniqueContigPerThread(srcLayout, srcTy.getShape())[inOrd[0]];
+  unsigned dstContigPerThread =
+      mlir::triton::gpu::getUniqueContigPerThread(dstLayout, dstTy.getShape())[outOrd[0]];
+  unsigned innerDim = rank - 1;
+  inVec = outOrd[0] != innerDim ? 1
+          : inOrd[0] != innerDim ? 1 : srcContigPerThread;
+  outVec = outOrd[0] != innerDim ? 1 : dstContigPerThread;
+
+  // For conversions to MmaV1 (Nvidia V100), this inVec is hardcoded in the
+  // codegen.
+  if (auto mma = srcLayout.dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>()) {
+    if (mma.getVersionMajor() == 1) {
+      inVec = srcContigPerThread;
+    }
+  }
+
+  if (rank <= 1) {
+    return repShape;
+  }
+  // pad the last dimension
+  unsigned paddedDim = rank - 1;
+  if (auto dstBlockedLayout = dstLayout.dyn_cast<mlir::triton::gpu::BlockedEncodingAttr>()) {
+    paddedDim = dstBlockedLayout.getOrder()[0];
+  }
+  unsigned pad = std::max(inVec, outVec);
+  repShape[paddedDim] += pad;
+  return repShape;
+}
+
 struct ConvertLayoutOpConversion
     : public mlir::ConvertOpToLLVMPattern<mlir::triton::gpu::ConvertLayoutOp> {
  public:
