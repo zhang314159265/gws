@@ -16,7 +16,7 @@ LIBPYTHON := $(LIBPYTHON_DIR)/libpython3.10.so
 
 PTXAS := $(TRITON_SRC_ROOT)/third_party/nvidia/backend/bin/ptxas
 
-CFLAGS := -I$(LLVM_ROOT)/include -I$(TRITON_SRC_ROOT)/third_party -I$(TRITON_SRC_ROOT)/include -I$(TRITON_BUILD_ROOT)/include -I./include -I$(TRITON_SRC_ROOT) -I$(TRITON_SRC_ROOT)/lib/Conversion/TritonGPUToLLVM -I$(TRITON_SRC_ROOT)/include/triton/Conversion/TritonGPUToLLVM -fno-rtti
+CFLAGS := -I$(LLVM_ROOT)/include -I$(TRITON_SRC_ROOT)/third_party -I$(TRITON_SRC_ROOT)/include -I$(TRITON_BUILD_ROOT)/include -I../include -I$(TRITON_SRC_ROOT) -I$(TRITON_SRC_ROOT)/lib/Conversion/TritonGPUToLLVM -I$(TRITON_SRC_ROOT)/include/triton/Conversion/TritonGPUToLLVM -fno-rtti
 LDFLAGS := -L$(LLVM_ROOT)/lib
 
 # Newer triton does not build .a any more. All symbols can be found in libtriton.so
