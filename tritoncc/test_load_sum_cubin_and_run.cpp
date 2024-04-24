@@ -4,7 +4,7 @@
 #include <ATen/ATen.h>
 #include <torch/torch.h>
 #include <unistd.h>
-#include "tritoncc/CUDAUtil.h"
+#include "tritoncc/runtime.h"
 
 int main(int argc, char** argv) {
   if (argc < 2) {
@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
     name = argv[2];
   }
   int shared = 2064;
-  CUfunction fun = tritoncc::loadCUDAFunctionFromFile(argv[1], name, shared);
+  CUfunction fun = tritoncc::loadCUDAFunctionFromFile(argv[1], name);
   { // launch kernel
     int gridX = 512; // TODO don't hard code
     int gridY = 1;
