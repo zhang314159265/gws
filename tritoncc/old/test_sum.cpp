@@ -70,11 +70,11 @@ int main(int argc, char** argv) {
 
   mlir::triton::FuncOp funcop = builder.createFuncOp("sum_fn", {f32pty, f32pty, i32ty, i32ty}, {}, true);
   {
-    auto attrTy = IntegerType::get(&ctx, 32);
-    funcop.setArgAttr(0, "tt.divisibility", IntegerAttr::get(attrTy, 16));
-    funcop.setArgAttr(1, "tt.divisibility", IntegerAttr::get(attrTy, 16));
-    funcop.setArgAttr(2, "tt.divisibility", IntegerAttr::get(attrTy, 16));
-    funcop.setArgAttr(3, "tt.divisibility", IntegerAttr::get(attrTy, 16));
+    auto attrTy = mlir::IntegerType::get(&ctx, 32);
+    funcop.setArgAttr(0, "tt.divisibility", mlir::IntegerAttr::get(attrTy, 16));
+    funcop.setArgAttr(1, "tt.divisibility", mlir::IntegerAttr::get(attrTy, 16));
+    funcop.setArgAttr(2, "tt.divisibility", mlir::IntegerAttr::get(attrTy, 16));
+    funcop.setArgAttr(3, "tt.divisibility", mlir::IntegerAttr::get(attrTy, 16));
   }
   module.push_back(funcop);
   B.setInsertionPointToStart(funcop.addEntryBlock());

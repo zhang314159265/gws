@@ -1,5 +1,7 @@
 #pragma once
 
+#include <numeric>
+
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
@@ -317,4 +319,19 @@ bool shouldUseDistSmem(mlir::Attribute srcLayout, mlir::Attribute dstLayout) {
   }
   assert(false && "shouldUseDistSmem");
 }
+
+template <typename T>
+T nextPowOf2(T n) {
+  assert(false && "nextPowOf2");
+}
+
+// Get the highest power of 2 divisor of an integer.
+template <typename T>
+T highestPowOf2Divisor(T n) {
+  if (n == 0) {
+    return (static_cast<T>(1) << (sizeof(T) * 8 - 2));
+  }
+  return (n & -n);
+}
+
 }

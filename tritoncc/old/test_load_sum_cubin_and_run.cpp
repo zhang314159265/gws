@@ -13,7 +13,6 @@ int main(int argc, char** argv) {
   }
   torch::Tensor x = torch::randn({1024, 1024}, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0));
   torch::Tensor expected = x.sum(-1);
-  // std::cerr << "expected:\n" << expected << std::endl;
   torch::Tensor actual = torch::zeros({1024}, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0));
 
   const char* name = "sum_fn";
@@ -34,12 +33,15 @@ int main(int argc, char** argv) {
     void* params[] = {&data_ptr_in, &data_ptr_out, &xnumel, &rnumel};
     CUDA_CHECK(cuLaunchKernel(fun, gridX, gridY, gridZ, 32 * num_warps, 1, 1, shared, stream, params, 0));
   }
-  // print a cuda tensor will trigger synchronization?
-  // std::cerr << "actual:\n" << actual << std::endl;
+  cuStreamSynchronize(0);
   double tol = 1e-5;
   if (at::allclose(expected, actual, tol, tol)) {
     std::cerr << "PASS!" << std::endl;
   } else {
+    if (getenv("PRINT_TENSOR")) {
+      std::cerr << "expected:\n" << expected << std::endl;
+      std::cerr << "actual:\n" << actual << std::endl;
+    }
     std::cerr << "FAIL!" << std::endl;
   }
 

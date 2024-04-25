@@ -3,11 +3,13 @@
 #include <assert.h>
 #include "llvm/ADT/MapVector.h"
 #include "mlir/Pass/Pass.h"
-#include "triton/Analysis/AxisInfo.h"
+
+#include "tritoncc/AxisInfo.h"
 #include "triton/Dialect/TritonGPU/IR/Dialect.h"
 #include "triton/Dialect/TritonGPU/Transforms/Utility.h"
 
 #include "tritoncc/util.h"
+#include "tritoncc/layout_util.h"
 
 #ifdef DEBUG
 #undef DEBUG
@@ -38,7 +40,7 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     assert(false && "clonePass nyi");
   }
 
-  void setCoalescedEncoding(mlir::triton::ModuleAxisInfoAnalysis &axisInfoAnalysis, mlir::Operation *op, int numWarps, int threadsPerWarp, llvm::MapVector<mlir::Operation*, mlir::Attribute> &layoutMap) {
+  void setCoalescedEncoding(tritoncc::ModuleAxisInfoAnalysis &axisInfoAnalysis, mlir::Operation *op, int numWarps, int threadsPerWarp, llvm::MapVector<mlir::Operation*, mlir::Attribute> &layoutMap) {
     mlir::Value ptr = tritoncc::getMemAccessPtr(op);
     mlir::RankedTensorType refTensorType = ptr.getType().cast<mlir::RankedTensorType>();
     assert(refTensorType);
@@ -96,16 +98,16 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     int numElems = product<int64_t>(shapePerCTA);
     int numThreads = numWarps * threadsPerWarp;
     int numElemsPerThread = std::max(numElems / numThreads, 1);
-    unsigned perThread = mlir::getNumElementsPerThread(op, order, axisInfoAnalysis);
+    unsigned perThread = tritoncc::getNumElementsPerThread(op, order, axisInfoAnalysis);
     for (mlir::Operation *opSameOrder : memAccessesSameOrder) {
-      unsigned currPerThread = mlir::getNumElementsPerThread(opSameOrder, order, axisInfoAnalysis);
+      unsigned currPerThread = tritoncc::getNumElementsPerThread(opSameOrder, order, axisInfoAnalysis);
       perThread = std::max(perThread, currPerThread);
     }
     perThread = std::min<int>(perThread, numElemsPerThread);
 
     if (!llvm::dyn_cast<mlir::triton::LoadOp>(op)) {
       perThread = std::min<int>(
-        perThread, getNumElementsPerThread(op, order, axisInfoAnalysis));
+        perThread, tritoncc::getNumElementsPerThread(op, order, axisInfoAnalysis));
     }
     llvm::SmallVector<unsigned> sizePerThread(refTensorType.getRank(), 1);
     sizePerThread[order[0]] = perThread;
@@ -158,7 +160,7 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
 
   void runOnOperation() override {
     mlir::ModuleOp moduleOp = getOperation();
-    mlir::triton::ModuleAxisInfoAnalysis axisInfoAnalysis(moduleOp);
+    tritoncc::ModuleAxisInfoAnalysis axisInfoAnalysis(moduleOp);
     llvm::MapVector<mlir::Operation*, mlir::Attribute> layoutMap;
     moduleOp.walk([&](mlir::Operation* curr) {
       mlir::Value ptr = tritoncc::getMemAccessPtr(curr);

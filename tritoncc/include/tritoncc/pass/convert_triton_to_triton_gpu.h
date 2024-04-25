@@ -233,7 +233,7 @@ class TritonCatPattern : public mlir::OpConversionPattern<mlir::triton::CatOp> {
     llvm::SmallVector<unsigned> retThreadsPerWarp = retEncoding.getThreadsPerWarp();
     llvm::SmallVector<unsigned> retWarpsPerCTA = retEncoding.getWarpsPerCTA();
 
-    int newRetTotalElemsPerThread = mlir::nextPowOf2(lhsTotalElemsPerThread + rhsTotalElemsPerThread);
+    int newRetTotalElemsPerThread = tritoncc::nextPowOf2(lhsTotalElemsPerThread + rhsTotalElemsPerThread);
     // An assetion added by shunting
     assert(newRetTotalElemsPerThread == retTotalElemsPerThread);
     llvm::SmallVector<unsigned> newRetSizePerThread = retSizePerThread;

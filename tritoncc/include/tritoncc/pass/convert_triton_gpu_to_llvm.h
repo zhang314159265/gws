@@ -89,7 +89,7 @@ struct ConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     initSharedMemory(typeConverter);
 
     mlir::RewritePatternSet patterns(context);
-    ModuleAxisInfoAnalysis axisInfoAnalysis(mod);
+    tritoncc::ModuleAxisInfoAnalysis axisInfoAnalysis(mod);
 
     tritoncc::populateConvertLayoutOpToLLVMPatterns(typeConverter, patterns, benefit);
     // TODO dot op to llvm

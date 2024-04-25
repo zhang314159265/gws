@@ -125,7 +125,7 @@ CUDA_LDFLAGS = -lcuda
 # NOTE: /tmp/sum_ref.cubin passes the accuracy check! That means the launcher and runner and working correctly.
 # NOTE: XXX however /tmp/sum.cubin does not pass accuracy check yet!
 test_load_sum_cubin_and_run:
-	g++ test_load_sum_cubin_and_run.cpp $(TORCH_CFLAGS) $(TORCH_LDFLAGS) $(CUDA_CFLAGS) $(CUDA_LDFLAGS) -I./include -o out/test_load_sum_cubin_and_run
+	g++ test_load_sum_cubin_and_run.cpp $(TORCH_CFLAGS) $(TORCH_LDFLAGS) $(CUDA_CFLAGS) $(CUDA_LDFLAGS) -I../include -o out/test_load_sum_cubin_and_run
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_sum_cubin_and_run skip-checkin/sum.cubin 
 	# LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) ./a.out skip-checkin/sum_ref.cubin fn_0d1d2de3de
 
