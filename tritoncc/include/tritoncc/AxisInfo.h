@@ -10,7 +10,8 @@ using mlir::triton::AxisInfo;
 }
 #else
 
-#include "triton/Analysis/Utility.h"
+#include "tritoncc/analysis_util.h"
+
 #include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -718,7 +719,7 @@ class AxisInfoAnalysis : public mlir::dataflow::SparseForwardDataFlowAnalysis<ml
 };
 
 using AxisInfoMapT = llvm::DenseMap<mlir::Value, AxisInfo>;
-class ModuleAxisInfoAnalysis : public mlir::CallGraph<AxisInfoMapT> {
+class ModuleAxisInfoAnalysis : public tritoncc::CallGraph<AxisInfoMapT> {
  public:
   explicit ModuleAxisInfoAnalysis(mlir::ModuleOp moduleOp) : CallGraph<AxisInfoMapT>(moduleOp) {
     llvm::SmallVector<mlir::FunctionOpInterface> funcs;
@@ -814,7 +815,7 @@ class ModuleAxisInfoAnalysis : public mlir::CallGraph<AxisInfoMapT> {
   }
  private:
   void initialize(mlir::FunctionOpInterface funcOp) {
-    std::unique_ptr<mlir::DataFlowSolver> solver = mlir::createDataFlowSolver();
+    std::unique_ptr<mlir::DataFlowSolver> solver = tritoncc::createDataFlowSolver();
     AxisInfoAnalysis *analysis = solver->load<AxisInfoAnalysis>();
     if (failed(solver->initializeAndRun(funcOp))) {
       return;

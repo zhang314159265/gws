@@ -73,7 +73,7 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     #if DEBUG
     llvm::errs() << "Find memAccessesSameOrder for " << *op << "\n";
     #endif
-    for (mlir::Operation *use : mlir::multiRootGetSlice(op)) {
+    for (mlir::Operation *use : tritoncc::multiRootGetSlice(op)) {
       #if 0
       llvm::errs() << "OpUse: " << *use << '\n';
       #endif
