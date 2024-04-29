@@ -224,7 +224,7 @@ struct ConvertLayoutOpConversion
     if (tritoncc::shouldUseDistSmem(srcLayout, dstLayout)) {
       assert(false && "lower dist to dist with dist smem");
     }
-    mlir::Value smemBase = mlir::LLVM::getSharedMemoryBase(loc, rewriter, op.getOperation());
+    mlir::Value smemBase = tritoncc::getSharedMemoryBase(loc, rewriter, op.getOperation());
     auto elemPtrTy = ptr_ty(rewriter.getContext(), 3);
     smemBase = bitcast(smemBase, elemPtrTy);
     auto shape = dstTy.getShape();

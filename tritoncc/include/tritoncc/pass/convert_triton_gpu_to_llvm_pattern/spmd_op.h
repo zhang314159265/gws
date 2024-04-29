@@ -9,7 +9,7 @@ struct GetProgramIdOpConversion
   mlir::LogicalResult
   matchAndRewrite(mlir::triton::GetProgramIdOp op, OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const override {
-    mlir::Value programId = mlir::LLVM::NVIDIA::llGetPid(
+    mlir::Value programId = tritoncc::llGetPid(
         op.getAxisAsInt(), op->getLoc(),
         op->getParentOfType<mlir::ModuleOp>(), rewriter);
     rewriter.replaceOp(op, programId);

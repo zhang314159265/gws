@@ -14,7 +14,7 @@ struct FuncOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::Func
       mlir::ConversionPatternRewriter &rewriter) const override {
     // Prevent LLVM's inliner to inline this function
     auto amendedFuncOp = funcOp;
-    if (!mlir::LLVM::isKernel(funcOp)) {
+    if (!tritoncc::isKernel(funcOp)) {
       assert(false && "amendFuncOp");
     }
     mlir::LLVM::LLVMFuncOp newFuncOp = *mlir::convertFuncOpToLLVMFuncOp(
@@ -25,7 +25,7 @@ struct FuncOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::Func
 
     auto ctx = funcOp->getContext();
 
-    if (mlir::LLVM::isKernel(funcOp)) {
+    if (tritoncc::isKernel(funcOp)) {
       // Set an attribute to indicate this function is a kernel entry.
       newFuncOp->setAttr("nvvm.kernel",
         rewriter.getIntegerAttr(type::u1Ty(ctx), 1));

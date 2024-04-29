@@ -1,7 +1,7 @@
 #pragma once
 
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
-#include "nvidia/lib/TritonNVIDIAGPUToLLVM/Utility.h"
+#include "tritoncc/nvidia_util.h"
 #include "TypeConverter.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/reduce.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/make_range.h"

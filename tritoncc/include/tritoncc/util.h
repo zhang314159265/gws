@@ -334,4 +334,47 @@ T highestPowOf2Divisor(T n) {
   return (n & -n);
 }
 
+template <typename Int> Int ceil(Int m, Int n) { return (m + n - 1) / n; }
+
+template <typename T, typename U>
+llvm::SmallVector<T> convertType(llvm::ArrayRef<U> in) {
+  llvm::SmallVector<T> out;
+  for (const auto &i : in) {
+    out.push_back(T(i));
+  }
+  return out;
+}
+
+template <typename T, typename VecU>
+llvm::SmallVector<T> convertType(const VecU &in) {
+  return convertType<T>(llvm::ArrayRef(in));
+}
+
+template <typename T, typename U>
+llvm::SmallVector<T> applyPermutation(llvm::ArrayRef<T> vec, llvm::ArrayRef<U> permutation) {
+  static_assert(std::is_integral_v<U>);
+  assert(vec.size() == permutation.size());
+
+  // Check that `permutation` is actually a permutation.
+#ifndef NDEBUG
+  llvm::SmallVector<U> sortedPerm(permutation);
+  llvm::sort(sortedPerm);
+  for (U i = 0; i < static_cast<U>(sortedPerm.size()); i++) {
+    assert(sortedPerm[i] == i);
+  }
+#endif
+
+  llvm::SmallVector<T> ret;
+  ret.reserve(vec.size());
+  for (const U &i : permutation) {
+    ret.push_back(vec[i]);
+  }
+  return ret;
+}
+
+template <typename VecT, typename PermT>
+auto applyPermutation(const VecT &vec, const PermT &permutation) {
+  return applyPermutation(llvm::ArrayRef(vec), llvm::ArrayRef(permutation));
+}
+
 }

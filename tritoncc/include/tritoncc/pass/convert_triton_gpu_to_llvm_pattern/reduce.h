@@ -89,18 +89,6 @@ class ReduceOpHelper {
   int axis;
 };
 
-// TODO move to util.h
-llvm::SmallVector<llvm::SmallVector<unsigned>>
-emitOffsetForLayout(mlir::Attribute layout, mlir::RankedTensorType type) {
-  if (auto blockedLayout = layout.dyn_cast<mlir::triton::gpu::BlockedEncodingAttr>()) {
-    return emitOffsetForBlockedLayout(blockedLayout, type);
-  }
-  if (auto sliceLayout = layout.dyn_cast<mlir::triton::gpu::SliceEncodingAttr>()) {
-    return emitOffsetForSliceLayout(sliceLayout, type);
-  }
-  assert(false && "emitOffsetForLayout");
-}
-
 class ReduceOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::ReduceOp> {
  public:
   explicit ReduceOpConversion(mlir::LLVMTypeConverter &typeConverter)
@@ -211,7 +199,7 @@ void ReduceOpConversion::loadReductionAndPackResult(
         llvm::SmallVector<mlir::Value> readIdx = resultIndices[j];
         readIdx.insert(readIdx.begin() + op.getAxis(), i32_val(0));
         mlir::Value readOffset =
-            mlir::LLVM::linearize(rewriter, loc, readIdx, smemShape, smemOrder);
+            tritoncc::linearize(rewriter, loc, readIdx, smemShape, smemOrder);
         mlir::Value readPtr = gep(ptr_ty(rewriter.getContext(), 3), elemTy,
             smemBases[i], readOffset);
         resultVals[j] = load(elemTy, readPtr);
@@ -254,7 +242,7 @@ void ReduceOpConversion::accumulatePartialReductions(ReduceOpHelper &helper, llv
       auto elemTy = getElementType(op, i);
       mlir::Value readPtr = gep(ptr_ty(rewriter.getContext(), 3), elemTy,
           smemBases[i], readOffset);
-      acc[i] = mlir::LLVM::NVIDIA::loadShared(rewriter, loc, readPtr, elemTy, threadIsNeeded);
+      acc[i] = tritoncc::loadShared(rewriter, loc, readPtr, elemTy, threadIsNeeded);
     }
     warpReduce(rewriter, loc, acc, op, sizeInterWarps, 1 /* interleave */);
     // only the first thread in each sizeInterWarps is writing
@@ -272,7 +260,7 @@ void ReduceOpConversion::accumulatePartialReductions(ReduceOpHelper &helper, llv
     mlir::Value pred = and_(threadIsNeeded, laneIdModSizeInterWarpsIsZero);
 
     for (unsigned i = 0; i < op.getNumOperands(); ++i) {
-      mlir::LLVM::NVIDIA::storeShared(rewriter, loc, writePtrs[i], acc[i], pred);
+      tritoncc::storeShared(rewriter, loc, writePtrs[i], acc[i], pred);
     }
 
     if (round != elemsPerThread - 1) {
@@ -319,12 +307,12 @@ void ReduceOpConversion::storeWarpReduceToSharedMemory(
     llvm::SmallVector<mlir::Value> writeIdx = indices[key];
     writeIdx[axis] = warpIdAxis;
     mlir::Value writeOffset =
-        mlir::LLVM::linearize(rewriter, loc, writeIdx, smemShape, smemOrder);
+        tritoncc::linearize(rewriter, loc, writeIdx, smemShape, smemOrder);
     for (unsigned i = 0; i < op.getNumOperands(); ++i) {
       auto elemTy = getElementType(op, i);
       mlir::Value writePtr = gep(ptr_ty(rewriter.getContext(), 3), elemTy,
           smemBases[i], writeOffset);
-      mlir::LLVM::NVIDIA::storeShared(rewriter, loc, writePtr, acc[i], laneZero);
+      tritoncc::storeShared(rewriter, loc, writePtr, acc[i], laneZero);
     }
   }
 }
@@ -344,7 +332,7 @@ llvm::SmallVector<mlir::Value> ReduceOpConversion::getSmemBases(
   // Assign base index to each operand in their order in indices
   std::map<unsigned, mlir::Value> indexToBase;
   indexToBase[indices[0]] =
-      mlir::LLVM::getSharedMemoryBase(loc, rewriter, op.getOperation());
+      tritoncc::getSharedMemoryBase(loc, rewriter, op.getOperation());
 
   for (unsigned i = 1; i < op.getNumOperands(); ++i) {
     indexToBase[indices[i]] = gep(
@@ -369,7 +357,7 @@ void ReduceOpConversion::warpReduce(
   for (unsigned N = numLaneToReduce / 2; N > 0; N >>= 1) {
     llvm::SmallVector<mlir::Value> shfl(acc.size());
     for (int i = 0; i < acc.size(); ++i) {
-      shfl[i] = mlir::LLVM::shflSync(loc, rewriter, acc[i], N * interleave);
+      shfl[i] = tritoncc::shflSync(loc, rewriter, acc[i], N * interleave);
     }
     accumulate(rewriter, op.getCombineOp(), acc, shfl, false);
   }
