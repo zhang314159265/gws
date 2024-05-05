@@ -173,7 +173,7 @@ struct ConvertLayoutOpConversion
         auto vecTy = vec_ty(llvmElemTy, vec);
         ptr = bitcast(ptr, ptr_ty(rewriter.getContext(), 3));
         if (stNotRd) {
-          mlir::Value valVec = undef(vecTy);
+          mlir::Value valVec = macro_undef(vecTy);
           for (unsigned v = 0; v < vec; ++v) {
             auto currVal = vals[elemId + linearCTAId * accumSizePerThread + v];
             if (isInt1) {
@@ -185,7 +185,7 @@ struct ConvertLayoutOpConversion
           }
           store(valVec, ptr);
         } else {
-          mlir::Value valVec = load(vecTy, ptr);
+          mlir::Value valVec = macro_load(vecTy, ptr);
           for (unsigned v = 0; v < vec; ++v) {
             mlir::Value currVal = extract_element(llvmElemTy, valVec, i32_val(v));
             if (isInt1) {
@@ -393,7 +393,7 @@ struct ConvertLayoutOpConversion
           elemId, mlir::triton::gpu::getSizePerThread(layout), mlir::triton::gpu::getOrder(layout));
       for (unsigned d = 0; d < rank; ++d) {
         multiDimOffset[d] =
-            add(multiDimOffsetFirstElem[d],
+            macro_add(multiDimOffsetFirstElem[d],
               i32_val(multiDimCTAInRepId[d] * shapePerCTATile[d] +
                 multiDimElemId[d]));
       }

@@ -20,7 +20,7 @@ struct MakeRangeOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton:
     llvm::SmallVector<mlir::Value> retVals(elems);
     for (const auto &multiDim : llvm::enumerate(idxs)) {
       assert(multiDim.value().size() == 1);
-      retVals[multiDim.index()] = add(multiDim.value()[0], start);
+      retVals[multiDim.index()] = macro_add(multiDim.value()[0], start);
     }
     auto typeConverter = getTypeConverter();
     mlir::Value result = tritoncc::packLLElements(loc, typeConverter, retVals, rewriter, rankedTy);

@@ -30,7 +30,7 @@ mlir::Value getMask(mlir::Type valueTy, mlir::ConversionPatternRewriter &rewrite
         continue;
       }
       mlir::Value threadDim =
-        add(mul(multiDimWarpId[dim], i32_val(threadsPerWarp[dim])),
+        macro_add(mul(multiDimWarpId[dim], i32_val(threadsPerWarp[dim])),
             multiDimThreadId[dim]);
       mask = and_(mask, icmp_slt(mul(threadDim, i32_val(sizePerThread[dim])),
           i32_val(shape[dim])));
@@ -216,7 +216,7 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
         size_t size = width / valueElemNBits;
 
         auto vecTy = LLVM::getFixedVectorType(valueElemTy, size);
-        mlir::Value v = undef(vecTy);
+        mlir::Value v = macro_undef(vecTy);
         for (size_t s = 0; s < size; ++s) {
           mlir::Value falseVal = otherElems[vecStart + ii * size + s];
           mlir::Value sVal = createIndexAttrConstant(
@@ -350,7 +350,7 @@ mlir::LogicalResult StoreOpConversion::matchAndRewrite(
 
     mlir::SmallVector<std::pair<mlir::Value, std::string>> asmArgs;
     for (size_t wordIdx = 0; wordIdx < nWords; ++wordIdx) {
-      mlir::Value llWord = undef(wordTy);
+      mlir::Value llWord = macro_undef(wordTy);
       // Insert each value element to the composition
       for (size_t elemIdx = 0; elemIdx < wordNElems; ++elemIdx) {
         const size_t elemOffset = vecStart + wordIdx * wordNElems + elemIdx;

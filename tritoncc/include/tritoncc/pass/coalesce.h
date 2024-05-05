@@ -6,9 +6,9 @@
 
 #include "tritoncc/AxisInfo.h"
 #include "triton/Dialect/TritonGPU/IR/Dialect.h"
-#include "triton/Dialect/TritonGPU/Transforms/Utility.h"
 
 #include "tritoncc/util.h"
+#include "tritoncc/nvidia_util.h"
 #include "tritoncc/layout_util.h"
 
 #ifdef DEBUG
@@ -17,16 +17,6 @@
 #define DEBUG 0
 
 namespace tritoncc {
-
-static mlir::Value getMemAccessPtr(mlir::Operation* op) {
-  if (mlir::triton::LoadOp ld = llvm::dyn_cast<mlir::triton::LoadOp>(op)) {
-    return ld.getPtr();
-  }
-  if (mlir::triton::StoreOp st = llvm::dyn_cast<mlir::triton::StoreOp>(op)) {
-    return st.getPtr();
-  }
-  return nullptr;
-}
 
 class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
  public:

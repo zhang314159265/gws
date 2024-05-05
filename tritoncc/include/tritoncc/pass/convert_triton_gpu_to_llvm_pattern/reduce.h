@@ -202,14 +202,14 @@ void ReduceOpConversion::loadReductionAndPackResult(
             tritoncc::linearize(rewriter, loc, readIdx, smemShape, smemOrder);
         mlir::Value readPtr = gep(ptr_ty(rewriter.getContext(), 3), elemTy,
             smemBases[i], readOffset);
-        resultVals[j] = load(elemTy, readPtr);
+        resultVals[j] = macro_load(elemTy, readPtr);
       }
 
       results[i] = tritoncc::packLLElements(loc, getTypeConverter(), resultVals,
           rewriter, resultTy);
     } else {
       // 0d-tensor -> scalar
-      results[i] = load(elemTy, smemBases[i]);
+      results[i] = macro_load(elemTy, smemBases[i]);
     }
   }
   rewriter.replaceOp(op, results);
@@ -264,7 +264,7 @@ void ReduceOpConversion::accumulatePartialReductions(ReduceOpHelper &helper, llv
     }
 
     if (round != elemsPerThread - 1) {
-      readOffset = add(readOffset, i32_val(numThreads));
+      readOffset = macro_add(readOffset, i32_val(numThreads));
     }
   }
 }

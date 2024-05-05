@@ -1,5 +1,8 @@
 #pragma once
 
+#include <set>
+#include "mlir/Dialect/LLVMIR/NVVMDialect.h"
+
 #ifdef USE_TRITON
 #undef USE_TRITON
 #endif
@@ -7,6 +10,7 @@
 
 #if USE_TRITON
 #include "nvidia/lib/TritonNVIDIAGPUToLLVM/Utility.h"
+#include "triton/Dialect/TritonGPU/Transforms/Utility.h"
 #else
 
 #include "triton/Dialect/NVGPU/IR/Dialect.h"
@@ -17,11 +21,11 @@
 // Shortcuts for some commonly used LLVM ops to keep code simple and intuitive
 // Operators
 #define gep(...) rewriter.create<mlir::LLVM::GEPOp>(loc, __VA_ARGS__)
-#define load(...) rewriter.create<mlir::LLVM::LoadOp>(loc, __VA_ARGS__)
+#define macro_load(...) rewriter.create<mlir::LLVM::LoadOp>(loc, __VA_ARGS__)
 #define store(val, ptr) rewriter.create<mlir::LLVM::StoreOp>(loc, val, ptr)
 #define ptr_ty(...) mlir::LLVM::LLVMPointerType::get(__VA_ARGS__)
 #define urem(...) rewriter.create<mlir::LLVM::URemOp>(loc, __VA_ARGS__)
-#define add(...) rewriter.create<mlir::LLVM::AddOp>(loc, __VA_ARGS__)
+#define macro_add(...) rewriter.create<mlir::LLVM::AddOp>(loc, __VA_ARGS__)
 #define barrier() rewriter.create<mlir::gpu::BarrierOp>(loc)
 #define bitcast(val, type) rewriter.create<mlir::LLVM::BitcastOp>(loc, type, val)
 #define zext(...) rewriter.create<mlir::LLVM::ZExtOp>(loc, __VA_ARGS__)
@@ -34,7 +38,7 @@
 #define icmp_eq(...) rewriter.create<mlir::LLVM::ICmpOp>(loc, mlir::LLVM::ICmpPredicate::eq, __VA_ARGS__)
 #define icmp_slt(...) rewriter.create<mlir::LLVM::ICmpOp>(loc, mlir::LLVM::ICmpPredicate::slt, __VA_ARGS__)
 
-#define undef(...) rewriter.create<mlir::LLVM::UndefOp>(loc, __VA_ARGS__)
+#define macro_undef(...) rewriter.create<mlir::LLVM::UndefOp>(loc, __VA_ARGS__)
 #define and_(...) rewriter.create<mlir::LLVM::AndOp>(loc, __VA_ARGS__)
 #define sext(...) rewriter.create<mlir::LLVM::SExtOp>(loc, __VA_ARGS__)
 #define mul(...) rewriter.create<mlir::LLVM::MulOp>(loc, __VA_ARGS__)
@@ -43,7 +47,7 @@
 
 // Types
 #define int_ty(width) rewriter.getIntegerType(width)
-#define i32_ty rewriter.getIntegerType(32)
+#define macro_i32_ty rewriter.getIntegerType(32)
 #define i8_ty rewriter.getIntegerType(8)
 #define void_ty(ctx) mlir::LLVM::LLVMVoidType::get(ctx)
 
@@ -103,7 +107,7 @@ llvm::SmallVector<T> getMultiDimIndex(T linearIndex, llvm::ArrayRef<T> shape,
 mlir::Value getThreadIdInCTA(mlir::RewriterBase &rewriter, mlir::Location loc) {
   mlir::Value tid =
       rewriter.create<mlir::gpu::ThreadIdOp>(loc, mlir::gpu::Dimension::x);
-  return rewriter.create<mlir::arith::IndexCastOp>(loc, i32_ty, tid);
+  return rewriter.create<mlir::arith::IndexCastOp>(loc, macro_i32_ty, tid);
 }
 
 mlir::Value getThreadId(mlir::RewriterBase &rewriter, mlir::Location loc) {
@@ -115,6 +119,11 @@ mlir::Value getClusterCTAId(mlir::RewriterBase &rewriter, mlir::Location loc) {
     loc, rewriter.getI32Type()
   );
 }
+
+llvm::SmallVector<mlir::Value> delinearize(
+    mlir::OpBuilder &b, mlir::Location loc, mlir::Value linear,
+    llvm::ArrayRef<unsigned> shape,
+    llvm::ArrayRef<unsigned> order);
 
 // Get an index-base for each dimension for a \param blockedLayout.
 llvm::SmallVector<mlir::Value>
@@ -154,7 +163,7 @@ emitBaseIndexWithinCTAForBlockedLayout(
     mlir::Value sizePerThreadK = i32_val(sizePerThread[k]);
     multiDimBase[k] =
       mul(sizePerThreadK,
-        add(multiDimThreadId[k], mul(multiDimWarpId[k], threadsPerWarpK)));
+        macro_add(multiDimThreadId[k], mul(multiDimWarpId[k], threadsPerWarpK)));
   }
   return multiDimBase;
 }
@@ -221,7 +230,7 @@ emitBaseIndexForLayout(mlir::Location loc, mlir::RewriterBase &rewriter,
     auto CTAOffset = emitCTAOffsetForLayout(loc, rewriter, layout, shape);
     assert(CTAOffset.size() == result.size() && "Rank mismatch");
     for (unsigned k = 0; k < result.size(); ++k) {
-      result[k] = add(result[k], CTAOffset[k]);
+      result[k] = macro_add(result[k], CTAOffset[k]);
     }
   }
   return result;
@@ -447,7 +456,7 @@ emitIndices(mlir::Location loc, mlir::RewriterBase &rewriter,
 
   for (unsigned n = 0; n < elemsPerThread; ++n) {
     for (unsigned k = 0; k < rank; ++k) {
-      multiDimIdx[n][k] = add(multiDimBase[k], i32_val(offset[n][k]));
+      multiDimIdx[n][k] = macro_add(multiDimBase[k], i32_val(offset[n][k]));
     }
   }
   return multiDimIdx;
@@ -464,16 +473,16 @@ mlir::Value commonShflSync(
     assert(false && "64 bit");
   }
   mlir::Type type = val.getType();
-  if (type != i32_ty) {
+  if (type != macro_i32_ty) {
     val = bitcast(val, int_ty(bits));
     if (bits < 32) {
-      val = zext(i32_ty, val);
+      val = zext(macro_i32_ty, val);
     }
   }
   mlir::Value mask = i32_val(0xFFFFFFFF);
   mlir::Value result = rewriter.create<mlir::NVVM::ShflOp>(
-    loc, i32_ty, mask, val, i, clamp, mode, mlir::UnitAttr());
-  if (type != i32_ty) {
+    loc, macro_i32_ty, mask, val, i, clamp, mode, mlir::UnitAttr());
+  if (type != macro_i32_ty) {
     if (bits < 32) {
       result = trunc(int_ty(bits), result);
     }
@@ -487,6 +496,40 @@ mlir::Value shflSync(mlir::Location loc, mlir::ConversionPatternRewriter &rewrit
       i32_val(0x1f));
 }
 
+llvm::SmallVector<mlir::Value> delinearize(mlir::OpBuilder &b, mlir::Location loc, mlir::Value linear,
+    llvm::ArrayRef<unsigned> shape) {
+  unsigned rank = shape.size();
+  assert(rank > 0);
+  llvm::SmallVector<mlir::Value> multiDim(rank);
+  if (rank == 1) {
+    multiDim[0] = linear;
+  } else {
+    mlir::Value remained = linear;
+    for (auto &&en : llvm::enumerate(shape.drop_back())) {
+      auto dimSize = b.create<mlir::arith::ConstantIntOp>(loc, en.value(), 32);
+      multiDim[en.index()] = b.create<mlir::arith::RemSIOp>(loc, remained, dimSize);
+      remained = b.create<mlir::arith::DivSIOp>(loc, remained, dimSize);
+    }
+    multiDim[rank - 1] = remained;
+  }
+  return multiDim;
+}
+
+llvm::SmallVector<mlir::Value> delinearize(
+    mlir::OpBuilder &b, mlir::Location loc, mlir::Value linear,
+    llvm::ArrayRef<unsigned> shape,
+    llvm::ArrayRef<unsigned> order) {
+  unsigned rank = shape.size();
+  assert(rank == order.size());
+  auto reordered = applyPermutation(shape, order);
+  auto reorderedMultiDim = delinearize(b, loc, linear, reordered);
+  llvm::SmallVector<mlir::Value> multiDim(rank);
+  for (unsigned i = 0; i < rank; ++i) {
+    multiDim[order[i]] = reorderedMultiDim[i];
+  }
+  return multiDim;
+}
+
 mlir::Value linearize(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc, llvm::ArrayRef<mlir::Value> multiDim, llvm::ArrayRef<unsigned> shape) {
   auto rank = multiDim.size();
   mlir::Value linear = i32_val(0);
@@ -495,7 +538,7 @@ mlir::Value linearize(mlir::ConversionPatternRewriter &rewriter, mlir::Location 
     for (auto [dim, dimShape] :
          llvm::reverse(llvm::zip(multiDim.drop_back(), shape.drop_back()))) {
       mlir::Value dimSize = i32_val(dimShape);
-      linear = add(mul(linear, dimSize), dim);
+      linear = macro_add(mul(linear, dimSize), dim);
     }
   }
   return linear;
@@ -504,6 +547,45 @@ mlir::Value linearize(mlir::ConversionPatternRewriter &rewriter, mlir::Location 
 mlir::Value linearize(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc, llvm::ArrayRef<mlir::Value> multiDim, llvm::ArrayRef<unsigned> shape, llvm::ArrayRef<unsigned> order) {
   return linearize(rewriter, loc, applyPermutation(multiDim, order),
       applyPermutation(shape, order));
+}
+
+// Return the operand used to access the memory in the operation.
+mlir::Value getMemAccessPtr(mlir::Operation* op) {
+  if (mlir::triton::LoadOp ld = llvm::dyn_cast<mlir::triton::LoadOp>(op)) {
+    return ld.getPtr();
+  }
+  if (mlir::triton::StoreOp st = llvm::dyn_cast<mlir::triton::StoreOp>(op)) {
+    return st.getPtr();
+  }
+  return nullptr;
+}
+
+unsigned getElementBitWidth(mlir::RankedTensorType type) {
+  auto typeForMem =
+      type.getElementType().isa<mlir::triton::PointerType>()
+          ? type.getElementType().cast<mlir::triton::PointerType>().getPointeeType()
+          : type.getElementType();
+  return typeForMem.getIntOrFloatBitWidth();
+}
+
+namespace {
+
+// Detect dead arguments in scf.for op by assuming all the values are dead and
+// propagate liveness property.
+struct ForOpDeadArgElimination : public mlir::OpRewritePattern<mlir::scf::ForOp> {
+  using mlir::OpRewritePattern<mlir::scf::ForOp>::OpRewritePattern;
+
+  mlir::LogicalResult matchAndRewrite(mlir::scf::ForOp forOp,
+      mlir::PatternRewriter &rewriter) const final {
+    assert(false && "matchAndRewrite");
+  }
+};
+
+}
+
+// Populate pattern to remove dead cycles in ForOp.
+void populateForOpDeadArgumentElimination(mlir::RewritePatternSet &patterns) {
+  patterns.add<ForOpDeadArgElimination>(patterns.getContext());
 }
 
 }
