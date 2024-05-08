@@ -1,0 +1,34 @@
+Input: (x1, x2, ..., xn)
+Intermediate: mean, rstd
+Output: (y1, y2, ..., yn) where yi = (xi - mean) * rstd
+
+Define: g(z) = dloss/dz
+Task:
+  Given (g(y1), g(y2), ..., g(yn))
+  Compute: (g(x1), g(x2), ..., g(xn))
+
+Steps:
+
+g(xi) = sigma_j(g(yj) * d(yj)/d(xi))
+  -->
+  d(yj)/d(xi) = d((xj - mean) * rstd)/d(xi)
+              = (xj - mean) * d(rstd)/d(xi) + rstd * [(i == j) - 1/n]
+  <--
+      = sigma_j(g(yj) * (xj - mean) * d(rstd)/d(xi) + g(yj) * rstd * [(i == j) - 1/n])
+  -->
+  d(rstd)/d(xi) = d((var + ep) ** (-1/2))/d(xi)
+                = (-1/2) * (var + ep) ** (-3/2) * d(var)/d(xi)
+                = (-1/2) * rstd ** 3 * d(var)/d(xi)
+  <--
+      = sigma_j(g(yj) * (xj - mean) * (-1/2) * (var + ep) ** (-3/2) * d(var)/d(xi) + g(yj) * rstd * [(i == j) - 1/n])
+      = sigma_j(g(yj) * (xj - mean) * (-1/2) * rstd**3 * d(var)/d(xi) + g(yj) * rstd * [(i == j) - 1/n])
+      = sigma_j(g(yj) * yj * (-1/2) * rstd**2 * d(var)/d(xi) + g(yj) * rstd * [(i == j) - 1/n])
+  -->
+  d(var)/d(xi) = d(sigma_j((xj - mean) ** 2 /n))/d(xi)
+               = 1/n * sigma_j( 2 * (xj - mean) * ([i==j] - 1/n) )
+               = 1/n * 2 * (xi - mean)
+  <--
+      = sigma_j(g(yj) * yj * (-1/2) * rstd**2 * 1/n * 2 * (xi - mean) + g(yj) * rstd * [(i == j) - 1/n])
+      = sigma_j(-g(yj) * yj * rstd * 1/n * yi + g(yj) * rstd * [(i == j) - 1/n])
+      = g(yi) * rstd - rstd/n * sigma_j(g(yj)) - sigma_j(g(yj) * yj) * rstd/n * yi
+      = rstd/n * [g(yi) * n - sigma_j(g(yj)) - sigma_j(g(yi) * yi) * yi]
