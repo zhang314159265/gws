@@ -22,6 +22,9 @@ using mlir::multiRootTopologicalSort;
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "triton/Dialect/Triton/IR/Dialect.h"
 #include "triton/Dialect/TritonGPU/IR/Dialect.h"
+#include "triton/Dialect/TritonNvidiaGPU/IR/Dialect.h"
+
+#include "tritoncc/util.h"
 
 namespace tritoncc {
 
@@ -320,6 +323,193 @@ class CallGraph {
   llvm::DenseMap<mlir::FunctionOpInterface,
       llvm::SmallVector<std::pair<mlir::CallOpInterface, mlir::FunctionOpInterface>>> graph;
   llvm::SmallVector<mlir::FunctionOpInterface> roots;
+};
+
+bool maybeSharedAllocationOp(mlir::Operation *op) {
+  auto *dialect = op->getDialect();
+  return dialect &&
+    (dialect->getTypeID() == mlir::TypeID::get<mlir::triton::gpu::TritonGPUDialect>() ||
+     dialect->getTypeID() == mlir::TypeID::get<mlir::triton::nvidia_gpu::TritonNvidiaGPUDialect>() ||
+     dialect->getTypeID() == mlir::TypeID::get<mlir::triton::TritonDialect>() ||
+     dialect->getTypeID() == mlir::TypeID::get<mlir::arith::ArithDialect>() ||
+     dialect->getTypeID() == mlir::TypeID::get<mlir::tensor::TensorDialect>());
+}
+
+bool maybeAliasOp(mlir::Operation *op) {
+  return llvm::isa<mlir::triton::gpu::ExtractSliceOp, mlir::triton::TransOp, mlir::triton::gpu::InsertSliceAsyncOp, mlir::tensor::InsertSliceOp>(op);
+}
+
+class ReduceOpHelper {
+ public:
+  explicit ReduceOpHelper(mlir::triton::ReduceOp op) {
+    this->op = mlir::triton::ReduceOp(op.getOperation());
+    this->axis = op.getAxis();
+    mlir::RankedTensorType firstTy = op.getOperands()[0].getType().cast<mlir::RankedTensorType>();
+    srcShape = firstTy.getShape();
+    srcEncoding = firstTy.getEncoding();
+    srcElementTypes = op.getElementTypes();
+  }
+
+  mlir::triton::ReduceOp getOperation() { return op; }
+
+  llvm::SmallVector<unsigned> getOrderWithAxisAtBeginning() {
+    auto srcLayout = getSrcLayout();
+    auto order = mlir::triton::gpu::getOrder(srcLayout);
+    auto it = std::find(order.begin(), order.end(), axis);
+    order.erase(it);
+    order.insert(order.begin(), axis);
+    return order;
+  }
+
+  unsigned getInterWarpSizeWithUniqueData() {
+    auto srcReduceDimSize = static_cast<unsigned>(srcShape[axis]);
+    unsigned sizeIntraWarps = getIntraWarpSizeWithUniqueData();
+    return std::min(srcReduceDimSize / sizeIntraWarps,
+        mlir::triton::gpu::getWarpsPerCTAWithUniqueData(
+          getSrcLayout(), getSrcShape())[axis]);
+  }
+
+  llvm::SmallVector<unsigned> getScratchConfig() {
+    llvm::SmallVector<unsigned> smemShape;
+    if (isWarpSynchronous()) {
+      return {0, 0};
+    }
+    smemShape = convertType<unsigned>(getSrcShape());
+    smemShape[axis] = getInterWarpSizeWithUniqueData();
+
+    return smemShape;
+  }
+
+  unsigned getIntraWarpSizeWithUniqueData() {
+    auto srcReduceDimSize = static_cast<unsigned>(srcShape[axis]);
+    unsigned elementPerThreads = mlir::triton::gpu::getUniqueContigPerThread(
+        getSrcLayout(), getSrcShape())[axis];
+    return std::min(srcReduceDimSize / elementPerThreads,
+        mlir::triton::gpu::getThreadsPerWarpWithUniqueData(
+            getSrcLayout(), getSrcShape())[axis]);
+  }
+
+  bool isSupportedLayout() {
+    if (!isReduceWithinCTA()) {
+      return false;
+    }
+    auto srcLayout = getSrcLayout();
+    if (srcLayout.isa<mlir::triton::gpu::BlockedEncodingAttr>()) {
+      return true;
+    }
+    assert(false && "isSupportedLayout");
+  }
+
+  bool isReduceWithinCTA() {
+    int axis = getAxis();
+    auto srcLayout = getSrcLayout();
+    auto CTASplitNum = mlir::triton::gpu::getCTASplitNum(srcLayout);
+    assert(axis < CTASplitNum.size());
+    return CTASplitNum[axis] == 1;
+  }
+
+  llvm::ArrayRef<int64_t> getSrcShape() { return srcShape; }
+
+  bool isWarpSynchronous() {
+    auto srcLayout = getSrcLayout();
+    auto srcShape = getSrcShape();
+    return mlir::triton::gpu::getWarpsPerCTAWithUniqueData(srcLayout, srcShape)[axis] == 1;
+  }
+
+  mlir::Attribute getSrcLayout() { return srcEncoding; }
+  int getAxis() { return axis; }
+
+  unsigned getScratchSizeInBytes() {
+    auto smemShape = getScratchConfig();
+    auto elems = product<unsigned>(smemShape);
+
+    unsigned bytesPerElem = 0;
+    for (const auto &ty : srcElementTypes) {
+      bytesPerElem += ceil<unsigned>(ty.getIntOrFloatBitWidth(), 8);
+    }
+    return bytesPerElem * elems;
+  }
+ private:
+  mlir::triton::ReduceOp op;
+  llvm::ArrayRef<int64_t> srcShape;
+  mlir::Attribute srcEncoding;
+  llvm::SmallVector<mlir::Type> srcElementTypes;
+  int axis;
+};
+
+class AliasInfo {
+ public:
+  bool operator==(const AliasInfo &other) const {
+    return allocs == other.allocs;
+  }
+
+  void insert(mlir::Value value) { allocs.insert(value); }
+
+  const llvm::DenseSet<mlir::Value> &getAllocs() const { return allocs; }
+
+  static AliasInfo join(const AliasInfo &lhs, const AliasInfo &rhs) {
+    if (lhs == rhs) {
+      return lhs;
+    }
+    AliasInfo ret;
+    for (auto value : lhs.allocs) {
+      ret.insert(value);
+    }
+    for (auto value : rhs.allocs) {
+      ret.insert(value);
+    }
+    return ret;
+  }
+
+  void print(llvm::raw_ostream &os) const {
+    assert(false && "print");
+  }
+
+  static AliasInfo getPessimisticValueState(mlir::Value value) {
+    return AliasInfo();
+  }
+ private:
+  llvm::DenseSet<mlir::Value> allocs;
+};
+
+class SharedMemoryAliasAnalysis
+    : public mlir::dataflow::SparseForwardDataFlowAnalysis<
+              mlir::dataflow::Lattice<AliasInfo>> {
+ public:
+  using mlir::dataflow::SparseForwardDataFlowAnalysis<
+      mlir::dataflow::Lattice<AliasInfo>>::SparseForwardDataFlowAnalysis;
+  using mlir::dataflow::SparseForwardDataFlowAnalysis<
+      mlir::dataflow::Lattice<AliasInfo>>::getLatticeElement;
+
+  void setToEntryState(mlir::dataflow::Lattice<AliasInfo> *lattice) override {
+    propagateIfChanged(
+        lattice, lattice->join(
+            AliasInfo::getPessimisticValueState(lattice->getPoint())));
+  }
+
+  void visitOperation(mlir::Operation *op,
+      llvm::ArrayRef<const mlir::dataflow::Lattice<AliasInfo> *> operands,
+      llvm::ArrayRef<mlir::dataflow::Lattice<AliasInfo> *> results) override {
+    AliasInfo aliasInfo;
+    bool pessimistic = true;
+    // These ops may allocate a new shared memory buffer.
+    auto result = op->getResult(0);
+    if (llvm::isa<mlir::triton::gpu::ExtractSliceOp, mlir::triton::TransOp>(op)) {
+      assert(false && "ExtractSliceOp or TransOp");
+    } else if (llvm::isa<mlir::tensor::InsertSliceOp, mlir::triton::gpu::InsertSliceAsyncOp>(op)) {
+      assert(false && "InsertSliceOp or InsertSliceAsyncOp");
+    } else if (tritoncc::hasSharedEncoding(result)) {
+      aliasInfo.insert(result);
+      pessimistic = false;
+    }
+    if (pessimistic) {
+      return setAllToEntryStates(results);
+    }
+    // Join all lattice elements
+    for (auto *result : results) {
+      propagateIfChanged(result, result->join(aliasInfo));
+    }
+  }
 };
 
 }

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "triton/Conversion/TritonGPUToLLVM/Passes.h"
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -16,6 +15,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm.h"
+#include "tritoncc/pass/allocate_shared_memory.h"
 
 namespace mlir { namespace triton {
 std::unique_ptr<mlir::OperationPass<mlir::ModuleOp>> createConvertNVGPUToLLVMPass();
@@ -54,7 +54,7 @@ std::string make_llir(mlir::ModuleOp &M, Option &opt) {
   mlir::MLIRContext &ctx = *M.getContext();
   mlir::PassManager pm(&ctx);
 
-  pm.addPass(mlir::triton::gpu::createAllocateSharedMemoryPass());
+  pm.addPass(tritoncc::createAllocateSharedMemoryPass());
   pm.addPass(std::make_unique<tritoncc::ConvertTritonGPUToLLVM>(opt.capability));
 
   pm.addPass(mlir::triton::createConvertNVGPUToLLVMPass());
