@@ -19,6 +19,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
 
+  include(TableGen)
   include(AddLLVM)
   include(AddMLIR)
 else()
@@ -28,10 +29,18 @@ endif()
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 include_directories("include")
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)  # tblgen generated headers
 
-add_llvm_executable(toyc toyc.cpp)
+add_llvm_executable(toyc toyc.cpp Dialect.cpp)
+
+add_subdirectory(include/toy)
+add_dependencies(toyc tblgen_target)
 
 # This has to come after add_llvm_executable so that toyc is defined
 target_link_libraries(toyc PUBLIC
   MLIRSupport
+  MLIRIR
+  MLIRSideEffectInterfaces
+  MLIRFunctionInterfaces
+  MLIRParser
 )

@@ -156,7 +156,10 @@ class Parser {
 
     // It can be a builtin call to print
     if (name == "print") {
-      assert(false && "print");
+      if (args.size() != 1) {
+        return parseError<ExprAST>("<single arg>", "as argument to print()");
+      }
+      return std::make_unique<PrintExprAST>(std::move(loc), std::move(args[0]));
     }
 
     // Call to a user-defined function

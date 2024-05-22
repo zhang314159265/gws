@@ -19,6 +19,7 @@ class ExprAST {
     Expr_BinOp,
     Expr_Literal,
     Expr_Num,
+    Expr_Print,
   };
 
   ExprAST(ExprASTKind kind, Location location)
@@ -33,6 +34,17 @@ class ExprAST {
 };
 
 using ExprASTList = std::vector<std::unique_ptr<ExprAST>>;
+
+// Expression class for builtin print calls.
+class PrintExprAST : public ExprAST {
+  std::unique_ptr<ExprAST> arg;
+ public:
+  PrintExprAST(Location loc, std::unique_ptr<ExprAST> arg)
+      : ExprAST(Expr_Print, std::move(loc)), arg(std::move(arg)) {}
+  ExprAST *getArg() { return arg.get(); }
+
+  static bool classof(const ExprAST *c) { return c->getKind() == Expr_Print; }
+};
 
 class NumberExprAST : public ExprAST {
   double val;

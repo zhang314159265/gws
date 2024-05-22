@@ -3,7 +3,8 @@
 
 with_cmake:
 	cd build && cmake .. && make
-	build/toyc toy-prog/ast.toy -emit=ast
+	build/toyc toy-prog/ast.toy -emit=mlir 2>&1 | tee /tmp/out.mlir
+	build/toyc /tmp/out.mlir -emit=mlir
 
 # XXX this does not work yet.
 run:
