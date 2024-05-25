@@ -43,4 +43,6 @@ target_link_libraries(toyc PUBLIC
   MLIRSideEffectInterfaces
   MLIRFunctionInterfaces
   MLIRParser
+  MLIRPass
+  MLIRTransforms
 )

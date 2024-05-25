@@ -1,10 +1,12 @@
 #include "toy/Dialect.h"
+#include "toy/Pattern.h"
 
 #include "mlir/IR/Builders.h"
 
 #include "toy/Dialect.cpp.inc"
 
 using namespace mlir::toy;
+using namespace toy;
 
 void ToyDialect::initialize() {
   addOperations<
@@ -29,6 +31,11 @@ void TransposeOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
   state.addOperands(value);
 }
 
+void TransposeOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
+    mlir::MLIRContext *context) {
+  results.add<SimplifyRedundantTranspose>(context);
+}
+
 // AddOp
 void AddOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
     mlir::Value lhs, mlir::Value rhs) {
@@ -51,6 +58,16 @@ void GenericCallOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
   state.addOperands(arguments);
   state.addAttribute("callee",
       mlir::SymbolRefAttr::get(builder.getContext(), callee));
+}
+
+// ReshapeOp
+void ReshapeOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
+    mlir::MLIRContext *context) {
+  results.add<
+      ReshapeReshapeOptPattern,
+      FoldConstantReshapeOptPattern,
+      RedundantReshapeOptPattern
+  >(context);
 }
 
 #define GET_OP_CLASSES

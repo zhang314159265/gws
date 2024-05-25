@@ -63,13 +63,15 @@ def ReturnOp : Toy_Op<"return", [Pure, HasParent<"FuncOp">, Terminator]> {
   }];
 }
 
-def TransposeOp : Toy_Op<"transpose"> {
+def TransposeOp : Toy_Op<"transpose", [Pure]> {
   let arguments = (ins F64Tensor:$input);
   let results = (outs F64Tensor);
 
   let builders = [
     OpBuilder<(ins "Value":$input)>
   ];
+
+  let hasCanonicalizer = 1;
 }
 
 def AddOp : Toy_Op<"add"> {
@@ -102,10 +104,15 @@ def ConstantOp : Toy_Op<"constant", [Pure]> {
   ];
 }
 
-def ReshapeOp : Toy_Op<"reshape"> {
+def ReshapeOp : Toy_Op<"reshape", [Pure]> {
   let arguments = (ins F64Tensor:$input);
 
+  let assemblyFormat = [{
+    `(` $input `:` type($input) `)` attr-dict `to` type(results)
+  }];
+
   let results = (outs StaticShapeTensorOf<[F64]>);
+  let hasCanonicalizer = 1;
 }
 
 def GenericCallOp : Toy_Op<"generic_call"> {

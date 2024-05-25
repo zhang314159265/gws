@@ -7,6 +7,8 @@
 
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Parser/Parser.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 
 #include "toy/AST.h"
 #include "toy/Dump.h"
@@ -38,6 +40,7 @@ static cl::opt<enum Action>
     cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")),
     cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")));
 
+static cl::opt<bool> enableOpt("opt", cl::desc("Enable optimizations"));
 
 std::unique_ptr<toy::ModuleAST> parseInputFile(llvm::StringRef filename) {
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> fileOrErr =
@@ -66,11 +69,8 @@ int dumpAST() {
   return 0;
 }
 
-int dumpMLIR() {
-  mlir::MLIRContext context;
-  // Load our Dialect in this MLIR Context.
-  context.getOrLoadDialect<mlir::toy::ToyDialect>();
-
+int loadMLIR(llvm::SourceMgr &sourceMgr, mlir::MLIRContext &context,
+    mlir::OwningOpRef<mlir::ModuleOp> &module) {
   // Handle '.toy' input to the compiler.
   if (inputType != InputType::MLIR &&
       !llvm::StringRef(inputFilename).ends_with(".mlir")) {
@@ -78,12 +78,8 @@ int dumpMLIR() {
     if (!moduleAST) {
       return 6;
     }
-    mlir::OwningOpRef<mlir::ModuleOp> module = mlirGen(context, *moduleAST);
-    if (!module) {
-      return 1;
-    }
-    module->dump();
-    return 0;
+    module = mlirGen(context, *moduleAST);
+    return !module ? 1 : 0;
   }
 
   // Otherwise, the input is '.mlir'
@@ -95,13 +91,34 @@ int dumpMLIR() {
   }
 
   // Parse the input mlir.
-  llvm::SourceMgr sourceMgr; 
   sourceMgr.AddNewSourceBuffer(std::move(*fileOrErr), llvm::SMLoc());
-  mlir::OwningOpRef<mlir::ModuleOp> module =
-      mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
+  module = mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
   if (!module) {
     llvm::errs() << "Error can't load file " << inputFilename << "\n";
     return 3;
+  }
+  return 0;
+}
+
+int dumpMLIR() {
+  mlir::MLIRContext context;
+  // Load our Dialect in this MLIR Context.
+  context.getOrLoadDialect<mlir::toy::ToyDialect>();
+
+  mlir::OwningOpRef<mlir::ModuleOp> module;
+  llvm::SourceMgr sourceMgr; 
+  if (int error = loadMLIR(sourceMgr, context, module)) {
+    return error;
+  }
+
+  if (enableOpt) {
+    // llvm::errs() << "Module name " << module.get()->getName() << "\n"; // builtin.module
+    mlir::PassManager pm(module.get()->getName());
+
+    pm.addNestedPass<mlir::toy::FuncOp>(mlir::createCanonicalizerPass());
+    if (mlir::failed(pm.run(*module))) {
+      return 4;
+    }
   }
 
   module->dump();
