@@ -16,6 +16,7 @@
 #include "toy/Parser.h"
 #include "toy/Dialect.h"
 #include "toy/MLIRGen.h"
+#include "toy/Pass.h"
 
 using namespace toy;
 namespace cl = llvm::cl;
@@ -115,7 +116,14 @@ int dumpMLIR() {
     // llvm::errs() << "Module name " << module.get()->getName() << "\n"; // builtin.module
     mlir::PassManager pm(module.get()->getName());
 
-    pm.addNestedPass<mlir::toy::FuncOp>(mlir::createCanonicalizerPass());
+    // Inline all functions into main and then delete them.
+    pm.addPass(mlir::createInlinerPass());
+
+    mlir::OpPassManager &optPM = pm.nest<mlir::toy::FuncOp>();
+    optPM.addPass(toy::createShapeInferencePass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createCSEPass());
+
     if (mlir::failed(pm.run(*module))) {
       return 4;
     }

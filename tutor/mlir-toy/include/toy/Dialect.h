@@ -6,8 +6,15 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/Interfaces/CallInterfaces.h"
+#include "mlir/Interfaces/CastInterfaces.h"
 #include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+
+namespace mlir {
+namespace toy {
+#include "toy/ShapeInferenceOpInterfaces.h.inc"
+}
+}
 
 #include "toy/Dialect.h.inc"
 

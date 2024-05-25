@@ -7,4 +7,8 @@ mlir_tablegen(Ops.cpp.inc -gen-op-defs)
 set(LLVM_TARGET_DEFINITIONS Pattern.td)
 mlir_tablegen(Pattern.inc -gen-rewriters)
 
+set(LLVM_TARGET_DEFINITIONS ShapeInferenceInterface.td)
+mlir_tablegen(ShapeInferenceOpInterfaces.h.inc -gen-op-interface-decls)
+mlir_tablegen(ShapeInferenceOpInterfaces.cpp.inc -gen-op-interface-defs)
+
 add_public_tablegen_target(tblgen_target)

@@ -1,6 +1,9 @@
 # A makefile that has partial functionality of the CMake counterpart.
 # Eventually use this to understand the CMake counterpart.
 
+shape_inference: build_toyc
+	build/toyc toy-prog/ast.toy -emit=mlir -opt
+
 trivial_reshape: build_toyc
 	build/toyc toy-prog/trivial_reshape.toy -emit=mlir -opt
 

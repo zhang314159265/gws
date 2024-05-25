@@ -5,6 +5,10 @@ include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/CallInterfaces.td"
+include "mlir/Interfaces/CastInterfaces.td"
+
+include "toy/ShapeInferenceInterface.td"
 
 def Toy_Dialect : Dialect {
   let name = "toy";
@@ -63,7 +67,8 @@ def ReturnOp : Toy_Op<"return", [Pure, HasParent<"FuncOp">, Terminator]> {
   }];
 }
 
-def TransposeOp : Toy_Op<"transpose", [Pure]> {
+def TransposeOp : Toy_Op<"transpose",
+    [Pure, DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]> {
   let arguments = (ins F64Tensor:$input);
   let results = (outs F64Tensor);
 
@@ -83,7 +88,8 @@ def AddOp : Toy_Op<"add"> {
   ];
 }
 
-def MulOp : Toy_Op<"mul"> {
+def MulOp : Toy_Op<"mul",
+    [Pure, DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]> {
   let arguments = (ins F64Tensor:$lhs, F64Tensor:$rhs);
   let results = (outs F64Tensor);
 
@@ -115,7 +121,8 @@ def ReshapeOp : Toy_Op<"reshape", [Pure]> {
   let hasCanonicalizer = 1;
 }
 
-def GenericCallOp : Toy_Op<"generic_call"> {
+def GenericCallOp : Toy_Op<"generic_call",
+    [DeclareOpInterfaceMethods<CallOpInterface>]> {
   let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<F64Tensor>:$inputs);
 
   let results = (outs F64Tensor);
@@ -127,6 +134,19 @@ def GenericCallOp : Toy_Op<"generic_call"> {
 
 def PrintOp : Toy_Op<"print"> {
   let arguments = (ins F64Tensor:$input);
+}
+
+def CastOp : Toy_Op<"cast", [
+    DeclareOpInterfaceMethods<CastOpInterface>,
+    DeclareOpInterfaceMethods<ShapeInferenceOpInterface>,
+    Pure,
+    SameOperandsAndResultShape
+  ]> {
+
+  let arguments = (ins F64Tensor:$input);
+  let results = (outs F64Tensor:$output);
+
+  let assemblyFormat = "$input attr-dict `:` type($input) `to` type($output)";
 }
 
 #endif
