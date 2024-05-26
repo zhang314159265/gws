@@ -46,4 +46,9 @@ target_link_libraries(toyc PUBLIC
   MLIRParser
   MLIRPass
   MLIRTransforms
+  MLIRLLVMDialect
+  MLIRFuncDialect
+  MLIRAffineDialect
+  MLIRAffineTransforms
+  MLIRMemRefDialect
 )

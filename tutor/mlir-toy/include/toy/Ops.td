@@ -133,7 +133,7 @@ def GenericCallOp : Toy_Op<"generic_call",
 }
 
 def PrintOp : Toy_Op<"print"> {
-  let arguments = (ins F64Tensor:$input);
+  let arguments = (ins AnyTypeOf<[F64Tensor, F64MemRef]>:$input);
 }
 
 def CastOp : Toy_Op<"cast", [

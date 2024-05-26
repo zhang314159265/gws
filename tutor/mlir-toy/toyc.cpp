@@ -9,6 +9,7 @@
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/Dialect/Affine/Passes.h"
 
 #include "toy/AST.h"
 #include "toy/Dump.h"
@@ -113,19 +114,36 @@ int dumpMLIR() {
   }
 
   if (enableOpt) {
-    // llvm::errs() << "Module name " << module.get()->getName() << "\n"; // builtin.module
-    mlir::PassManager pm(module.get()->getName());
+    {
+      mlir::PassManager pm(module.get()->getName());
+  
+      // Inline all functions into main and then delete them.
+      pm.addPass(mlir::createInlinerPass());
+  
+      mlir::OpPassManager &optPM = pm.nest<mlir::toy::FuncOp>();
+      optPM.addPass(toy::createShapeInferencePass());
+      optPM.addPass(mlir::createCanonicalizerPass());
+      optPM.addPass(mlir::createCSEPass());
+  
+      if (mlir::failed(pm.run(*module))) {
+        return 4;
+      }
+    }
+    {
+      mlir::PassManager pm(module.get()->getName());
+      pm.addPass(toy::createLowerToAffinePass());
 
-    // Inline all functions into main and then delete them.
-    pm.addPass(mlir::createInlinerPass());
+      // Add a few cleanups post lowering.
+      mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
+      optPM.addPass(mlir::createCanonicalizerPass());
+      optPM.addPass(mlir::createCSEPass());
 
-    mlir::OpPassManager &optPM = pm.nest<mlir::toy::FuncOp>();
-    optPM.addPass(toy::createShapeInferencePass());
-    optPM.addPass(mlir::createCanonicalizerPass());
-    optPM.addPass(mlir::createCSEPass());
+      optPM.addPass(mlir::affine::createLoopFusionPass());
+      optPM.addPass(mlir::affine::createAffineScalarReplacementPass());
 
-    if (mlir::failed(pm.run(*module))) {
-      return 4;
+      if (mlir::failed(pm.run(*module))) {
+        return 4;
+      }
     }
   }
 
