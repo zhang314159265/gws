@@ -15,10 +15,11 @@ enum Token : int {
   tok_return = -2,
   tok_var = -3,
   tok_def = -4,
+  tok_struct = -5,
 
   // primary
-  tok_identifier = -5,
-  tok_number = -6,
+  tok_identifier = -6,
+  tok_number = -7,
 };
 
 class Lexer {
@@ -95,6 +96,8 @@ class Lexer {
         return tok_return;
       } else if (identifierStr == "def") {
         return tok_def;
+      } else if (identifierStr == "struct") {
+        return tok_struct;
       } else if (identifierStr == "var") {
         return tok_var;
       } else {
@@ -103,7 +106,7 @@ class Lexer {
     }
 
     // Number
-    if (isdigit(lastChar) || lastChar == '.') {
+    if (isdigit(lastChar)) {
       std::string numStr;
       do {
         numStr += lastChar;

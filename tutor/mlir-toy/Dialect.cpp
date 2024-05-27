@@ -2,6 +2,7 @@
 #include "toy/Pattern.h"
 
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
 
 #include "toy/Dialect.cpp.inc"
@@ -48,6 +49,70 @@ void ToyDialect::initialize() {
   >();
 
   addInterfaces<ToyInlinerInterface>();
+  addTypes<StructType>();
+}
+
+mlir::Operation *ToyDialect::materializeConstant(
+    mlir::OpBuilder &builder,
+    mlir::Attribute value,
+    mlir::Type type,
+    mlir::Location loc) {
+  if (llvm::isa<mlir::toy::StructType>(type)) {
+    return builder.create<mlir::toy::StructConstantOp>(loc, type,
+        llvm::cast<mlir::ArrayAttr>(value));
+  }
+  return builder.create<mlir::toy::ConstantOp>(loc, type,
+      llvm::cast<mlir::DenseElementsAttr>(value));
+}
+
+// Parse an instance of a type registered to the toy dialect.
+mlir::Type ToyDialect::parseType(mlir::DialectAsmParser &parser) const {
+  // Parse a struct type in the following form:
+  //   struct-type ::= `struct` `<` type (`,` type)* `>`
+
+  // Note: All MLIR parser function return a ParseResult. This is a
+  // specialization of LogicalResult that auto-converts to a `true` boolean
+  // value on failure to allow for chaining, but may be used with explicit
+  // `mlir::failed/mlir::succeeded` as desired.
+  
+  if (parser.parseKeyword("struct") || parser.parseLess()) {
+    return mlir::Type();
+  }
+
+  llvm::SmallVector<mlir::Type, 1> elementTypes;
+  do {
+    mlir::SMLoc typeLoc = parser.getCurrentLocation();
+    mlir::Type elementType;
+    if (parser.parseType(elementType)) {
+      return nullptr;
+    }
+
+    // Check that the type is either a TensorType or another StructType.
+    if (!llvm::isa<mlir::TensorType, mlir::toy::StructType>(elementType)) {
+      parser.emitError(typeLoc, "element type for a struct must either "
+          "be a TensorType or a StructType, got: ")
+          << elementType;
+      return mlir::Type();
+    }
+    elementTypes.push_back(elementType);
+  } while (succeeded(parser.parseOptionalComma()));
+
+  if (parser.parseGreater()) {
+    return mlir::Type();
+  }
+  return mlir::toy::StructType::get(elementTypes);
+}
+
+// Print an instance of a type registered to the toy dialect.
+void ToyDialect::printType(mlir::Type type,
+    mlir::DialectAsmPrinter &printer) const {
+  // Currently the only toy type is a struct type.
+  mlir::toy::StructType structType = llvm::cast<mlir::toy::StructType>(type);
+
+  // Print the struct type according to the parser format.
+  printer << "struct<";
+  llvm::interleaveComma(structType.getElementTypes(), printer);
+  printer << '>';
 }
 
 // FuncOp
@@ -146,6 +211,41 @@ bool CastOp::areCastCompatible(mlir::TypeRange inputs, mlir::TypeRange outputs) 
   }
   return !input.hasRank() || !output.hasRank() || input == output;
 }
+
+// StructAccessOp
+
+void StructAccessOp::build(mlir::OpBuilder &b, mlir::OperationState &state,
+    mlir::Value input, size_t index) {
+  StructType structTy = llvm::cast<StructType>(input.getType());
+  assert(index < structTy.getNumElementTypes());
+  mlir::Type resultType = structTy.getElementTypes()[index];
+
+  // Call into the auto-generated build method.
+  build(b, state, resultType, input, b.getI64IntegerAttr(index));
+}
+
+mlir::OpFoldResult StructAccessOp::fold(FoldAdaptor adaptor) {
+  auto structAttr =
+      llvm::dyn_cast_if_present<mlir::ArrayAttr>(adaptor.getInput());
+  if (!structAttr) {
+    return nullptr;
+  }
+
+  size_t elementIndex = getIndex();
+  return structAttr[elementIndex];
+}
+
+// StructConstantOp
+mlir::OpFoldResult StructConstantOp::fold(FoldAdaptor adaptor) {
+  return getValue();
+}
+
+// ConstantOp
+void ConstantOp::inferShapes() {
+  getResult().setType(cast<mlir::TensorType>(getValue().getType()));
+}
+
+mlir::OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) { return getValue(); }
 
 #define GET_OP_CLASSES
 #include "toy/Ops.cpp.inc"

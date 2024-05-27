@@ -28,11 +28,33 @@ class ASTDumper {
   void dump(ModuleAST *node) {
     INDENT();
     llvm::errs() << "Module:\n";
-    for (auto &f : *node) {
-      dump(&f);
+
+    for (auto &record : *node) {
+      if (FunctionAST *function = llvm::dyn_cast<FunctionAST>(record.get())) {
+        dump(function);
+      } else if(StructAST *str = llvm::dyn_cast<StructAST>(record.get())) {
+        dump(str);
+      } else {
+        llvm::errs() << "<unknown Record, kind " << record->getKind() << ">\n";
+      }
     }
   }
  private:
+  void dump(StructAST *node) {
+    INDENT();
+    llvm::errs() << "Struct: " << node->getName() << " " << loc(node) << "\n";
+
+    {
+      INDENT();
+      llvm::errs() << "Variables: [\n";
+      for (auto &variable : node->getVariables()) {
+        dump(variable.get());
+      }
+      indent();
+      llvm::errs() << "]\n";
+    }
+  }
+
   void dump(FunctionAST *node) {
     INDENT();
     llvm::errs() << "Function \n";
@@ -64,13 +86,29 @@ class ASTDumper {
   void dump(ExprAST *expr) {
     llvm::TypeSwitch<ExprAST *>(expr)
         .Case<BinaryExprAST, ReturnExprAST, VarDeclExprAST, CallExprAST,
-            VariableExprAST, LiteralExprAST>(
+            VariableExprAST, LiteralExprAST, PrintExprAST, StructLiteralExprAST>(
           [&](auto *node) { this->dump(node); })
         .Default([&](ExprAST *) {
           // No match, fallback to a generic message
           INDENT();
           llvm::errs() << "<unknown Expr, kind " << expr->getKind() << ">\n";
         });
+  }
+
+  void dump(StructLiteralExprAST *node) {
+    INDENT();
+    llvm::errs() << "Struct Literal: " << loc(node) << "\n";
+    for (auto &value : node->getValues()) {
+      dump(value.get());
+    }
+  }
+
+  void dump(PrintExprAST *node) {
+    INDENT();
+    llvm::errs() << "Print [ " << loc(node) << "\n";
+    dump(node->getArg());
+    indent();
+    llvm::errs() << "]\n";
   }
 
   void printLitHelper(ExprAST *litOrNum) {
@@ -125,7 +163,9 @@ class ASTDumper {
     llvm::errs() << "VarDecl " << varDecl->getName();
     dump(varDecl->getType());
     llvm::errs() << " " << loc(varDecl) << "\n";
-    dump(varDecl->getInitVal());
+    if (auto *initVal = varDecl->getInitVal()) {
+      dump(initVal);
+    }
   }
 
   void dump(ReturnExprAST *node) {

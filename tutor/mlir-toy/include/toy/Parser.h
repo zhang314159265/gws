@@ -9,13 +9,27 @@ class Parser {
   std::unique_ptr<ModuleAST> parseModule() {
     lexer.getNextToken(); // prime the lexer
 
-    // Parse functions one at a time and accumulate in this vector.
-    std::vector<FunctionAST> functions;
-    while (auto f = parseDefinition()) {
-      functions.push_back(std::move(*f));
-      if (lexer.getCurToken() == tok_eof) {
+    // Parse functions and structs one at a time and accumulate in this vector.
+    std::vector<std::unique_ptr<RecordAST>> records;
+    while (true) {
+      std::unique_ptr<RecordAST> record;
+      switch (lexer.getCurToken()) {
+      case tok_eof:
+        break;
+      case tok_def:
+        record = parseDefinition();
+        break;
+      case tok_struct:
+        record = parseStruct();
+        break;
+      default:
+        return parseError<ModuleAST>("'def' or 'struct'",
+            "when parsing top level module records");
+      }
+      if (!record) {
         break;
       }
+      records.push_back(std::move(record));
     }
 
     // If we didn't reach EOF, there was an error during parsing
@@ -23,7 +37,7 @@ class Parser {
       return parseError<ModuleAST>("nothing", "at end of module");
     }
 
-    return std::make_unique<ModuleAST>(std::move(functions));
+    return std::make_unique<ModuleAST>(std::move(records));
   }
  private:
   std::unique_ptr<ExprAST> parsePrimary() {
@@ -34,9 +48,59 @@ class Parser {
       return nullptr;
     case tok_identifier:
       return parseIdentifierExpr();
+    case '{':
+      return parseStructLiteralExpr();
     case '[':
       return parseTensorLiteralExpr();
     }
+  }
+
+  // Parse a literal struct expression.
+  // structLiteral ::= { (structLiteral | tensorLiteral)+ }
+  std::unique_ptr<ExprAST> parseStructLiteralExpr() {
+    auto loc = lexer.getLastLocation();
+    lexer.consume(Token('{'));
+
+    // Hold the list of values.
+    std::vector<std::unique_ptr<ExprAST>> values;
+    do {
+      if (lexer.getCurToken() == '[') {
+        values.push_back(parseTensorLiteralExpr());
+        if (!values.back()) {
+          return nullptr;
+        }
+      } else if (lexer.getCurToken() == tok_number) {
+        values.push_back(parseNumberExpr());
+        if (!values.back()) {
+          return nullptr;
+        }
+      } else {
+        if (lexer.getCurToken() != '{') {
+          return parseError<ExprAST>("{, [, or number",
+              "in struct literal expression");
+        }
+        values.push_back(parseStructLiteralExpr());
+      }
+
+      // End of this list on '}'
+      if (lexer.getCurToken() == '}') {
+        break;
+      }
+
+      // Elements are separated by a comma.
+      if (lexer.getCurToken() != ',') {
+        return parseError<ExprAST>("} or ,", "in struct literal expression");
+      }
+
+      lexer.getNextToken(); // eat ,
+    } while (true);
+    if (values.empty()) {
+      return parseError<ExprAST>("<something>",
+          "to fill struct literal expression");
+    }
+    lexer.getNextToken(); // eat '}'
+    return std::make_unique<StructLiteralExprAST>(std::move(loc),
+        std::move(values));
   }
 
   std::unique_ptr<ExprAST> parseNumberExpr() {
@@ -120,19 +184,8 @@ class Parser {
         std::move(dims));
   }
 
-  // identifierexpr
-  //   ::= identifier
-  //   ::= identifier '(' expression ')'
-  std::unique_ptr<ExprAST> parseIdentifierExpr() {
-    std::string name(lexer.getId());
-
-    auto loc = lexer.getLastLocation();
-    lexer.getNextToken(); // eat identifier.
-    if (lexer.getCurToken() != '(') { // simple variable ref.
-      return std::make_unique<VariableExprAST>(std::move(loc), name);
-    }
-
-    // This is a function call
+  std::unique_ptr<ExprAST> parseCallExpr(llvm::StringRef name,
+      const Location &loc) {
     lexer.consume(Token('('));
     std::vector<std::unique_ptr<ExprAST>> args;
     if (lexer.getCurToken() != ')') {
@@ -163,7 +216,23 @@ class Parser {
     }
 
     // Call to a user-defined function
-    return std::make_unique<CallExprAST>(std::move(loc), name, std::move(args));
+    return std::make_unique<CallExprAST>(std::move(loc), std::string(name), std::move(args));
+  }
+
+  // identifierexpr
+  //   ::= identifier
+  //   ::= identifier '(' expression ')'
+  std::unique_ptr<ExprAST> parseIdentifierExpr() {
+    std::string name(lexer.getId());
+
+    auto loc = lexer.getLastLocation();
+    lexer.getNextToken(); // eat identifier.
+    if (lexer.getCurToken() != '(') { // simple variable ref.
+      return std::make_unique<VariableExprAST>(std::move(loc), name);
+    }
+
+    // This is a function call
+    return parseCallExpr(name, loc);
   }
 
   int getTokPrecedence() {
@@ -177,6 +246,8 @@ class Parser {
       return 20;
     case '*':
       return 40;
+    case '.':
+      return 60;
     default:
       return -1;
     }
@@ -271,9 +342,8 @@ class Parser {
     return type;
   }
 
-  // Parse a variable declaration.
-  // decl ::= var identifier [ type ] = expr
-  std::unique_ptr<VarDeclExprAST> parseDeclaration() {
+  std::unique_ptr<VarDeclExprAST>
+  parseVarDeclaration(bool requiresInitializer) {
     if (lexer.getCurToken() != tok_var) {
       return parseError<VarDeclExprAST>("var", "to begin declaration");
     }
@@ -298,10 +368,75 @@ class Parser {
     if (!type) {
       type = std::make_unique<VarType>();
     }
-    lexer.consume(Token('='));
-    auto expr = parseExpression();
+    std::unique_ptr<ExprAST> expr;
+    if (requiresInitializer) {
+      lexer.consume(Token('='));
+      expr = parseExpression();
+    }
     return std::make_unique<VarDeclExprAST>(std::move(loc), std::move(id),
         std::move(*type), std::move(expr));
+  }
+
+  // Parse a typed varaible declaration.
+  std::unique_ptr<VarDeclExprAST>
+  parseTypedDeclaration(llvm::StringRef typeName, bool requiresInitializer,
+      const Location &loc) {
+    if (lexer.getCurToken() != tok_identifier) {
+      return parseError<VarDeclExprAST>("name", "in variable declaration");
+    }
+    std::string id(lexer.getId());
+    lexer.getNextToken();
+
+    std::unique_ptr<ExprAST> expr;
+    if (requiresInitializer) {
+      if (lexer.getCurToken() != '=') {
+        return parseError<VarDeclExprAST>("initializer",
+            "in variable declaration");
+      }
+      lexer.consume(Token('='));
+      expr = parseExpression();
+    }
+
+    VarType type;
+    type.name = std::string(typeName);
+    return std::make_unique<VarDeclExprAST>(loc, std::move(id), std::move(type),
+        std::move(expr));
+  }
+
+  // Parse a variable declaration, for either a tensor value or a struct value,
+  // with an optionally required initializer.
+  // decl ::= var identifier [ type ] (= expr)?
+  // decl ::= identifier identifier (=expr)?
+  std::unique_ptr<VarDeclExprAST> parseDeclaration(bool requiresInitializer) {
+    // Check to see if this is a 'var' declaration.
+    if (lexer.getCurToken() == tok_var) {
+      return parseVarDeclaration(requiresInitializer);
+    }
+
+    // Parse the type name.
+    if (lexer.getCurToken() != tok_identifier) {
+      return parseError<VarDeclExprAST>("type name", "in variable declaration");
+    }
+    auto loc = lexer.getLastLocation();
+    std::string typeName(lexer.getId());
+    lexer.getNextToken(); // eat id
+
+    // Parse the rest of the declaration.
+    return parseTypedDeclaration(typeName, requiresInitializer, loc);
+  }
+
+  // Parse either a variable declaration or a call expression
+  // initiated by an identifier.
+  std::unique_ptr<ExprAST> parseDeclarationOrCallExpr() {
+    auto loc = lexer.getLastLocation();
+    std::string id(lexer.getId());
+    lexer.consume(tok_identifier);
+
+    if (lexer.getCurToken() == '(') {
+      return parseCallExpr(id, loc);
+    }
+
+    return parseTypedDeclaration(id, /*requiresInitializer=*/true, loc);
   }
 
   std::unique_ptr<ExprASTList> parseBlock() {
@@ -318,9 +453,16 @@ class Parser {
     }
 
     while (lexer.getCurToken() != '}' && lexer.getCurToken() != tok_eof) {
-      if (lexer.getCurToken() == tok_var) {
+      if (lexer.getCurToken() == tok_identifier) {
+        // Variable declaration or call
+        auto expr = parseDeclarationOrCallExpr();
+        if (!expr) {
+          return nullptr;
+        }
+        exprList->push_back(std::move(expr));
+      } else if (lexer.getCurToken() == tok_var) {
         // Variable declaration
-        auto varDecl = parseDeclaration();
+        auto varDecl = parseDeclaration(/*requiresInitializer*/true);
         if (!varDecl) {
           return nullptr;
         }
@@ -378,14 +520,28 @@ class Parser {
     }
     lexer.consume(Token('('));
 
-    std::vector<std::unique_ptr<VariableExprAST>> args;
+    std::vector<std::unique_ptr<VarDeclExprAST>> args;
     if (lexer.getCurToken() != ')') {
       do {
-        std::string name(lexer.getId());
+        VarType type;
+        std::string name;
+
+        // Parse eitehr the name of the variable, or its type.
+        std::string nameOrType(lexer.getId());
         auto loc = lexer.getLastLocation();
         lexer.consume(tok_identifier);
-        auto decl = std::make_unique<VariableExprAST>(std::move(loc), name);
-        args.push_back(std::move(decl));
+
+        // If the next token is an identifier, we just parsed the type.
+        if (lexer.getCurToken() == tok_identifier) {
+          type.name = std::move(nameOrType);
+          name = std::string(lexer.getId());
+          lexer.consume(tok_identifier);
+        } else {
+          name = std::move(nameOrType);
+        }
+
+        args.push_back(
+            std::make_unique<VarDeclExprAST>(std::move(loc), name, type));
         if (lexer.getCurToken() != ',') {
           break;
         }
@@ -417,6 +573,40 @@ class Parser {
       return std::make_unique<FunctionAST>(std::move(proto), std::move(block));
     }
     return nullptr;
+  }
+
+  // definition ::= `struct` identifier `{` decl+ `}`
+  std::unique_ptr<StructAST> parseStruct() {
+    auto loc = lexer.getLastLocation();
+    lexer.consume(tok_struct);
+    if (lexer.getCurToken() != tok_identifier) {
+      return parseError<StructAST>("name", "in struct definition");
+    }
+    std::string name(lexer.getId());
+    lexer.consume(tok_identifier);
+
+    if (lexer.getCurToken() != '{') {
+      return parseError<StructAST>("{", "in struct definition");
+    }
+    lexer.consume(Token('{'));
+
+    std::vector<std::unique_ptr<VarDeclExprAST>> decls;
+    do {
+      auto decl = parseDeclaration(/*requiresInitializer=*/false);
+      if (!decl) {
+        return nullptr;
+      }
+      decls.push_back(std::move(decl));
+
+      if (lexer.getCurToken() != ';') {
+        return parseError<StructAST>(";",
+            "after varaible in struct definition");
+      }
+      lexer.consume(Token(';'));
+    } while (lexer.getCurToken() != '}');
+
+    lexer.consume(Token('}'));
+    return std::make_unique<StructAST>(loc, name, std::move(decls));
   }
 
   Lexer &lexer;

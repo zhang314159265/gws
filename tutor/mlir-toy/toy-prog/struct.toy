@@ -1,0 +1,14 @@
+struct Struct {
+  var a;
+  var b;
+}
+
+def multiply_transpose(Struct value) {
+  return transpose(value.a) * transpose(value.b);
+}
+
+def main() {
+  Struct value = {[[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6]]};
+  var c = multiply_transpose(value);
+  print(c);
+}

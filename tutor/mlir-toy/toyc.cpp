@@ -41,6 +41,7 @@ enum Action {
   None,
   DumpAST,
   DumpMLIR,
+  DumpMLIRAffine,
   DumpMLIRLLVM,
   DumpLLVMIR,
   RunJIT
@@ -57,6 +58,8 @@ static cl::opt<enum Action>
     emitAction("emit", cl::desc("Select the kind of output desired"),
     cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")),
     cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")),
+    cl::values(clEnumValN(DumpMLIRAffine, "mlir-affine",
+        "output the MLIR dump after affine lowering")),
     cl::values(clEnumValN(DumpMLIRLLVM, "mlir-llvm",
         "output the MLIR dump after llvm lowering")),
     cl::values(clEnumValN(DumpLLVMIR, "llvm", "output the LLVM IR dump")),
@@ -134,31 +137,32 @@ int loadAndProcessMLIR(mlir::MLIRContext &context, mlir::OwningOpRef<mlir::Modul
 
   mlir::PassManager pm(module.get()->getName());
 
-  if (enableOpt) {
-    {
-      // Inline all functions into main and then delete them.
-      pm.addPass(mlir::createInlinerPass());
-  
-      mlir::OpPassManager &optPM = pm.nest<mlir::toy::FuncOp>();
-      optPM.addPass(toy::createShapeInferencePass());
-      optPM.addPass(mlir::createCanonicalizerPass());
-      optPM.addPass(mlir::createCSEPass());
-  
-    }
-    {
-      pm.addPass(toy::createLowerToAffinePass());
+  bool isLoweringToAffine = emitAction >= Action::DumpMLIRAffine;
+  bool isLoweringToLLVM = emitAction >= Action::DumpMLIRLLVM;
 
-      // Add a few cleanups post lowering.
-      mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
-      optPM.addPass(mlir::createCanonicalizerPass());
-      optPM.addPass(mlir::createCSEPass());
+  if (enableOpt || isLoweringToAffine) {
+    // Inline all functions into main and then delete them.
+    pm.addPass(mlir::createInlinerPass());
+  
+    mlir::OpPassManager &optPM = pm.nest<mlir::toy::FuncOp>();
+    optPM.addPass(toy::createShapeInferencePass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createCSEPass());
+  }
 
+  if (isLoweringToAffine) {
+    pm.addPass(toy::createLowerToAffinePass());
+
+    // Add a few cleanups post lowering.
+    mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
+    optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createCSEPass());
+
+    if (enableOpt) {
       optPM.addPass(mlir::affine::createLoopFusionPass());
       optPM.addPass(mlir::affine::createAffineScalarReplacementPass());
     }
   }
-
-  bool isLoweringToLLVM = emitAction >= Action::DumpMLIRLLVM;
 
   if (isLoweringToLLVM) {
     pm.addPass(toy::createLowerToLLVMPass());
