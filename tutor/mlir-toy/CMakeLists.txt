@@ -48,7 +48,19 @@ target_link_libraries(toyc PUBLIC
   MLIRTransforms
   MLIRLLVMDialect
   MLIRFuncDialect
+  MLIRFuncAllExtensions
   MLIRAffineDialect
   MLIRAffineTransforms
+  MLIRAffineToStandard
   MLIRMemRefDialect
+  MLIRSCFToControlFlow
+  MLIRArithToLLVM
+  MLIRMemRefToLLVM
+  MLIRFuncToLLVM
+  MLIRControlFlowToLLVM
+  MLIRBuiltinToLLVMIRTranslation
+  MLIRLLVMToLLVMIRTranslation
+  MLIRExecutionEngine
+
+  LLVMOrcJIT
 )

@@ -1,8 +1,9 @@
 # A makefile that has partial functionality of the CMake counterpart.
 # Eventually use this to understand the CMake counterpart.
 
-shape_inference_and_partial_lowering: build_toyc
-	build/toyc toy-prog/ast.toy -emit=mlir -opt
+all: build_toyc
+	build/toyc toy-prog/ast.toy -emit=jit -opt
+	echo 'def main() { print([[1, 2], [3, 4]]); }' | build/toyc -emit=jit -opt
 
 trivial_reshape: build_toyc
 	build/toyc toy-prog/trivial_reshape.toy -emit=mlir -opt
