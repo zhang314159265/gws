@@ -1,6 +1,8 @@
 # A makefile that has partial functionality of the CMake counterpart.
 # Eventually use this to understand the CMake counterpart.
 
+all: round_trip
+
 nested_struct: build_toyc
 	build/toyc toy-prog/nested_struct.toy -emit=jit -opt
 

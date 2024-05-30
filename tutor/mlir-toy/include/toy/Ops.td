@@ -67,11 +67,14 @@ def FuncOp : Toy_Op<"func", [
     Region *getCallableRegion() { return &getBody(); }
   }];
 
+  let hasCustomAssemblyFormat = 1;
   let skipDefaultBuilders = 1;
 }
 
 def ReturnOp : Toy_Op<"return", [Pure, HasParent<"FuncOp">, Terminator]> {
   let arguments = (ins Variadic<Toy_Type>:$input);
+
+  let assemblyFormat = "($input^ `:` type($input))? attr-dict ";
 
   // Allow building a ReturnOp with no return operand.
   let builders = [
@@ -87,6 +90,10 @@ def TransposeOp : Toy_Op<"transpose",
     [Pure, DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]> {
   let arguments = (ins F64Tensor:$input);
   let results = (outs F64Tensor);
+
+  let assemblyFormat = [{
+    `(` $input `:` type($input) `)` attr-dict `to` type(results)
+  }];
 
   let builders = [
     OpBuilder<(ins "Value":$input)>
@@ -109,6 +116,8 @@ def MulOp : Toy_Op<"mul",
   let arguments = (ins F64Tensor:$lhs, F64Tensor:$rhs);
   let results = (outs F64Tensor);
 
+  let hasCustomAssemblyFormat = 1;
+
   let builders = [
     OpBuilder<(ins "Value":$lhs, "Value":$rhs)>
   ];
@@ -118,6 +127,7 @@ def ConstantOp : Toy_Op<"constant", [ConstantLike, Pure, DeclareOpInterfaceMetho
   let arguments = (ins F64ElementsAttr:$value);
 
   let results = (outs F64Tensor);
+  let hasCustomAssemblyFormat = 1;
 
   let builders = [
     OpBuilder<(ins "DenseElementsAttr":$value), [{
@@ -152,6 +162,8 @@ def GenericCallOp : Toy_Op<"generic_call",
 
 def PrintOp : Toy_Op<"print"> {
   let arguments = (ins AnyTypeOf<[F64Tensor, F64MemRef]>:$input);
+
+  let assemblyFormat = "$input attr-dict `:` type($input)";
 }
 
 def CastOp : Toy_Op<"cast", [

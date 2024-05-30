@@ -4,6 +4,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "mlir/Interfaces/FunctionImplementation.h"
 
 #include "toy/Dialect.cpp.inc"
 
@@ -115,6 +116,55 @@ void ToyDialect::printType(mlir::Type type,
   printer << '>';
 }
 
+// Binary op printer and parser
+
+static void printBinaryOp(mlir::OpAsmPrinter &printer, mlir::Operation *op) {
+  printer << " " << op->getOperands();
+  printer.printOptionalAttrDict(op->getAttrs());
+  printer << " : ";
+
+  // If all of the types are the same, print the type directly.
+  mlir::Type resultType = *op->result_type_begin();
+  if (llvm::all_of(op->getOperandTypes(),
+      [=](mlir::Type type) { return type == resultType; })) {
+    printer << resultType;
+    return;
+  }
+
+  // Otherwise, print a functional type.
+  printer.printFunctionalType(op->getOperandTypes(), op->getResultTypes());
+}
+
+static mlir::ParseResult parseBinaryOp(mlir::OpAsmParser &parser,
+    mlir::OperationState &result) {
+  llvm::SmallVector<mlir::OpAsmParser::UnresolvedOperand, 2> operands;
+  mlir::SMLoc operandsLoc = parser.getCurrentLocation();
+  mlir::Type type;
+  if (parser.parseOperandList(operands, /*requiredOperandCount=*/2) ||
+      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseColonType(type)) {
+    return mlir::failure();
+  }
+
+  // If the type is a function type, it contains the input and result types of
+  // this operation.
+  if (mlir::FunctionType funcType = llvm::dyn_cast<mlir::FunctionType>(type)) {
+    if (parser.resolveOperands(operands, funcType.getInputs(), operandsLoc,
+        result.operands)) {
+      return mlir::failure();
+    }
+    result.addTypes(funcType.getResults());
+    return mlir::success();
+  }
+
+  // Otherwise, the parsed type is the type of both operands and results
+  if (parser.resolveOperands(operands, type, result.operands)) {
+    return mlir::failure();
+  }
+  result.addTypes(type);
+  return mlir::success();
+}
+
 // FuncOp
 void FuncOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
     llvm::StringRef name, mlir::FunctionType type,
@@ -122,6 +172,26 @@ void FuncOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
   // FunctionOpInterface provides a convenient `build` method that will populate
   // the state of our FuncOp, and create an entry block.
   buildWithEntryBlock(builder, state, name, type, attrs, type.getInputs());
+}
+
+mlir::ParseResult FuncOp::parse(mlir::OpAsmParser &parser,
+    mlir::OperationState &result) {
+  auto buildFuncType =
+    [](mlir::Builder &builder, llvm::ArrayRef<mlir::Type> argTypes,
+       llvm::ArrayRef<mlir::Type> results,
+       mlir::function_interface_impl::VariadicFlag,
+       std::string &) { return builder.getFunctionType(argTypes, results); };
+
+  return mlir::function_interface_impl::parseFunctionOp(
+    parser, result, /*allowVariadic=*/false,
+    getFunctionTypeAttrName(result.name), buildFuncType,
+    getArgAttrsAttrName(result.name), getResAttrsAttrName(result.name));
+}
+
+void FuncOp::print(mlir::OpAsmPrinter &p) {
+  mlir::function_interface_impl::printFunctionOp(
+    p, *this, /*isVariadic=*/false, getFunctionTypeAttrName(),
+    getArgAttrsAttrName(), getResAttrsAttrName());
 }
 
 // TransponseOp
@@ -157,6 +227,15 @@ void MulOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 }
 
 void MulOp::inferShapes() { getResult().setType(getLhs().getType()); }
+
+mlir::ParseResult MulOp::parse(mlir::OpAsmParser &parser,
+    mlir::OperationState &result) {
+  return parseBinaryOp(parser, result);
+}
+
+void MulOp::print(mlir::OpAsmPrinter &p) {
+  printBinaryOp(p, *this);
+}
 
 // GenericCallOp
 void GenericCallOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
@@ -243,6 +322,24 @@ mlir::OpFoldResult StructConstantOp::fold(FoldAdaptor adaptor) {
 // ConstantOp
 void ConstantOp::inferShapes() {
   getResult().setType(cast<mlir::TensorType>(getValue().getType()));
+}
+
+mlir::ParseResult ConstantOp::parse(mlir::OpAsmParser &parser,
+    mlir::OperationState &result) {
+  mlir::DenseElementsAttr value;
+  if (parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseAttribute(value, "value", result.attributes)) {
+    return mlir::failure();
+  }
+
+  result.addTypes(value.getType());
+  return mlir::success();
+}
+
+void ConstantOp::print(mlir::OpAsmPrinter &printer) {
+  printer << " ";
+  printer.printOptionalAttrDict((*this)->getAttrs(), /*elidedAttrs=*/{"value"});
+  printer << getValue();
 }
 
 mlir::OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) { return getValue(); }
