@@ -16,7 +16,7 @@ void loadDialects(mlir::MLIRContext &ctx) {
   }
   { // follows nvidia.load_dialects
     mlir::DialectRegistry registry;
-    registry.insert<mlir::triton::nvidia_gpu::TritonNvidiaGPUDialect,
+    registry.insert<mlir::_tritoncc::TritonNvidiaGPUDialect,
                     mlir::triton::nvgpu::NVGPUDialect>();
     mlir::registerNVVMDialectTranslation(registry);
     ctx.appendDialectRegistry(registry);

@@ -8,13 +8,16 @@ LLVM_ROOT := $(HOME)/.triton/llvm/llvm-5e5a22ca-ubuntu-x64
 else
 LLVM_ROOT := $(HOME)/old.triton/llvm/llvm-4017f04e-ubuntu-x64
 endif
+TBLGEN := ${LLVM_ROOT}/bin/mlir-tblgen
+TBLGEN_INC_FLAGS := -I${LLVM_ROOT}/include
+
 TRITON_SRC_ROOT := $(HOME)/ws/triton
 TRITON_BUILD_ROOT := $(TRITON_SRC_ROOT)/python/build/cmake.linux-x86_64-cpython-3.10
 LIBPYTHON_DIR := /home/shunting/ws/miniconda3/envs/pytorch/lib
 
 PTXAS := $(TRITON_SRC_ROOT)/third_party/nvidia/backend/bin/ptxas
 
-CFLAGS := -I$(LLVM_ROOT)/include -I$(TRITON_SRC_ROOT)/third_party -I$(TRITON_SRC_ROOT)/include -I$(TRITON_BUILD_ROOT)/include -I../include -I$(TRITON_SRC_ROOT) -I$(TRITON_SRC_ROOT)/lib/Conversion/TritonGPUToLLVM -I$(TRITON_SRC_ROOT)/include/triton/Conversion/TritonGPUToLLVM -fno-rtti
+CFLAGS := -I$(LLVM_ROOT)/include -I$(TRITON_SRC_ROOT)/third_party -I$(TRITON_SRC_ROOT)/include -I$(TRITON_BUILD_ROOT)/include -I../include -I../out/include -I$(TRITON_SRC_ROOT) -I$(TRITON_SRC_ROOT)/lib/Conversion/TritonGPUToLLVM -I$(TRITON_SRC_ROOT)/include/triton/Conversion/TritonGPUToLLVM -fno-rtti
 LDFLAGS := -L$(LLVM_ROOT)/lib
 
 # misc libs
@@ -60,7 +63,16 @@ tritoncc:
 	time g++ tritoncc.cpp $(ALLFLAGS) -o out/tritoncc
 	# out/tritoncc skip-checkin/add_ref.ttir
 
-test_sum:
+TRITONCC_INC_DIR := ../include
+TRITONCC_OUT_DIR := ../out
+
+run_tblgen:
+	mkdir -p ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU
+	${TBLGEN} -gen-dialect-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonNvidiaGPU/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU/Dialect.h.inc
+	${TBLGEN} -gen-dialect-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonNvidiaGPU/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU/Dialect.cpp.inc
+	${TBLGEN} -gen-attrdef-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonNvidiaGPU/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU/AttrDefs.cpp.inc
+
+test_sum: run_tblgen
 	g++ test_sum.cpp $(ALLFLAGS) -o a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out -debug-only=convert-layout-op-to-llvm
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_sum_cubin_and_run /tmp/tritoncc.cubin

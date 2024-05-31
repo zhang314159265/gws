@@ -22,7 +22,8 @@ using mlir::multiRootTopologicalSort;
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "triton/Dialect/Triton/IR/Dialect.h"
 #include "triton/Dialect/TritonGPU/IR/Dialect.h"
-#include "triton/Dialect/TritonNvidiaGPU/IR/Dialect.h"
+
+#include "tritoncc/dialect/TritonNvidiaGPU/Dialect.h"
 
 #include "tritoncc/util.h"
 
@@ -329,7 +330,7 @@ bool maybeSharedAllocationOp(mlir::Operation *op) {
   auto *dialect = op->getDialect();
   return dialect &&
     (dialect->getTypeID() == mlir::TypeID::get<mlir::triton::gpu::TritonGPUDialect>() ||
-     dialect->getTypeID() == mlir::TypeID::get<mlir::triton::nvidia_gpu::TritonNvidiaGPUDialect>() ||
+     dialect->getTypeID() == mlir::TypeID::get<mlir::_tritoncc::TritonNvidiaGPUDialect>() ||
      dialect->getTypeID() == mlir::TypeID::get<mlir::triton::TritonDialect>() ||
      dialect->getTypeID() == mlir::TypeID::get<mlir::arith::ArithDialect>() ||
      dialect->getTypeID() == mlir::TypeID::get<mlir::tensor::TensorDialect>());

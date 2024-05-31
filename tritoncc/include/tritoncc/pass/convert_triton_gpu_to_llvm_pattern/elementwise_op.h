@@ -6,9 +6,10 @@
 #define USE_TRITON 0
 
 #if USE_TRITON
-#include "triton/Dialect/TritonNvidiaGPU/IR/Dialect.h"
 #include "nvidia/lib/TritonNVIDIAGPUToLLVM/PatternTritonGPUOpToLLVM.h"
 #endif
+
+#include "tritoncc/dialect/TritonNvidiaGPU/Dialect.h"
 
 namespace tritoncc {
 

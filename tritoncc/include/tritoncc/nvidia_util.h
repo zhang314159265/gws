@@ -14,8 +14,8 @@
 #else
 
 #include "triton/Dialect/NVGPU/IR/Dialect.h"
-#include "triton/Dialect/TritonNvidiaGPU/IR/Dialect.h"
 
+#include "tritoncc/dialect/TritonNvidiaGPU/Dialect.h"
 #include "tritoncc/PTXAsmFormat.h"
 
 // Shortcuts for some commonly used LLVM ops to keep code simple and intuitive

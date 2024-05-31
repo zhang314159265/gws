@@ -25,7 +25,7 @@ class TritonLLVMConversionTarget : public mlir::ConversionTarget {
     addLegalDialect<mlir::triton::nvgpu::NVGPUDialect>();
     addIllegalDialect<mlir::triton::TritonDialect>();
     addIllegalDialect<mlir::triton::gpu::TritonGPUDialect>();
-    addIllegalDialect<mlir::triton::nvidia_gpu::TritonNvidiaGPUDialect>();
+    addIllegalDialect<mlir::_tritoncc::TritonNvidiaGPUDialect>();
     addIllegalDialect<mlir::gpu::GPUDialect>();
     addLegalOp<mlir::UnrealizedConversionCastOp>();
   }
