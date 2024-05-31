@@ -22,7 +22,7 @@ class TritonLLVMConversionTarget : public mlir::ConversionTarget {
       : ConversionTarget(ctx) {
     addLegalDialect<mlir::LLVM::LLVMDialect>();
     addLegalDialect<mlir::NVVM::NVVMDialect>();
-    addLegalDialect<mlir::triton::nvgpu::NVGPUDialect>();
+    addLegalDialect<mlir::_tritoncc::NVGPUDialect>();
     addIllegalDialect<mlir::triton::TritonDialect>();
     addIllegalDialect<mlir::triton::gpu::TritonGPUDialect>();
     addIllegalDialect<mlir::_tritoncc::TritonNvidiaGPUDialect>();

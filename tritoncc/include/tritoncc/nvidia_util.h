@@ -13,7 +13,7 @@
 #include "triton/Dialect/TritonGPU/Transforms/Utility.h"
 #else
 
-#include "triton/Dialect/NVGPU/IR/Dialect.h"
+#include "tritoncc/dialect/NVGPU/Dialect.h"
 
 #include "tritoncc/dialect/TritonNvidiaGPU/Dialect.h"
 #include "tritoncc/PTXAsmFormat.h"
@@ -115,7 +115,7 @@ mlir::Value getThreadId(mlir::RewriterBase &rewriter, mlir::Location loc) {
 }
 
 mlir::Value getClusterCTAId(mlir::RewriterBase &rewriter, mlir::Location loc) {
-  return rewriter.create<mlir::triton::nvgpu::ClusterCTAIdOp>(
+  return rewriter.create<mlir::_tritoncc::ClusterCTAIdOp>(
     loc, rewriter.getI32Type()
   );
 }

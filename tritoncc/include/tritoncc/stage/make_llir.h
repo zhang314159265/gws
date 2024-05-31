@@ -16,10 +16,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm.h"
 #include "tritoncc/pass/allocate_shared_memory.h"
-
-namespace mlir { namespace triton {
-std::unique_ptr<mlir::OperationPass<mlir::ModuleOp>> createConvertNVGPUToLLVMPass();
-}}
+#include "tritoncc/pass/convert_nvgpu_to_llvm.h"
 
 namespace tritoncc {
 
@@ -57,7 +54,7 @@ std::string make_llir(mlir::ModuleOp &M, Option &opt) {
   pm.addPass(tritoncc::createAllocateSharedMemoryPass());
   pm.addPass(std::make_unique<tritoncc::ConvertTritonGPUToLLVM>(opt.capability));
 
-  pm.addPass(mlir::triton::createConvertNVGPUToLLVMPass());
+  pm.addPass(tritoncc::createConvertNVGPUToLLVMPass());
 
   bool success = !mlir::failed(pm.run(M.getOperation()));
   if (!success) {
