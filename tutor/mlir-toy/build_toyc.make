@@ -7,7 +7,6 @@ TBLGEN_INC_FLAGS := -I${LLVM_ROOT}/include -Iinclude
 CFLAGS := -I${LLVM_ROOT}/include -Iinclude -Iout/include -fno-rtti
 
 include ../../llvm_or_mlir_libs.make
-LLVM_OR_MLIR_LIBS := $(patsubst %,-l%,$(LLVM_OR_MLIR_LIBS))
 LDFLAGS := -lz -Wl,--start-group ${LLVM_OR_MLIR_LIBS} -Wl,--end-group -L ${LLVM_ROOT}/lib
 
 build_toyc_via_make:

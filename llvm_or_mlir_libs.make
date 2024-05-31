@@ -145,3 +145,5 @@ LLVM_OR_MLIR_LIBS := \
   MLIRVectorToLLVM \
   MLIRVectorTransforms \
   MLIRViewLikeInterface
+
+LLVM_OR_MLIR_LIBS := $(patsubst %,-l%,$(LLVM_OR_MLIR_LIBS))

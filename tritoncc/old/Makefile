@@ -11,51 +11,15 @@ endif
 TRITON_SRC_ROOT := $(HOME)/ws/triton
 TRITON_BUILD_ROOT := $(TRITON_SRC_ROOT)/python/build/cmake.linux-x86_64-cpython-3.10
 LIBPYTHON_DIR := /home/shunting/ws/miniconda3/envs/pytorch/lib
-LIBPYTHON := $(LIBPYTHON_DIR)/libpython3.10.so
-# XXX non-portable definitions END
 
 PTXAS := $(TRITON_SRC_ROOT)/third_party/nvidia/backend/bin/ptxas
 
 CFLAGS := -I$(LLVM_ROOT)/include -I$(TRITON_SRC_ROOT)/third_party -I$(TRITON_SRC_ROOT)/include -I$(TRITON_BUILD_ROOT)/include -I../include -I$(TRITON_SRC_ROOT) -I$(TRITON_SRC_ROOT)/lib/Conversion/TritonGPUToLLVM -I$(TRITON_SRC_ROOT)/include/triton/Conversion/TritonGPUToLLVM -fno-rtti
 LDFLAGS := -L$(LLVM_ROOT)/lib
 
-# Newer triton does not build .a any more. All symbols can be found in libtriton.so
-# LDFLAGS += -L$(TRITON_BUILD_ROOT)/lib/Dialect/Triton/IR -L$(TRITON_BUILD_ROOT)/lib/Dialect/TritonGPU/IR -L$(TRITON_BUILD_ROOT)/lib/Dialect/TritonGPU/Transforms -L$(TRITON_BUILD_ROOT)/lib/Analysis -L$(TRITON_BUILD_ROOT)/lib/Dialect/TritonNvidiaGPU/IR
-
 # misc libs
 LDFLAGS += -lz
 
-# mlir libs
-LDFLAGS += -lMLIRIR -lMLIRDialect -lMLIRSupport -lMLIRControlFlowInterfaces -lMLIRInferTypeOpInterface -lMLIRControlFlowDialect -lMLIRArithDialect -lMLIRInferIntRangeCommon -lMLIRInferIntRangeInterface -lMLIRUBDialect -lMLIRCastInterfaces -lMLIRSCFDialect -lMLIRArithUtils -lMLIRComplexDialect -lMLIRDialectUtils -lMLIRTensorDialect -lMLIRDestinationStyleOpInterface -lMLIRAffineDialect -lMLIRMemRefDialect -lMLIRSideEffectInterfaces -lMLIRViewLikeInterface -lMLIRLoopLikeInterface -lMLIRShapedOpInterfaces -lMLIRParallelCombiningOpInterface -lMLIRMathDialect -lMLIRGPUDialect -lMLIRDLTIDialect -lMLIRDataLayoutInterfaces -lMLIRFunctionInterfaces -lMLIRAnalysis -lMLIRCallInterfaces -lMLIRNVVMToLLVMIRTranslation
-
-# llvm libs
-LDFLAGS += -lLLVMCore -lLLVMSupport -lLLVMDemangle -lLLVMX86AsmParser -lLLVMAMDGPUAsmParser -lLLVMMCParser -lLLVMMC -lLLVMAMDGPUUtils -lLLVMAMDGPUInfo -lLLVMX86CodeGen -lLLVMSelectionDAG -lLLVMCodeGen -lLLVMTarget -lLLVMAnalysis -lLLVMTransformUtils -lLLVMObjCARCOpts -lLLVMCodeGenTypes -lLLVMGlobalISel -lLLVMX86Desc -lLLVMMCDisassembler -lLLVMX86Info -lLLVMScalarOpts -lLLVMIRPrinter -lLLVMAsmPrinter -lLLVMDebugInfoCodeView -lLLVMInstrumentation -lLLVMAMDGPUCodeGen -lLLVMAMDGPUDesc -lLLVMNVPTXCodeGen -lLLVMNVPTXDesc -lLLVMNVPTXInfo -lLLVMVectorize -lLLVMipo -lLLVMFrontendOpenMP -lLLVMBitReader -lLLVMFrontendOffloading -lLLVMPasses -lLLVMHipStdPar -lLLVMMIRParser -lLLVMAsmParser -lLLVMDebugInfoDWARF -lLLVMObject -lLLVMTextAPI -lLLVMIRReader
-
-LDFLAGS += -lLLVMProfileData -lLLVMCFGuard -lMLIRLLVMIRTransforms -lMLIRBuiltinToLLVMIRTranslation -lMLIRLLVMToLLVMIRTranslation
-
-# triton static libs
-# LDFLAGS += -lTritonIR -lTritonGPUIR -lTritonGPUTransforms -lTritonAnalysis -lTritonNvidiaGPUIR
-
-# Use libtriton.so may result in the following error:
-#   CommandLine Error: Option 'use-dereferenceable-at-point-semantics' registered more than once!
-# Most likely due to LLVM libraries being linked twice.
-ifdef USE_LIBTRITON
-# XXX need patch triton to build it with default rather hidden visibility so that symbols in libtriton.so will be availabe.
-LDFLAGS += $(TRITON_SRC_ROOT)/python/triton/_C/libtriton.so
-LDFLAGS += $(LIBPYTHON)
-else
-
-ifdef USE_NEW_LLVM
-LDFLAGS += -lMLIRBufferizationDialect -lMLIRSparseTensorDialect -lMLIRLLVMDialect
-else
-LDFLAGS += -lMLIRRewritePDL
-endif
-LDFLAGS += -lLLVMRemarks -lLLVMBitstreamReader -lLLVMBinaryFormat -lLLVMTargetParser -lMLIRPass -lMLIRTransformUtils -lMLIRRewrite
-LDFLAGS += -lMLIRPDLInterpDialect -lMLIRPDLDialect -lMLIRPDLToPDLInterp -lMLIRLLVMCommonConversion -lMLIRLLVMDialect -lMLIRMemorySlotInterfaces
-LDFLAGS += -lMLIRTransforms -lMLIRNVVMDialect -lMLIRFuncToLLVM -lMLIRControlFlowToSCF -lMLIRFuncDialect -lMLIRArithToLLVM -lMLIRArithAttrToLLVMConversion
-LDFLAGS += -lMLIRControlFlowToLLVM -lMLIRGPUToNVVMTransforms -lMLIRGPUToGPURuntimeTransforms -lMLIRVectorToLLVM -lMLIRVectorDialect -lMLIRValueBoundsOpInterface
-LDFLAGS += -lMLIRPresburger -lMLIRMaskingOpInterface -lMLIRMaskableOpInterface -lMLIRVectorInterfaces -lMLIRVectorTransforms -lMLIRTargetLLVMIRExport
-LDFLAGS += -lMLIRMemRefToLLVM -lMLIRMemRefUtils -lMLIRGPUTransforms -lMLIRIndexDialect -lMLIRMathToLLVM -lMLIRParser -lMLIRBytecodeReader -lMLIRAsmParser
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Analysis/CMakeFiles/TritonAnalysis.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/TritonGPUToLLVM.dir/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/TritonGPUToLLVM.dir/ConvertLayoutOpToLLVM/*.o
@@ -72,10 +36,11 @@ LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/CMa
 LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/CMakeFiles/TritonNVIDIAGPUToLLVM.dir/ConvertLayoutOpToLLVM/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/CMakeFiles/TritonNVIDIAGPUToLLVM.dir/DotOpToLLVM/*.o
 LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/NVGPUToLLVM/CMakeFiles/NVGPUToLLVM.dir/*.o
-# LDFLAGS += $(TRITON_BUILD_ROOT)
-endif
 
 OVERRIDE_LIB_PATH := $(TRITON_SRC_ROOT)/python/triton/_C:$(LIBPYTHON_DIR)
+
+include ../../llvm_or_mlir_libs.make
+LDFLAGS += ${LLVM_OR_MLIR_LIBS}
 
 ALLFLAGS := $(CFLAGS) -Wl,--start-group $(LDFLAGS) -Wl,--end-group
 
