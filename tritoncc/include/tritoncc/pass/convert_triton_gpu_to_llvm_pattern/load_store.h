@@ -11,11 +11,11 @@ mlir::Value getMask(mlir::Type valueTy, mlir::ConversionPatternRewriter &rewrite
     mlir::Attribute layout = tensorTy.getEncoding();
     auto shape = tensorTy.getShape();
     unsigned rank = shape.size();
-    auto sizePerThread = mlir::triton::gpu::getSizePerThread(layout);
-    auto threadsPerWarp = mlir::triton::gpu::getThreadsPerWarp(layout);
-    auto warpsPerCTA = mlir::triton::gpu::getWarpsPerCTA(layout);
-    auto order = mlir::triton::gpu::getOrder(layout);
-    auto shapePerCTATile = mlir::triton::gpu::getShapePerCTATile(layout, shape);
+    auto sizePerThread = tritoncc::getSizePerThread(layout);
+    auto threadsPerWarp = tritoncc::getThreadsPerWarp(layout);
+    auto warpsPerCTA = tritoncc::getWarpsPerCTA(layout);
+    auto order = tritoncc::getOrder(layout);
+    auto shapePerCTATile = tritoncc::getShapePerCTATile(layout, shape);
     mlir::Value warpSize = i32_val(32);
     mlir::Value laneId = urem(tid, warpSize);
     mlir::Value warpId = udiv(tid, warpSize);
@@ -35,7 +35,7 @@ mlir::Value getMask(mlir::Type valueTy, mlir::ConversionPatternRewriter &rewrite
       mask = and_(mask, icmp_slt(mul(threadDim, i32_val(sizePerThread[dim])),
           i32_val(shape[dim])));
     }
-    if (mlir::triton::gpu::getNumCTAs(layout) > 1) {
+    if (tritoncc::getNumCTAs(layout) > 1) {
       assert("NumCTAs > 1");
     }
   } else {
@@ -122,7 +122,7 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
   mlir::Type valueElemTy =
     typeConverter->convertType(mlir::getElementTypeOrSelf(valueTy));
   unsigned vec = getVectorSize(ptr);
-  unsigned numElems = mlir::triton::gpu::getTotalElemsPerThread(ptr.getType());
+  unsigned numElems = tritoncc::getTotalElemsPerThread(ptr.getType());
   if (llMask) {
     vec = std::min<size_t>(vec, getMaskAlignment(mask));
   }
@@ -311,7 +311,7 @@ mlir::LogicalResult StoreOpConversion::matchAndRewrite(
   mlir::Type valueElemTy = typeConverter->convertType(getElementTypeOrSelf(valueTy));
 
   unsigned vec = getVectorSize(ptr);
-  unsigned elemsPerThread = mlir::triton::gpu::getTotalElemsPerThread(ptr.getType());
+  unsigned elemsPerThread = tritoncc::getTotalElemsPerThread(ptr.getType());
 
   auto ptrElems = tritoncc::unpackLLElements(loc, llPtr, rewriter);
   auto valueElems = tritoncc::unpackLLElements(loc, llValue, rewriter);

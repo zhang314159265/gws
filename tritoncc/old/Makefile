@@ -9,7 +9,9 @@ else
 LLVM_ROOT := $(HOME)/old.triton/llvm/llvm-4017f04e-ubuntu-x64
 endif
 TBLGEN := ${LLVM_ROOT}/bin/mlir-tblgen
-TBLGEN_INC_FLAGS := -I${LLVM_ROOT}/include -I../include
+
+# TODO: don't add path in triton/
+TBLGEN_INC_FLAGS := -I${LLVM_ROOT}/include -I../include -I$(HOME)/ws/triton/include
 
 TRITON_SRC_ROOT := $(HOME)/ws/triton
 TRITON_BUILD_ROOT := $(TRITON_SRC_ROOT)/python/build/cmake.linux-x86_64-cpython-3.10
@@ -69,6 +71,7 @@ TRITONCC_OUT_DIR := ../out
 run_tblgen:
 	mkdir -p ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU
 	mkdir -p ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/NVGPU
+	mkdir -p ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU
 	${TBLGEN} -gen-dialect-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonNvidiaGPU/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU/Dialect.h.inc
 	${TBLGEN} -gen-dialect-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonNvidiaGPU/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU/Dialect.cpp.inc
 	${TBLGEN} -gen-attrdef-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonNvidiaGPU/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU/AttrDefs.cpp.inc
@@ -77,6 +80,14 @@ run_tblgen:
 	${TBLGEN} -gen-op-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/NVGPU/Ops.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/NVGPU/Ops.h.inc
 	${TBLGEN} -gen-op-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/NVGPU/Ops.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/NVGPU/Ops.cpp.inc
 	${TBLGEN} -gen-attrdef-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/NVGPU/AttrDefs.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/NVGPU/AttrDefs.cpp.inc
+	${TBLGEN} -gen-dialect-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonGPU/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU/Dialect.h.inc
+	${TBLGEN} -gen-dialect-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonGPU/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU/Dialect.cpp.inc
+	${TBLGEN} -gen-op-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonGPU/Ops.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU/Ops.h.inc
+	${TBLGEN} -gen-op-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonGPU/Ops.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU/Ops.cpp.inc
+	${TBLGEN} -gen-attrdef-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonGPU/AttrDefs.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU/AttrDefs.h.inc
+	${TBLGEN} -gen-attrdef-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonGPU/AttrDefs.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU/AttrDefs.cpp.inc
+	${TBLGEN} -gen-attr-interface-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonGPU/AttrDefs.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU/AttrInterfaces.h.inc
+	${TBLGEN} -gen-attr-interface-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonGPU/AttrDefs.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU/AttrInterfaces.cpp.inc
 
 test_sum: run_tblgen
 	g++ test_sum.cpp $(ALLFLAGS) -o a.out

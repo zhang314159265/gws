@@ -5,7 +5,7 @@
 #include "mlir/Pass/Pass.h"
 
 #include "tritoncc/AxisInfo.h"
-#include "triton/Dialect/TritonGPU/IR/Dialect.h"
+#include "tritoncc/dialect/TritonGPU/Dialect.h"
 
 #include "tritoncc/util.h"
 #include "tritoncc/nvidia_util.h"
@@ -84,7 +84,7 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
       }
     }
 
-    llvm::SmallVector<int64_t> shapePerCTA = mlir::triton::gpu::getShapePerCTA(refTensorType);
+    llvm::SmallVector<int64_t> shapePerCTA = tritoncc::getShapePerCTA(refTensorType);
     int numElems = product<int64_t>(shapePerCTA);
     int numThreads = numWarps * threadsPerWarp;
     int numElemsPerThread = std::max(numElems / numThreads, 1);
@@ -101,8 +101,8 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     }
     llvm::SmallVector<unsigned> sizePerThread(refTensorType.getRank(), 1);
     sizePerThread[order[0]] = perThread;
-    mlir::triton::gpu::CTALayoutAttr CTALayout = mlir::triton::gpu::getCTALayout(refTensorType.getEncoding());
-    layoutMap[op] = mlir::triton::gpu::BlockedEncodingAttr::get(
+    mlir::_tritoncc::CTALayoutAttr CTALayout = tritoncc::getCTALayout(refTensorType.getEncoding());
+    layoutMap[op] = mlir::_tritoncc::BlockedEncodingAttr::get(
       &getContext(), refTensorType.getShape(), sizePerThread, order, numWarps,
       threadsPerWarp, CTALayout);
   }
@@ -120,9 +120,9 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     llvm::SmallVector<mlir::Value, 4> newArgs;
     for (mlir::Value operand : op->getOperands()) {
       mlir::RankedTensorType tensorType = operand.getType().dyn_cast<mlir::RankedTensorType>();
-      if (tensorType && !tensorType.getEncoding().isa<mlir::triton::gpu::SharedEncodingAttr>()) {
+      if (tensorType && !tensorType.getEncoding().isa<mlir::_tritoncc::SharedEncodingAttr>()) {
         mlir::Type newType = getNewType(tensorType, encoding);
-        newArgs.push_back(builder.create<mlir::triton::gpu::ConvertLayoutOp>(op->getLoc(), newType, operand));
+        newArgs.push_back(builder.create<mlir::_tritoncc::ConvertLayoutOp>(op->getLoc(), newType, operand));
       } else {
         newArgs.push_back(operand);
       }
@@ -131,7 +131,7 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     // convert output types
     llvm::SmallVector<mlir::Type, 4> newTypes;
     for (mlir::Type t : op->getResultTypes()) {
-      bool isAsync = llvm::isa<mlir::triton::gpu::InsertSliceAsyncOp>(op);
+      bool isAsync = llvm::isa<mlir::_tritoncc::InsertSliceAsyncOp>(op);
       newTypes.push_back(isAsync ? t : getNewType(t, encoding));
     }
 
@@ -140,7 +140,7 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     for (size_t i = 0; i < op->getNumResults(); ++i) {
       mlir::Value newResult = newOp->getResult(i);
       if (newTypes[i] != op->getResultTypes()[i]) {
-        newResult = builder.create<mlir::triton::gpu::ConvertLayoutOp>(
+        newResult = builder.create<mlir::_tritoncc::ConvertLayoutOp>(
           op->getLoc(), op->getResult(i).getType(), newResult);
       }
       op->getResult(i).replaceAllUsesWith(newResult);
@@ -164,8 +164,8 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
       assert(tensorType);
 
       mlir::ModuleOp mod = curr->getParentOfType<mlir::ModuleOp>();
-      int numWarps = mlir::triton::gpu::TritonGPUDialect::getNumWarps(mod);
-      int threadsPerWarp = mlir::triton::gpu::TritonGPUDialect::getThreadsPerWarp(mod);
+      int numWarps = mlir::_tritoncc::TritonGPUDialect::getNumWarps(mod);
+      int threadsPerWarp = mlir::_tritoncc::TritonGPUDialect::getThreadsPerWarp(mod);
       setCoalescedEncoding(axisInfoAnalysis, curr, numWarps, threadsPerWarp, layoutMap);
     });
     for (auto &kv : layoutMap) {

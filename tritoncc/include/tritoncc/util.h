@@ -60,7 +60,7 @@ bool canFoldIntoConversion(mlir::Operation *op, mlir::Attribute targetEncoding) 
   if (llvm::isa<mlir::triton::CatOp>(op)) {
     assert(false && "CatOp");
   }
-  if (auto convert = llvm::dyn_cast<mlir::triton::gpu::ConvertLayoutOp>(op)) {
+  if (auto convert = llvm::dyn_cast<mlir::_tritoncc::ConvertLayoutOp>(op)) {
     assert(false && "ConvertLayoutOp");
   }
   if (auto reshape = llvm::dyn_cast<mlir::triton::ReshapeOp>(op)) {
@@ -83,12 +83,12 @@ bool hasEncoding(mlir::Value value) {
 }
 
 bool hasSharedEncoding(mlir::Value value) {
-  return hasEncoding<mlir::triton::gpu::SharedEncodingAttr>(value);
+  return hasEncoding<mlir::_tritoncc::SharedEncodingAttr>(value);
 }
 
 mlir::Attribute inferDstEncoding(mlir::triton::ReduceOp op,
     mlir::Attribute encoding) {
-  return mlir::triton::gpu::SliceEncodingAttr::get(op->getContext(), op.getAxis(), encoding);
+  return mlir::_tritoncc::SliceEncodingAttr::get(op->getContext(), op.getAxis(), encoding);
 }
 
 mlir::Attribute inferDstEncoding(mlir::Operation *op, mlir::Attribute encoding) {
@@ -110,7 +110,7 @@ mlir::Attribute inferDstEncoding(mlir::Operation *op, mlir::Attribute encoding) 
 
 std::optional<mlir::Attribute> inferSrcEncoding(mlir::triton::ReduceOp op,
     mlir::Attribute encoding) {
-  auto sliceEncoding = encoding.dyn_cast<mlir::triton::gpu::SliceEncodingAttr>();
+  auto sliceEncoding = encoding.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>();
   if (!sliceEncoding) {
     return std::nullopt;
   }
@@ -122,7 +122,7 @@ std::optional<mlir::Attribute> inferSrcEncoding(mlir::triton::ReduceOp op,
 
 std::optional<mlir::Attribute> inferSrcEncoding(mlir::triton::ExpandDimsOp op,
     mlir::Attribute encoding) {
-  return mlir::triton::gpu::SliceEncodingAttr::get(
+  return mlir::_tritoncc::SliceEncodingAttr::get(
     op->getContext(), op.getAxis(), encoding);
 }
 
@@ -281,8 +281,8 @@ llvm::SmallVector<mlir::Value> unpackI32(const llvm::SmallVector<mlir::Value> &i
   if (!tensorTy) {
     return inValues;
   }
-  auto encoding = tensorTy.getEncoding().dyn_cast<mlir::triton::gpu::DotOperandEncodingAttr>();
-  if (!(encoding && encoding.getParent().isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>())) {
+  auto encoding = tensorTy.getEncoding().dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>();
+  if (!(encoding && encoding.getParent().isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>())) {
     return inValues;
   }
   assert(false && "unpackI32");
@@ -293,31 +293,17 @@ llvm::SmallVector<mlir::Value> packI32(const llvm::SmallVector<mlir::Value> &inV
   if (!tensorTy) {
     return inValues;
   }
-  auto encoding = tensorTy.getEncoding().dyn_cast<mlir::triton::gpu::DotOperandEncodingAttr>();
-  if (!(encoding && encoding.getParent().isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>())) {
+  auto encoding = tensorTy.getEncoding().dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>();
+  if (!(encoding && encoding.getParent().isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>())) {
     return inValues;
   }
   assert(false && "packI32");
 }
 
 bool isaDistributedLayout(mlir::Attribute layout) {
-  return layout.isa<mlir::triton::gpu::BlockedEncodingAttr>()
-    || layout.isa<mlir::triton::gpu::MmaEncodingTrait>()
-    || layout.isa<mlir::triton::gpu::SliceEncodingAttr>();
-}
-
-bool shouldUseDistSmem(mlir::Attribute srcLayout, mlir::Attribute dstLayout) {
-  // numCTAs here means numCTAsPerCGA rather than numCTAs per grid.
-  unsigned numCTAs = mlir::triton::gpu::getNumCTAs(srcLayout);
-  assert(numCTAs == mlir::triton::gpu::getNumCTAs(dstLayout) &&
-    "Invalid layout conversion: the numbers of CTAs of src and dst "
-    "layouts are different");
-
-  // case (1): Neber use dsmem when numCTAs == 1
-  if (numCTAs == 1) {
-    return false;
-  }
-  assert(false && "shouldUseDistSmem");
+  return layout.isa<mlir::_tritoncc::BlockedEncodingAttr>()
+    || layout.isa<mlir::_tritoncc::MmaEncodingTrait>()
+    || layout.isa<mlir::_tritoncc::SliceEncodingAttr>();
 }
 
 template <typename T>

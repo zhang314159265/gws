@@ -20,7 +20,7 @@ struct SplatOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::Spl
       assert(false && "bit width mismatch");
     }
     auto llSrc = bitcast(constVal, srcType);
-    size_t elemsPerThread = mlir::triton::gpu::getTotalElemsPerThread(tensorTy);
+    size_t elemsPerThread = tritoncc::getTotalElemsPerThread(tensorTy);
     llvm::SmallVector<mlir::Value> elems(elemsPerThread, llSrc);
     return tritoncc::packLLElements(loc, typeConverter, elems, rewriter, resType);
   }
@@ -49,7 +49,7 @@ struct ExpandDimsOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton
 
     auto srcTy = op.getSrc().getType().cast<mlir::RankedTensorType>();
     auto resultTy = op.getType().template cast<mlir::RankedTensorType>();
-    auto srcLayout = srcTy.getEncoding().dyn_cast<mlir::triton::gpu::SliceEncodingAttr>();
+    auto srcLayout = srcTy.getEncoding().dyn_cast<mlir::_tritoncc::SliceEncodingAttr>();
     if (!srcLayout) {
       return emitOptionalError(
         loc, "ExpandDimsOp only supports SliceEncodingAttr as its input");
@@ -95,7 +95,7 @@ struct BroadcastOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton:
     auto typeConverter = getTypeConverter();
 
     assert(rank == resultTy.getRank());
-    auto order = mlir::triton::gpu::getOrder(srcLayout);
+    auto order = tritoncc::getOrder(srcLayout);
     auto srcOffsets = tritoncc::emitOffsetForLayout(srcLayout, srcTy);
     auto resultOffsets = tritoncc::emitOffsetForLayout(resultLayout, resultTy);
     llvm::SmallVector<mlir::Value> srcVals = tritoncc::unpackLLElements(loc, src, rewriter);

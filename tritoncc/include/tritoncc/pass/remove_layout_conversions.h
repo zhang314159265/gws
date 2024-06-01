@@ -48,7 +48,7 @@ class LayoutPropagation {
   void initAnchorLayout() {
     auto maybeAddAnchor = [&](mlir::Value v) {
       if (mlir::RankedTensorType tensorType = v.getType().dyn_cast<mlir::RankedTensorType>()) {
-        assert(!tensorType.getEncoding().isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>() && "mma layout not supported yet");
+        assert(!tensorType.getEncoding().isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>() && "mma layout not supported yet");
         layouts.insert({v, LayoutInfo(tensorType.getEncoding())});
       }
     };
@@ -75,7 +75,7 @@ class LayoutPropagation {
       bool hasChanged = false;
       for (mlir::Attribute encoding : info.encodings) {
         std::optional<mlir::Attribute> dstEncoding;
-        if (llvm::isa<mlir::triton::gpu::ConvertLayoutOp>(op)) {
+        if (llvm::isa<mlir::_tritoncc::ConvertLayoutOp>(op)) {
           dstEncoding = encoding;
         } else {
           dstEncoding = tritoncc::inferDstEncoding(op, encoding);
@@ -120,7 +120,7 @@ class LayoutPropagation {
             mlir::triton::ExpandDimsOp,
             mlir::triton::ReshapeOp,
             mlir::triton::JoinOp,
-            mlir::triton::gpu::ConvertLayoutOp,
+            mlir::_tritoncc::ConvertLayoutOp,
             mlir::triton::SplitOp
           >(user)
       ) {
@@ -170,8 +170,8 @@ class LayoutPropagation {
         mlir::triton::AtomicCASOp
       >(op);
       for (mlir::Attribute e : info.encodings) {
-        if ((isLoadOrStore && e.isa<mlir::triton::gpu::BlockedEncodingAttr>()) ||
-          (!isLoadOrStore && e.isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>())) {
+        if ((isLoadOrStore && e.isa<mlir::_tritoncc::BlockedEncodingAttr>()) ||
+          (!isLoadOrStore && e.isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>())) {
            encoding = e;
            break;
         }
@@ -223,7 +223,7 @@ class LayoutPropagation {
     }
     mlir::OpBuilder rewriter(op);
     mlir::Attribute encoding = *layouts[op->getResult(0)].encodings.begin();
-    if (mlir::triton::gpu::ConvertLayoutOp convertOp = llvm::dyn_cast<mlir::triton::gpu::ConvertLayoutOp>(op)) {
+    if (mlir::_tritoncc::ConvertLayoutOp convertOp = llvm::dyn_cast<mlir::_tritoncc::ConvertLayoutOp>(op)) {
       mlir::Attribute srcEncoding = convertOp.getSrc().getType().getEncoding();
       auto it = layouts.find(convertOp.getSrc());
       if (it != layouts.end()) {
@@ -235,7 +235,7 @@ class LayoutPropagation {
         tensorType.getShape(),
         tensorType.getElementType(),
         encoding);
-      mlir::triton::gpu::ConvertLayoutOp cvt = rewriter.create<mlir::triton::gpu::ConvertLayoutOp>(op->getLoc(), newType, src);
+      mlir::_tritoncc::ConvertLayoutOp cvt = rewriter.create<mlir::_tritoncc::ConvertLayoutOp>(op->getLoc(), newType, src);
       map(op->getResult(0), cvt.getResult());
       return cvt.getOperation();
     }
@@ -244,7 +244,7 @@ class LayoutPropagation {
     }
     if (op->hasTrait<mlir::OpTrait::SameOperandsAndResultEncoding>() ||
         op->hasTrait<mlir::OpTrait::Elementwise>() ||
-        llvm::isa<mlir::triton::ReduceOp, mlir::triton::ExpandDimsOp, mlir::triton::ReshapeOp, mlir::triton::JoinOp, mlir::triton::SplitOp, mlir::triton::gpu::ConvertLayoutOp>(op)) {
+        llvm::isa<mlir::triton::ReduceOp, mlir::triton::ExpandDimsOp, mlir::triton::ReshapeOp, mlir::triton::JoinOp, mlir::triton::SplitOp, mlir::_tritoncc::ConvertLayoutOp>(op)) {
       mlir::Operation *newOp = cloneElementwise(rewriter, op, encoding);
       for (auto [oldResult, newResult] : llvm::zip(op->getResults(), newOp->getResults())) {
         map(oldResult, newResult);
@@ -287,7 +287,7 @@ class LayoutPropagation {
         tensorType.getElementType(),
         encoding
       );
-      mlir::Value converted = rewriter.create<mlir::triton::gpu::ConvertLayoutOp>(
+      mlir::Value converted = rewriter.create<mlir::_tritoncc::ConvertLayoutOp>(
         value.getLoc(), tmpType, rewrittenValue);
       return converted;
     }
@@ -369,8 +369,8 @@ bool canBeRemat(mlir::Operation *op) {
   if (llvm::isa<mlir::triton::LoadOp, mlir::triton::StoreOp>(op)) {
     return !tritoncc::isExpensiveLoadOrStore(op);
   }
-  if (llvm::isa<mlir::tensor::ExtractSliceOp, mlir::triton::gpu::AllocTensorOp,
-      mlir::triton::gpu::InsertSliceAsyncOp,
+  if (llvm::isa<mlir::tensor::ExtractSliceOp, mlir::_tritoncc::AllocTensorOp,
+      mlir::_tritoncc::InsertSliceAsyncOp,
       mlir::triton::AtomicRMWOp,
       mlir::triton::AtomicCASOp,
       mlir::triton::DotOp>(op)) {
@@ -405,7 +405,7 @@ mlir::LogicalResult getRematerializableSlice(
   return mlir::success();
 }
 
-void rewriteSlice(llvm::SetVector<mlir::Value> &slice, llvm::DenseMap<mlir::Value, mlir::Attribute> &layout, mlir::triton::gpu::ConvertLayoutOp convertOp, mlir::IRMapping &mapping) {
+void rewriteSlice(llvm::SetVector<mlir::Value> &slice, llvm::DenseMap<mlir::Value, mlir::Attribute> &layout, mlir::_tritoncc::ConvertLayoutOp convertOp, mlir::IRMapping &mapping) {
   llvm::SetVector<mlir::Operation *> opsToRewrite;
   for (mlir::Value v : slice) {
     if (v.getDefiningOp()) {
@@ -464,18 +464,18 @@ void rewriteSlice(llvm::SetVector<mlir::Value> &slice, llvm::DenseMap<mlir::Valu
   }
 }
 
-void rewriteSlice(llvm::SetVector<mlir::Value> &slice, llvm::DenseMap<mlir::Value, mlir::Attribute> &layout, mlir::triton::gpu::ConvertLayoutOp convertOp) {
+void rewriteSlice(llvm::SetVector<mlir::Value> &slice, llvm::DenseMap<mlir::Value, mlir::Attribute> &layout, mlir::_tritoncc::ConvertLayoutOp convertOp) {
   mlir::IRMapping mapping;
   rewriteSlice(slice, layout, convertOp, mapping);
 }
 
-void backwardRematerialization(mlir::triton::gpu::ConvertLayoutOp convertOp) {
+void backwardRematerialization(mlir::_tritoncc::ConvertLayoutOp convertOp) {
   if (tritoncc::hasSharedEncoding(convertOp.getResult()) ||
       tritoncc::hasSharedEncoding(convertOp.getSrc())) {
     return;
   }
   mlir::RankedTensorType targetType = convertOp.getType();
-  if (targetType.getEncoding().isa<mlir::triton::gpu::DotOperandEncodingAttr>()) {
+  if (targetType.getEncoding().isa<mlir::_tritoncc::DotOperandEncodingAttr>()) {
     return;
   }
 
@@ -494,22 +494,22 @@ void backwardRematerialization(mlir::triton::gpu::ConvertLayoutOp convertOp) {
 }
 
 void backwardRematerialization(mlir::ModuleOp module) {
-  llvm::SmallVector<mlir::triton::gpu::ConvertLayoutOp> convertOps;
+  llvm::SmallVector<mlir::_tritoncc::ConvertLayoutOp> convertOps;
   module.walk(
-    [&](mlir::triton::gpu::ConvertLayoutOp convertOp) { convertOps.push_back(convertOp); });
+    [&](mlir::_tritoncc::ConvertLayoutOp convertOp) { convertOps.push_back(convertOp); });
   for (auto convertOp : convertOps) {
     backwardRematerialization(convertOp);
   }
 }
 
-void hoistConvertOnTopOfExtOrBroadcast(mlir::triton::gpu::ConvertLayoutOp convertOp) {
+void hoistConvertOnTopOfExtOrBroadcast(mlir::_tritoncc::ConvertLayoutOp convertOp) {
   // we don't want to rematerialize any convertion to/from shared
   if (hasSharedEncoding(convertOp.getResult()) ||
       hasSharedEncoding(convertOp.getSrc())) {
     return;
   }
   mlir::RankedTensorType targetType = convertOp.getType();
-  if (targetType.getEncoding().isa<mlir::triton::gpu::DotOperandEncodingAttr>()) {
+  if (targetType.getEncoding().isa<mlir::_tritoncc::DotOperandEncodingAttr>()) {
     return;
   }
 
@@ -547,10 +547,10 @@ void hoistConvertOnTopOfExtOrBroadcast(mlir::triton::gpu::ConvertLayoutOp conver
 }
 
 void hoistConvert(mlir::ModuleOp module) {
-  llvm::SmallVector<mlir::triton::gpu::ConvertLayoutOp> convertOps;
+  llvm::SmallVector<mlir::_tritoncc::ConvertLayoutOp> convertOps;
   module.walk(
-    [&](mlir::triton::gpu::ConvertLayoutOp convertOp) { convertOps.push_back(convertOp); });
-  for (mlir::triton::gpu::ConvertLayoutOp convertOp : convertOps) {
+    [&](mlir::_tritoncc::ConvertLayoutOp convertOp) { convertOps.push_back(convertOp); });
+  for (mlir::_tritoncc::ConvertLayoutOp convertOp : convertOps) {
     hoistConvertOnTopOfExtOrBroadcast(convertOp);
   }
 }
@@ -559,11 +559,11 @@ void hoistConvert(mlir::ModuleOp module) {
 class ConvertDotConvert : public mlir::RewritePattern {
  public:
   explicit ConvertDotConvert(mlir::MLIRContext *context)
-      : mlir::RewritePattern(mlir::triton::gpu::ConvertLayoutOp::getOperationName(), 1, context) {}
+      : mlir::RewritePattern(mlir::_tritoncc::ConvertLayoutOp::getOperationName(), 1, context) {}
 
   mlir::LogicalResult matchAndRewrite(mlir::Operation *op,
       mlir::PatternRewriter &rewriter) const override {
-    auto dstOp = llvm::cast<mlir::triton::gpu::ConvertLayoutOp>(op);
+    auto dstOp = llvm::cast<mlir::_tritoncc::ConvertLayoutOp>(op);
     auto dotOp = dstOp.getSrc().getDefiningOp<mlir::triton::DotOp>();
     if (!dotOp) {
       return mlir::failure();
@@ -607,7 +607,7 @@ class RemoveLayoutConversionsPass : public mlir::OperationPass<mlir::ModuleOp> {
     });
 
     mlir::RewritePatternSet cleanUpPatterns(context);
-    mlir::triton::gpu::ConvertLayoutOp::getCanonicalizationPatterns(cleanUpPatterns, context);
+    mlir::_tritoncc::ConvertLayoutOp::getCanonicalizationPatterns(cleanUpPatterns, context);
     if (mlir::applyPatternsAndFoldGreedily(moduleOp, std::move(cleanUpPatterns)).failed()) {
       signalPassFailure();
     }
@@ -648,7 +648,7 @@ class RemoveLayoutConversionsPass : public mlir::OperationPass<mlir::ModuleOp> {
     populateForOpDeadArgumentElimination(cleanUpPatterns2);
     mlir::scf::ForOp::getCanonicalizationPatterns(cleanUpPatterns2, context);
     mlir::scf::IfOp::getCanonicalizationPatterns(cleanUpPatterns2, context);
-    mlir::triton::gpu::ConvertLayoutOp::getCanonicalizationPatterns(cleanUpPatterns2, context);
+    mlir::_tritoncc::ConvertLayoutOp::getCanonicalizationPatterns(cleanUpPatterns2, context);
     if (mlir::applyPatternsAndFoldGreedily(moduleOp, std::move(cleanUpPatterns2)).failed()) {
       signalPassFailure();
     }

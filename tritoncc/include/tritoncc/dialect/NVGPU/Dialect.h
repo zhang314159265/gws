@@ -15,7 +15,7 @@
 #define GET_OP_CLASSES
 #include "tritoncc/dialect/NVGPU/Ops.h.inc"
 
-void mlir::_tritoncc::NVGPUDialect::initialize() {
+void mlir::_tritoncc::nvgpu::NVGPUDialect::initialize() {
   addAttributes<
 #define GET_ATTRDEF_LIST
 #include "tritoncc/dialect/NVGPU/AttrDefs.cpp.inc"

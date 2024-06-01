@@ -156,7 +156,7 @@ class ConvertNVGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     mlir::ModuleOp mod = getOperation();
     mlir::RewritePatternSet patterns(context);
 
-    patterns.add<NVGPUOpGenericPattern<mlir::_tritoncc::ClusterCTAIdOp>>(
+    patterns.add<NVGPUOpGenericPattern<mlir::_tritoncc::nvgpu::ClusterCTAIdOp>>(
       context, Cluster_Cta_Id_Op, Constraints({"=r"}), Constraints());
 
     if (applyPatternsAndFoldGreedily(mod, std::move(patterns)).failed()) {

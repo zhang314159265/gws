@@ -115,7 +115,7 @@ mlir::Value getThreadId(mlir::RewriterBase &rewriter, mlir::Location loc) {
 }
 
 mlir::Value getClusterCTAId(mlir::RewriterBase &rewriter, mlir::Location loc) {
-  return rewriter.create<mlir::_tritoncc::ClusterCTAIdOp>(
+  return rewriter.create<mlir::_tritoncc::nvgpu::ClusterCTAIdOp>(
     loc, rewriter.getI32Type()
   );
 }
@@ -129,18 +129,18 @@ llvm::SmallVector<mlir::Value> delinearize(
 llvm::SmallVector<mlir::Value>
 emitBaseIndexWithinCTAForBlockedLayout(
     mlir::Location loc, mlir::RewriterBase &rewriter,
-    const mlir::triton::gpu::BlockedEncodingAttr &blockedLayout,
+    const mlir::_tritoncc::BlockedEncodingAttr &blockedLayout,
     mlir::RankedTensorType type) {
   auto shape = type.getShape();
   mlir::Value threadId = getThreadId(rewriter, loc);
-  mlir::Value warpSize = i32_val(mlir::triton::gpu::getWarpSize(blockedLayout));
+  mlir::Value warpSize = i32_val(tritoncc::getWarpSize(blockedLayout));
   mlir::Value laneId = urem(threadId, warpSize);
   mlir::Value warpId = udiv(threadId, warpSize);
   auto sizePerThread = blockedLayout.getSizePerThread();
   auto threadsPerWarp = blockedLayout.getThreadsPerWarp();
   auto warpsPerCTA = blockedLayout.getWarpsPerCTA();
   auto order = blockedLayout.getOrder();
-  auto shapePerCTA = mlir::triton::gpu::getShapePerCTA(blockedLayout, shape);
+  auto shapePerCTA = tritoncc::getShapePerCTA(blockedLayout, shape);
   unsigned rank = shape.size();
 
   // delinearize threadId to get the base index
@@ -173,11 +173,11 @@ llvm::SmallVector<mlir::Value> emitCTAOffsetForLayout(mlir::Location loc,
     mlir::Attribute layout,
     llvm::ArrayRef<int64_t> shape) {
   unsigned rank = shape.size();
-  llvm::SmallVector<unsigned> CTAsPerCGA = mlir::triton::gpu::getCTAsPerCGA(layout);
-  llvm::SmallVector<unsigned> CTASplitNum = mlir::triton::gpu::getCTASplitNum(layout);
-  llvm::SmallVector<unsigned> CTAOrder = mlir::triton::gpu::getCTAOrder(layout);
+  llvm::SmallVector<unsigned> CTAsPerCGA = tritoncc::getCTAsPerCGA(layout);
+  llvm::SmallVector<unsigned> CTASplitNum = tritoncc::getCTASplitNum(layout);
+  llvm::SmallVector<unsigned> CTAOrder = tritoncc::getCTAOrder(layout);
   llvm::SmallVector<int64_t> shapePerCTA =
-      mlir::triton::gpu::getShapePerCTA(CTASplitNum, shape);
+      tritoncc::getShapePerCTA(CTASplitNum, shape);
 
   // Delinearize clusterCTAId
   mlir::Value clusterCTAId = getClusterCTAId(rewriter, loc);
@@ -206,14 +206,14 @@ emitBaseIndexForLayout(mlir::Location loc, mlir::RewriterBase &rewriter,
   llvm::SmallVector<mlir::Value> baseIndex;
   mlir::RewriterBase::InsertionGuard guard(rewriter);
   llvm::SmallVector<mlir::Value> result;
-  if (auto blockedLayout = layout.dyn_cast<mlir::triton::gpu::BlockedEncodingAttr>()) {
+  if (auto blockedLayout = layout.dyn_cast<mlir::_tritoncc::BlockedEncodingAttr>()) {
     result = emitBaseIndexWithinCTAForBlockedLayout(loc, rewriter,
         blockedLayout, type);
-  } else if (auto mmaLayout = layout.dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>()) {
+  } else if (auto mmaLayout = layout.dyn_cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>()) {
     assert(false && "mma");
-  } else if (auto mfmaLayout = layout.dyn_cast<mlir::triton::gpu::AMDMfmaEncodingAttr>()) {
+  } else if (auto mfmaLayout = layout.dyn_cast<mlir::_tritoncc::AMDMfmaEncodingAttr>()) {
     assert(false && "mfma");
-  } else if (auto sliceLayout = layout.dyn_cast<mlir::triton::gpu::SliceEncodingAttr>()) {
+  } else if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
     auto parentLayout = sliceLayout.getParent();
     auto parentShape = sliceLayout.paddedShape(type.getShape());
     mlir::RankedTensorType parentTy =
@@ -237,15 +237,15 @@ emitBaseIndexForLayout(mlir::Location loc, mlir::RewriterBase &rewriter,
 }
 
 llvm::SmallVector<llvm::SmallVector<unsigned>>
-emitOffsetForBlockedLayout(const mlir::triton::gpu::BlockedEncodingAttr &blockedLayout,
+emitOffsetForBlockedLayout(const mlir::_tritoncc::BlockedEncodingAttr &blockedLayout,
     mlir::RankedTensorType type) {
   auto shape = type.getShape();
   auto sizePerThread = blockedLayout.getSizePerThread();
   auto threadsPerWarp = blockedLayout.getThreadsPerWarp();
   auto warpsPerCTA = blockedLayout.getWarpsPerCTA();
   auto order = blockedLayout.getOrder();
-  auto shapePerCTATile = getShapePerCTATile(blockedLayout);
-  auto shapePerCTA = mlir::triton::gpu::getShapePerCTA(blockedLayout, shape);
+  auto shapePerCTATile = tritoncc::getShapePerCTATile(blockedLayout);
+  auto shapePerCTA = tritoncc::getShapePerCTA(blockedLayout, shape);
 
   unsigned rank = shape.size();
   llvm::SmallVector<unsigned> tilesPerDim(rank);
@@ -253,7 +253,7 @@ emitOffsetForBlockedLayout(const mlir::triton::gpu::BlockedEncodingAttr &blocked
     tilesPerDim[k] = ceil<unsigned>(shapePerCTA[k], shapePerCTATile[k]);
   }
 
-  unsigned elemsPerThread = mlir::triton::gpu::getTotalElemsPerThread(type);
+  unsigned elemsPerThread = tritoncc::getTotalElemsPerThread(type);
   unsigned totalSizePerThread = product<unsigned>(sizePerThread);
   llvm::SmallVector<llvm::SmallVector<unsigned>> reorderedOffset(elemsPerThread);
   for (unsigned n = 0; n < elemsPerThread; ++n) {
@@ -278,7 +278,7 @@ llvm::SmallVector<llvm::SmallVector<unsigned>>
 emitOffsetForLayout(mlir::Attribute layout, mlir::RankedTensorType type);
 
 llvm::SmallVector<mlir::SmallVector<unsigned>>
-emitOffsetForSliceLayout(const mlir::triton::gpu::SliceEncodingAttr &sliceLayout,
+emitOffsetForSliceLayout(const mlir::_tritoncc::SliceEncodingAttr &sliceLayout,
     mlir::RankedTensorType type) {
   auto parentEncoding = sliceLayout.getParent();
   unsigned dim = sliceLayout.getDim();
@@ -304,10 +304,10 @@ emitOffsetForSliceLayout(const mlir::triton::gpu::SliceEncodingAttr &sliceLayout
 
 llvm::SmallVector<llvm::SmallVector<unsigned>>
 emitOffsetForLayout(mlir::Attribute layout, mlir::RankedTensorType type) {
-  if (auto blockedLayout = layout.dyn_cast<mlir::triton::gpu::BlockedEncodingAttr>()) {
+  if (auto blockedLayout = layout.dyn_cast<mlir::_tritoncc::BlockedEncodingAttr>()) {
     return emitOffsetForBlockedLayout(blockedLayout, type);
   }
-  if (auto sliceLayout = layout.dyn_cast<mlir::triton::gpu::SliceEncodingAttr>()) {
+  if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
     return emitOffsetForSliceLayout(sliceLayout, type);
   }
   assert(false && "emitOffsetForLayout");
@@ -424,7 +424,7 @@ mlir::Value llGetPid(int axis, mlir::Location loc, mlir::ModuleOp moduleOp,
   // decide the semantic of GetProgramIdOp. If numCTAs = 1, then
   // GetProgramIdOp is converted to "%ctaid", otherwise it is converted to
   // "%clusterid".
-  int numCTAs = mlir::triton::gpu::TritonGPUDialect::getNumCTAs(moduleOp);
+  int numCTAs = mlir::_tritoncc::TritonGPUDialect::getNumCTAs(moduleOp);
 
   std::string sreg = numCTAs == 1 ? "%ctaid." : "%clusterid.";
   sreg.append(1, 'x' + axis);

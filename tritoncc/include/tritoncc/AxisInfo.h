@@ -674,7 +674,7 @@ class AxisInfoAnalysis : public mlir::dataflow::SparseForwardDataFlowAnalysis<ml
                     CastOpAxisInfoVisitor<mlir::arith::ExtUIOp>,
                     CastOpAxisInfoVisitor<mlir::arith::TruncIOp>,
                     CastOpAxisInfoVisitor<mlir::arith::IndexCastOp>,
-                    CastOpAxisInfoVisitor<mlir::triton::gpu::ConvertLayoutOp>,
+                    CastOpAxisInfoVisitor<mlir::_tritoncc::ConvertLayoutOp>,
                     CastOpAxisInfoVisitor<mlir::UnrealizedConversionCastOp>,
                     CastOpAxisInfoVisitor<mlir::triton::BitcastOp>>();
   }
@@ -754,11 +754,11 @@ class ModuleAxisInfoAnalysis : public tritoncc::CallGraph<AxisInfoMapT> {
 
     // Here order should be ordered by contiguous first, so the first element
     // should have the largest contiguous.
-    auto order = mlir::triton::gpu::getOrder(layout);
+    auto order = tritoncc::getOrder(layout);
     unsigned align = getPtrAlignment(ptr);
 
     auto uniqueContigPerThread =
-        mlir::triton::gpu::getUniqueContigPerThread(layout, tensorTy.getShape());
+        tritoncc::getUniqueContigPerThread(layout, tensorTy.getShape());
     assert(order[0] < uniqueContigPerThread.size() &&
         "Unexpected uniqueContigPerThread size");
     unsigned contiguity = uniqueContigPerThread[order[0]];
@@ -777,7 +777,7 @@ class ModuleAxisInfoAnalysis : public tritoncc::CallGraph<AxisInfoMapT> {
       return 1;
     }
     auto layout = tensorTy.getEncoding();
-    auto order = mlir::triton::gpu::getOrder(layout);
+    auto order = tritoncc::getOrder(layout);
     auto maxMultipleBytes = axisInfo->getDivisibility(order[0]);
     auto maxContig = axisInfo->getContiguity(order[0]);
     auto elemNumBits = mlir::triton::getPointeeBitWidth(tensorTy);
@@ -796,7 +796,7 @@ class ModuleAxisInfoAnalysis : public tritoncc::CallGraph<AxisInfoMapT> {
     if (!axisInfo) {
       return 1;
     }
-    auto maskOrder = mlir::triton::gpu::getOrder(tensorTy.getEncoding());
+    auto maskOrder = tritoncc::getOrder(tensorTy.getEncoding());
     auto alignment = std::max<unsigned>(axisInfo->getConstancy(maskOrder[0]), 1);
     return alignment;
   }

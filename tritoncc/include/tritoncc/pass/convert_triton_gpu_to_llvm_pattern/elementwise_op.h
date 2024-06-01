@@ -33,8 +33,8 @@ llvm::SmallVector<mlir::Value> reorderValues(const llvm::SmallVector<mlir::Value
   if (!inTensorTy || !ouTensorTy) {
     return values;
   }
-  auto inEncoding = llvm::dyn_cast<mlir::triton::gpu::DotOperandEncodingAttr>(inTensorTy.getEncoding());
-  auto ouEncoding = llvm::dyn_cast<mlir::triton::gpu::DotOperandEncodingAttr>(ouTensorTy.getEncoding());
+  auto inEncoding = llvm::dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>(inTensorTy.getEncoding());
+  auto ouEncoding = llvm::dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>(ouTensorTy.getEncoding());
   assert(inEncoding == ouEncoding);
   if (!inEncoding) {
     return values;
@@ -152,7 +152,7 @@ struct AddPtrOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::Ad
     auto typeConverter = getTypeConverter();
     auto resultTensorTy = resultTy.dyn_cast<mlir::RankedTensorType>();
     if (resultTensorTy) {
-      unsigned elems = mlir::triton::gpu::getTotalElemsPerThread(resultTy);
+      unsigned elems = tritoncc::getTotalElemsPerThread(resultTy);
       mlir::Type elemTy = typeConverter->convertType(
           resultTensorTy.getElementType().cast<mlir::triton::PointerType>().getPointeeType());
       mlir::Type ptrTy = typeConverter->convertType(resultTensorTy.getElementType());

@@ -5,7 +5,7 @@ include "mlir/IR/OpBase.td"
 
 def NVGPU_Dialect : Dialect {
   let name = "nvgpu2";  // use a different name to triton
-  let cppNamespace = "::mlir::_tritoncc";
+  let cppNamespace = "::mlir::_tritoncc::nvgpu";
 
   let dependentDialects = [
     "mlir::LLVM::LLVMDialect",

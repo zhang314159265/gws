@@ -75,13 +75,13 @@ llvm::SmallVector<mlir::Value> ReduceOpConversion::getMultiDimWarpId(
 ) const {
   auto srcLayout = helper.getSrcLayout();
   auto srcShape = helper.getSrcShape();
-  auto order = mlir::triton::gpu::getOrder(srcLayout);
+  auto order = tritoncc::getOrder(srcLayout);
   llvm::SmallVector<mlir::Value> multiDimWarpId;
-  if (auto sliceLayout = srcLayout.dyn_cast<mlir::triton::gpu::SliceEncodingAttr>()) {
+  if (auto sliceLayout = srcLayout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
     assert(false && "SliceEncodingAttr");
   } else {
     auto warpsPerCTA =
-        mlir::triton::gpu::getWarpsPerCTAWithUniqueData(srcLayout, srcShape);
+        tritoncc::getWarpsPerCTAWithUniqueData(srcLayout, srcShape);
     multiDimWarpId = delinearize(rewriter, loc, warpId, warpsPerCTA, order);
   }
   return multiDimWarpId;
@@ -103,8 +103,8 @@ void ReduceOpConversion::loadReductionAndPackResult(
     if (auto resultTy =
         op.getResult()[i].getType().dyn_cast<mlir::RankedTensorType>()) {
       // nd-tensor where n >= 1
-      auto resultLayout = resultTy.getEncoding().cast<mlir::triton::gpu::SliceEncodingAttr>();
-      unsigned resultElems = mlir::triton::gpu::getTotalElemsPerThread(resultTy);
+      auto resultLayout = resultTy.getEncoding().cast<mlir::_tritoncc::SliceEncodingAttr>();
+      unsigned resultElems = tritoncc::getTotalElemsPerThread(resultTy);
       auto resultIndices =
           emitIndices(loc, rewriter, resultLayout, resultTy, true);
       assert(resultIndices.size() == resultElems);
@@ -145,7 +145,7 @@ void ReduceOpConversion::accumulatePartialReductions(ReduceOpHelper &helper, llv
 
   auto mod = op.getOperation()->getParentOfType<mlir::ModuleOp>();
   unsigned numThreads =
-      product<unsigned>(mlir::triton::gpu::getWarpsPerCTA(srcLayout)) *
+      product<unsigned>(tritoncc::getWarpsPerCTA(srcLayout)) *
       mlir::triton::gpu::TritonGPUDialect::getThreadsPerWarp(mod);
 
   unsigned elemsPerThread = std::max<unsigned>(elems / numThreads, 1);
@@ -202,8 +202,8 @@ void ReduceOpConversion::storeWarpReduceToSharedMemory(
   auto smemShape = helper.getScratchConfig();
 
   auto threadsPerWarp =
-      mlir::triton::gpu::getThreadsPerWarpWithUniqueData(srcLayout, srcShape);
-  auto order = mlir::triton::gpu::getOrder(srcLayout);
+      tritoncc::getThreadsPerWarpWithUniqueData(srcLayout, srcShape);
+  auto order = tritoncc::getOrder(srcLayout);
   llvm::SmallVector<mlir::Value> multiDimLaneId =
       delinearize(rewriter, loc, laneId, threadsPerWarp, order);
   mlir::Value laneIdAxis = multiDimLaneId[axis];
@@ -332,7 +332,7 @@ void ReduceOpConversion::reduceWithinThreads(
   llvm::SmallVector<llvm::SmallVector<unsigned>> offset =
       tritoncc::emitOffsetForLayout(helper.getSrcLayout(), operandType);
 
-  unsigned srcElems = mlir::triton::gpu::getTotalElemsPerThread(operandType);
+  unsigned srcElems = tritoncc::getTotalElemsPerThread(operandType);
   auto *combineOp = &op.getCombineOp();
   auto srcIndices = emitIndices(op.getLoc(), rewriter, helper.getSrcLayout(),
       operandType, true);
@@ -355,7 +355,7 @@ ReduceOpConversion::unpackInputs(
     mlir::ConversionPatternRewriter &rewriter) const {
   auto types = op.getInputTypes();
   auto operands = adaptor.getOperands();
-  unsigned srcElems = mlir::triton::gpu::getTotalElemsPerThread(types[0]);
+  unsigned srcElems = tritoncc::getTotalElemsPerThread(types[0]);
   llvm::SmallVector<llvm::SmallVector<mlir::Value>> srcValues(srcElems);
   for (int i = 0; i < op.getNumOperands(); ++i) {
     auto values = tritoncc::unpackLLElements(loc, operands[i], rewriter);

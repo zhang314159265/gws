@@ -18,7 +18,7 @@
 
 namespace tritoncc {
 
-llvm::SmallVector<unsigned> getRepShapeForCvtLayout(mlir::triton::gpu::ConvertLayoutOp op) {
+llvm::SmallVector<unsigned> getRepShapeForCvtLayout(mlir::_tritoncc::ConvertLayoutOp op) {
   auto srcTy = op.getSrc().getType();
   auto dstTy = op.getType();
   mlir::Attribute srcLayout = srcTy.getEncoding();
@@ -28,16 +28,16 @@ llvm::SmallVector<unsigned> getRepShapeForCvtLayout(mlir::triton::gpu::ConvertLa
     assert(false && "shouldUseDistSmem");
   }
 
-  if (auto srcMmaLayout = srcLayout.dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>()) {
+  if (auto srcMmaLayout = srcLayout.dyn_cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>()) {
     assert(false && "mma layout");
   }
 
   assert(srcLayout && dstLayout && "Unexpected layout in getRepShape()");
 
-  auto srcShapePerCTA = mlir::triton::gpu::getShapePerCTA(srcTy);
-  auto dstShapePerCTA = mlir::triton::gpu::getShapePerCTA(dstTy);
-  auto srcShapePerCTATile = mlir::triton::gpu::getShapePerCTATile(srcLayout, srcTy.getShape());
-  auto dstShapePerCTATile = mlir::triton::gpu::getShapePerCTATile(dstLayout, dstTy.getShape());
+  auto srcShapePerCTA = tritoncc::getShapePerCTA(srcTy);
+  auto dstShapePerCTA = tritoncc::getShapePerCTA(dstTy);
+  auto srcShapePerCTATile = tritoncc::getShapePerCTATile(srcLayout, srcTy.getShape());
+  auto dstShapePerCTATile = tritoncc::getShapePerCTATile(dstLayout, dstTy.getShape());
 
   unsigned rank = dstTy.getRank();
   llvm::SmallVector<unsigned> repShape(rank);
@@ -51,26 +51,26 @@ llvm::SmallVector<unsigned> getRepShapeForCvtLayout(mlir::triton::gpu::ConvertLa
 
 std::pair<llvm::SmallVector<unsigned>, llvm::SmallVector<unsigned>>
 getCvtOrder(mlir::Attribute srcLayout, mlir::Attribute dstLayout) {
-  auto srcMmaLayout = srcLayout.dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>();
-  auto srcDotLayout = srcLayout.dyn_cast<mlir::triton::gpu::DotOperandEncodingAttr>();
-  auto dstMmaLayout = dstLayout.dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>();
-  auto dstDotLayout = dstLayout.dyn_cast<mlir::triton::gpu::DotOperandEncodingAttr>();
+  auto srcMmaLayout = srcLayout.dyn_cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>();
+  auto srcDotLayout = srcLayout.dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>();
+  auto dstMmaLayout = dstLayout.dyn_cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>();
+  auto dstDotLayout = dstLayout.dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>();
   assert(!(srcMmaLayout && dstMmaLayout && !srcMmaLayout.isAmpere()) &&
     "mma -> mma layout conversion is only supported on Ampere");
 
   // mma or dot layout does not have an order, so the order depends on the
   // layout of the other operand.
-  auto inOrd = (srcMmaLayout || srcDotLayout) ? mlir::triton::gpu::getOrder(dstLayout)
-                                              : mlir::triton::gpu::getOrder(srcLayout);
+  auto inOrd = (srcMmaLayout || srcDotLayout) ? tritoncc::getOrder(dstLayout)
+                                              : tritoncc::getOrder(srcLayout);
 
-  auto outOrd = (dstMmaLayout || dstDotLayout) ? mlir::triton::gpu::getOrder(srcLayout)
-                                               : mlir::triton::gpu::getOrder(dstLayout);
+  auto outOrd = (dstMmaLayout || dstDotLayout) ? tritoncc::getOrder(srcLayout)
+                                               : tritoncc::getOrder(dstLayout);
 
   return {inOrd, outOrd};
 }
 
 llvm::SmallVector<unsigned>
-getScratchConfigForCvtLayout(mlir::triton::gpu::ConvertLayoutOp op, unsigned &inVec, unsigned &outVec) {
+getScratchConfigForCvtLayout(mlir::_tritoncc::ConvertLayoutOp op, unsigned &inVec, unsigned &outVec) {
   auto repShape = getRepShapeForCvtLayout(op);
   if (repShape.empty()) {
     return repShape;
@@ -83,9 +83,9 @@ getScratchConfigForCvtLayout(mlir::triton::gpu::ConvertLayoutOp op, unsigned &in
 
   auto [inOrd, outOrd] = getCvtOrder(srcLayout, dstLayout);
   unsigned srcContigPerThread =
-      mlir::triton::gpu::getUniqueContigPerThread(srcLayout, srcTy.getShape())[inOrd[0]];
+      tritoncc::getUniqueContigPerThread(srcLayout, srcTy.getShape())[inOrd[0]];
   unsigned dstContigPerThread =
-      mlir::triton::gpu::getUniqueContigPerThread(dstLayout, dstTy.getShape())[outOrd[0]];
+      tritoncc::getUniqueContigPerThread(dstLayout, dstTy.getShape())[outOrd[0]];
   unsigned innerDim = rank - 1;
   inVec = outOrd[0] != innerDim ? 1
           : inOrd[0] != innerDim ? 1 : srcContigPerThread;
@@ -93,7 +93,7 @@ getScratchConfigForCvtLayout(mlir::triton::gpu::ConvertLayoutOp op, unsigned &in
 
   // For conversions to MmaV1 (Nvidia V100), this inVec is hardcoded in the
   // codegen.
-  if (auto mma = srcLayout.dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>()) {
+  if (auto mma = srcLayout.dyn_cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>()) {
     if (mma.getVersionMajor() == 1) {
       inVec = srcContigPerThread;
     }
@@ -104,7 +104,7 @@ getScratchConfigForCvtLayout(mlir::triton::gpu::ConvertLayoutOp op, unsigned &in
   }
   // pad the last dimension
   unsigned paddedDim = rank - 1;
-  if (auto dstBlockedLayout = dstLayout.dyn_cast<mlir::triton::gpu::BlockedEncodingAttr>()) {
+  if (auto dstBlockedLayout = dstLayout.dyn_cast<mlir::_tritoncc::BlockedEncodingAttr>()) {
     paddedDim = dstBlockedLayout.getOrder()[0];
   }
   unsigned pad = std::max(inVec, outVec);
@@ -113,9 +113,9 @@ getScratchConfigForCvtLayout(mlir::triton::gpu::ConvertLayoutOp op, unsigned &in
 }
 
 struct ConvertLayoutOpConversion
-    : public mlir::ConvertOpToLLVMPattern<mlir::triton::gpu::ConvertLayoutOp> {
+    : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::ConvertLayoutOp> {
  public:
-  using ConvertOpToLLVMPattern<mlir::triton::gpu::ConvertLayoutOp>::ConvertOpToLLVMPattern;
+  using ConvertOpToLLVMPattern<mlir::_tritoncc::ConvertLayoutOp>::ConvertOpToLLVMPattern;
 
   // shared memory rd/st for blocked or mma layout with data padding
   void processReplica(mlir::Location loc, mlir::ConversionPatternRewriter &rewriter,
@@ -129,12 +129,12 @@ struct ConvertLayoutOpConversion
     auto accumNumCTAsEachRep = product<unsigned>(numCTAsEachRep);
     auto layout = type.getEncoding();
     auto rank = type.getRank();
-    auto sizePerThread = mlir::triton::gpu::getSizePerThread(layout);
+    auto sizePerThread = tritoncc::getSizePerThread(layout);
     auto accumSizePerThread = product<unsigned>(sizePerThread);
     llvm::SmallVector<unsigned> numCTATiles(rank);
-    auto shapePerCTATile = mlir::triton::gpu::getShapePerCTATile(layout);
-    auto shapePerCTA = mlir::triton::gpu::getShapePerCTA(layout, type.getShape());
-    auto order = mlir::triton::gpu::getOrder(layout);
+    auto shapePerCTATile = tritoncc::getShapePerCTATile(layout);
+    auto shapePerCTA = tritoncc::getShapePerCTA(layout, type.getShape());
+    auto order = tritoncc::getOrder(layout);
     for (unsigned d = 0; d < rank; ++d) {
       numCTATiles[d] = ceil<unsigned>(shapePerCTA[d], shapePerCTATile[d]);
     }
@@ -203,7 +203,7 @@ struct ConvertLayoutOpConversion
   }
 
   bool isStMatrixCompatible(mlir::RankedTensorType tensorTy) const {
-    auto mmaLayout = tensorTy.getEncoding().dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>();
+    auto mmaLayout = tensorTy.getEncoding().dyn_cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>();
     if (!mmaLayout || !mmaLayout.isHopper()) {
       return false;
     }
@@ -211,7 +211,7 @@ struct ConvertLayoutOpConversion
   }
 
   mlir::LogicalResult
-  lowerDistributedToDistributed(mlir::triton::gpu::ConvertLayoutOp op,
+  lowerDistributedToDistributed(mlir::_tritoncc::ConvertLayoutOp op,
       OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const {
     auto loc = op.getLoc();
@@ -234,27 +234,27 @@ struct ConvertLayoutOpConversion
     llvm::SmallVector<unsigned> outNumCTAsEachRep(rank);
     llvm::SmallVector<unsigned> inNumCTAs(rank);
     llvm::SmallVector<unsigned> outNumCTAs(rank);
-    auto srcShapePerCTATile = mlir::triton::gpu::getShapePerCTATile(srcLayout, srcTy.getShape());
-    auto dstShapePerCTATile = mlir::triton::gpu::getShapePerCTATile(dstLayout, shape);
-    auto shapePerCTA = mlir::triton::gpu::getShapePerCTA(srcLayout, shape);
+    auto srcShapePerCTATile = tritoncc::getShapePerCTATile(srcLayout, srcTy.getShape());
+    auto dstShapePerCTATile = tritoncc::getShapePerCTATile(dstLayout, shape);
+    auto shapePerCTA = tritoncc::getShapePerCTA(srcLayout, shape);
 
     // For Volta, all the coords for a CTA are calculated.
     bool isSrcMmaV1{}, isDstMmaV1{};
-    if (auto mmaLayout = srcLayout.dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>()) {
+    if (auto mmaLayout = srcLayout.dyn_cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>()) {
       isSrcMmaV1 = mmaLayout.isVolta();
     }
-    if (auto sliceLayout = srcLayout.dyn_cast<mlir::triton::gpu::SliceEncodingAttr>()) {
+    if (auto sliceLayout = srcLayout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
       isSrcMmaV1 =
-          sliceLayout.getParent().isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>() &&
-          sliceLayout.getParent().cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>().isVolta();
+          sliceLayout.getParent().isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>() &&
+          sliceLayout.getParent().cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>().isVolta();
     }
-    if (auto mmaLayout = dstLayout.dyn_cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>()) {
+    if (auto mmaLayout = dstLayout.dyn_cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>()) {
       isDstMmaV1 = mmaLayout.isVolta();
     }
-    if (auto sliceLayout = dstLayout.dyn_cast<mlir::triton::gpu::SliceEncodingAttr>()) {
+    if (auto sliceLayout = dstLayout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
       isDstMmaV1 =
-          sliceLayout.getParent().isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>() &&
-          sliceLayout.getParent().cast<mlir::triton::gpu::NvidiaMmaEncodingAttr>().isVolta();
+          sliceLayout.getParent().isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>() &&
+          sliceLayout.getParent().cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>().isVolta();
     }
 
     for (unsigned d = 0; d < rank; ++d) {
@@ -279,8 +279,8 @@ struct ConvertLayoutOpConversion
       assert(false && "fp8");
     }
 
-    unsigned outElems = mlir::triton::gpu::getTotalElemsPerThread(dstTy);
-    auto outOrd = mlir::triton::gpu::getOrder(dstLayout);
+    unsigned outElems = tritoncc::getTotalElemsPerThread(dstTy);
+    auto outOrd = tritoncc::getOrder(dstLayout);
     llvm::SmallVector<mlir::Value> outVals(outElems);
 
     for (unsigned repId = 0; repId < accumNumReplicates; ++repId) {
@@ -289,9 +289,9 @@ struct ConvertLayoutOpConversion
       if (repId != 0) {
         barrier();
       }
-      if (srcLayout.isa<mlir::triton::gpu::BlockedEncodingAttr>() ||
-          srcLayout.isa<mlir::triton::gpu::SliceEncodingAttr>() ||
-          srcLayout.isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>()) {
+      if (srcLayout.isa<mlir::_tritoncc::BlockedEncodingAttr>() ||
+          srcLayout.isa<mlir::_tritoncc::SliceEncodingAttr>() ||
+          srcLayout.isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>()) {
         if (isSrcMmaV1) {
           assert(false && "isSrcMmaV1");
         } else if (isStMatrixCompatible(srcTy) && accumNumReplicates == 1 &&
@@ -309,9 +309,9 @@ struct ConvertLayoutOpConversion
       }
 
       barrier();
-      if (dstLayout.isa<mlir::triton::gpu::BlockedEncodingAttr>() ||
-          dstLayout.isa<mlir::triton::gpu::SliceEncodingAttr>() ||
-          dstLayout.isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>()) {
+      if (dstLayout.isa<mlir::_tritoncc::BlockedEncodingAttr>() ||
+          dstLayout.isa<mlir::_tritoncc::SliceEncodingAttr>() ||
+          dstLayout.isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>()) {
         if (isDstMmaV1) {
           assert(false && "isDstMmaV1");
         } else {
@@ -334,7 +334,7 @@ struct ConvertLayoutOpConversion
   }
 
   mlir::LogicalResult
-  matchAndRewrite(mlir::triton::gpu::ConvertLayoutOp op, OpAdaptor adaptor,
+  matchAndRewrite(mlir::_tritoncc::ConvertLayoutOp op, OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::RankedTensorType srcTy = op.getSrc().getType();
     mlir::RankedTensorType dstTy = op.getType();
@@ -350,11 +350,11 @@ struct ConvertLayoutOpConversion
       assert(false && "distributed to shared");
     }
     if (srcLayout.isa<mlir::triton::gpu::SharedEncodingAttr>() &&
-        dstLayout.isa<mlir::triton::gpu::DotOperandEncodingAttr>()) {
+        dstLayout.isa<mlir::_tritoncc::DotOperandEncodingAttr>()) {
       assert(false && "shared to dot");
     }
-    if (srcLayout.isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>() &&
-        dstLayout.isa<mlir::triton::gpu::NvidiaMmaEncodingAttr>()) {
+    if (srcLayout.isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>() &&
+        dstLayout.isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>()) {
       assert(false && "mma to mma");
     }
     if (isaDistributedLayout(srcLayout) && isaDistributedLayout(dstLayout)) {
@@ -385,12 +385,12 @@ struct ConvertLayoutOpConversion
       llvm::ArrayRef<unsigned> shapePerCTATile) const {
     auto shape = type.getShape();
     unsigned rank = shape.size();
-    if (auto blockedLayout = layout.dyn_cast<mlir::triton::gpu::BlockedEncodingAttr>()) {
+    if (auto blockedLayout = layout.dyn_cast<mlir::_tritoncc::BlockedEncodingAttr>()) {
       auto multiDimOffsetFirstElem = 
           emitBaseIndexForLayout(loc, rewriter, blockedLayout, type, false);
       llvm::SmallVector<mlir::Value> multiDimOffset(rank);
       llvm::SmallVector<unsigned> multiDimElemId = getMultiDimIndex<unsigned>(
-          elemId, mlir::triton::gpu::getSizePerThread(layout), mlir::triton::gpu::getOrder(layout));
+          elemId, tritoncc::getSizePerThread(layout), tritoncc::getOrder(layout));
       for (unsigned d = 0; d < rank; ++d) {
         multiDimOffset[d] =
             macro_add(multiDimOffsetFirstElem[d],
@@ -399,10 +399,10 @@ struct ConvertLayoutOpConversion
       }
       return multiDimOffset;
     }
-    if (auto sliceLayout = layout.dyn_cast<mlir::triton::gpu::SliceEncodingAttr>()) {
+    if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
       unsigned dim = sliceLayout.getDim();
       auto parentEncoding = sliceLayout.getParent();
-      auto parentSizePerThread = mlir::triton::gpu::getSizePerThread(parentEncoding);
+      auto parentSizePerThread = tritoncc::getSizePerThread(parentEncoding);
       auto parentShape = sliceLayout.paddedShape(shape);
       auto parentTy = mlir::RankedTensorType::get(parentShape, type.getElementType(), parentEncoding);
       auto offsets = tritoncc::emitOffsetForLayout(layout, type);

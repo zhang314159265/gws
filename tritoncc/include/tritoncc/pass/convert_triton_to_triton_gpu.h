@@ -55,8 +55,8 @@ class TritonGPUTypeConverter : public mlir::TypeConverter {
         return tensorType;
       }
       llvm::ArrayRef<int64_t> shape = tensorType.getShape();
-      mlir::triton::gpu::BlockedEncodingAttr encoding =
-        mlir::triton::gpu::getDefaultBlockedEncoding(this->context, shape, this->numWarps,
+      mlir::_tritoncc::BlockedEncodingAttr encoding =
+        tritoncc::getDefaultBlockedEncoding(this->context, shape, this->numWarps,
             this->threadsPerWarp, this->numCTAs);
       return mlir::RankedTensorType::get(shape, tensorType.getElementType(), encoding);
     });
@@ -65,7 +65,7 @@ class TritonGPUTypeConverter : public mlir::TypeConverter {
       mlir::OpBuilder &builder, mlir::RankedTensorType tensorType,
       mlir::ValueRange inputs, mlir::Location loc) {
 
-      mlir::triton::gpu::ConvertLayoutOp cast = builder.create<mlir::triton::gpu::ConvertLayoutOp>(loc, tensorType, inputs);
+      mlir::_tritoncc::ConvertLayoutOp cast = builder.create<mlir::_tritoncc::ConvertLayoutOp>(loc, tensorType, inputs);
       return std::optional<mlir::Value>(cast.getResult());
     });
   }
@@ -80,7 +80,7 @@ class TritonGPUConversionTarget : public mlir::ConversionTarget {
  public:
   explicit TritonGPUConversionTarget(mlir::MLIRContext &context, TritonGPUTypeConverter &typeConverter)
       : mlir::ConversionTarget(context) {
-    addLegalDialect<mlir::triton::gpu::TritonGPUDialect>();
+    addLegalDialect<mlir::_tritoncc::TritonGPUDialect>();
 
     addDynamicallyLegalDialect<mlir::arith::ArithDialect, mlir::triton::TritonDialect>([&](mlir::Operation *op) -> std::optional<bool> {
       bool hasLegalRegions = true;
@@ -121,7 +121,7 @@ class TritonExpandDimsPattern : public mlir::OpConversionPattern<mlir::triton::E
     if (!_argEncoding) {
       return mlir::failure();
     }
-    mlir::triton::gpu::BlockedEncodingAttr argEncoding = _argEncoding.cast<mlir::triton::gpu::BlockedEncodingAttr>();
+    mlir::_tritoncc::BlockedEncodingAttr argEncoding = _argEncoding.cast<mlir::_tritoncc::BlockedEncodingAttr>();
     std::vector<long> retShape = argType.getShape().vec();
     retShape.insert(retShape.begin() + op.getAxis(), 1);
 
@@ -136,29 +136,29 @@ class TritonExpandDimsPattern : public mlir::OpConversionPattern<mlir::triton::E
     std::iota(retOrder.begin(), retOrder.end(), 0);
 
     // cta layout
-    mlir::triton::gpu::CTALayoutAttr argCTALayout = argEncoding.getCTALayout();
+    mlir::_tritoncc::CTALayoutAttr argCTALayout = argEncoding.getCTALayout();
     llvm::SmallVector<unsigned> retCTAsPerCGA{argCTALayout.getCTAsPerCGA()};
     retCTAsPerCGA.insert(retCTAsPerCGA.begin() + op.getAxis(), 1);
     llvm::SmallVector<unsigned> retCTASplitNum{argCTALayout.getCTASplitNum()};
     retCTASplitNum.insert(retCTASplitNum.begin() + op.getAxis(), 1);
     llvm::SmallVector<unsigned> retCTAOrder = insertOrder(argCTALayout.getCTAOrder(), op.getAxis());
-    mlir::triton::gpu::CTALayoutAttr retCTALayout = mlir::triton::gpu::CTALayoutAttr::get(
+    mlir::_tritoncc::CTALayoutAttr retCTALayout = mlir::_tritoncc::CTALayoutAttr::get(
       getContext(),
       retCTAsPerCGA,
       retCTASplitNum,
       retCTAOrder);
-    mlir::triton::gpu::BlockedEncodingAttr retEncoding =
-        mlir::triton::gpu::BlockedEncodingAttr::get(getContext(), retSizePerThread,
+    mlir::_tritoncc::BlockedEncodingAttr retEncoding =
+        mlir::_tritoncc::BlockedEncodingAttr::get(getContext(), retSizePerThread,
           retThreadsPerWarp, retWarpsPerCTA,
           retOrder, retCTALayout);
     // convert operand to slice of return type
-    mlir::Attribute newArgEncoding = mlir::triton::gpu::SliceEncodingAttr::get(
+    mlir::Attribute newArgEncoding = mlir::_tritoncc::SliceEncodingAttr::get(
       getContext(), op.getAxis(), retEncoding
     );
     mlir::RankedTensorType newArgType = mlir::RankedTensorType::get(
         argType.getShape(), argType.getElementType(), newArgEncoding);
     // construct new op
-    mlir::triton::gpu::ConvertLayoutOp newSrc = rewriter.create<mlir::triton::gpu::ConvertLayoutOp>(
+    mlir::_tritoncc::ConvertLayoutOp newSrc = rewriter.create<mlir::_tritoncc::ConvertLayoutOp>(
       op.getLoc(), newArgType, adaptor.getSrc());
     addNamedAttrs(
       rewriter.replaceOpWithNewOp<mlir::triton::ExpandDimsOp>(
@@ -220,13 +220,13 @@ class TritonCatPattern : public mlir::OpConversionPattern<mlir::triton::CatOp> {
   mlir::LogicalResult matchAndRewrite(mlir::triton::CatOp op, OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::RankedTensorType retType = getTypeConverter()->convertType(op.getType()).cast<mlir::RankedTensorType>();
-    mlir::triton::gpu::BlockedEncodingAttr retEncoding
-        = retType.getEncoding().cast<mlir::triton::gpu::BlockedEncodingAttr>();
+    mlir::_tritoncc::BlockedEncodingAttr retEncoding
+        = retType.getEncoding().cast<mlir::_tritoncc::BlockedEncodingAttr>();
     mlir::Type lhsType = adaptor.getLhs().getType();
     mlir::Type rhsType = adaptor.getRhs().getType();
-    int lhsTotalElemsPerThread = mlir::triton::gpu::getTotalElemsPerThread(lhsType);
-    int rhsTotalElemsPerThread = mlir::triton::gpu::getTotalElemsPerThread(rhsType);
-    int retTotalElemsPerThread = mlir::triton::gpu::getTotalElemsPerThread(retType);
+    int lhsTotalElemsPerThread = tritoncc::getTotalElemsPerThread(lhsType);
+    int rhsTotalElemsPerThread = tritoncc::getTotalElemsPerThread(rhsType);
+    int retTotalElemsPerThread = tritoncc::getTotalElemsPerThread(retType);
     llvm::ArrayRef<long> retShape = retType.getShape();
     llvm::ArrayRef<unsigned> retOrder = retEncoding.getOrder();
     llvm::SmallVector<unsigned> retSizePerThread = retEncoding.getSizePerThread();
@@ -238,8 +238,8 @@ class TritonCatPattern : public mlir::OpConversionPattern<mlir::triton::CatOp> {
     assert(newRetTotalElemsPerThread == retTotalElemsPerThread);
     llvm::SmallVector<unsigned> newRetSizePerThread = retSizePerThread;
     newRetSizePerThread[retOrder[0]] *= newRetTotalElemsPerThread / retTotalElemsPerThread;
-    mlir::triton::gpu::BlockedEncodingAttr newRetEncoding =
-      mlir::triton::gpu::BlockedEncodingAttr::get(
+    mlir::_tritoncc::BlockedEncodingAttr newRetEncoding =
+      mlir::_tritoncc::BlockedEncodingAttr::get(
         getContext(), newRetSizePerThread, retThreadsPerWarp,
         retWarpsPerCTA, retOrder, retEncoding.getCTALayout());
     mlir::RankedTensorType newRetType = mlir::RankedTensorType::get(retShape, retType.getElementType(), newRetEncoding);

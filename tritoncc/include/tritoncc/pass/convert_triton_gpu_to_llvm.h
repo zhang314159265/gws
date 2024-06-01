@@ -16,13 +16,81 @@
 
 namespace tritoncc {
 
+class TritonGPUToLLVMTypeConverter : public mlir::LLVMTypeConverter {
+ public:
+  using TypeConverter::convertType;
+
+  TritonGPUToLLVMTypeConverter(mlir::MLIRContext *ctx, mlir::LowerToLLVMOptions &option, const mlir::DataLayoutAnalysis *analysis = nullptr) : LLVMTypeConverter(ctx, option, analysis) {
+    addConversion([&](mlir::triton::PointerType type) -> std::optional<mlir::Type> {
+      return convertTritonPointerType(type);
+    });
+    addConversion([&](mlir::RankedTensorType type) -> std::optional<mlir::Type> {
+      return convertTritonTensorType(type);
+    });
+    // Internally store float8 as int8
+    addConversion([&](mlir::Float8E4M3B11FNUZType type) -> std::optional<mlir::Type> {
+      assert(false && "fp8");
+    });
+    addConversion([&](mlir::Float8E4M3FNType type) -> std::optional<mlir::Type> {
+      return mlir::IntegerType::get(type.getContext(), 8);
+    });
+    addConversion([&](mlir::Float8E4M3FNUZType type) -> std::optional<mlir::Type> {
+      return mlir::IntegerType::get(type.getContext(), 8);
+    });
+    addConversion([&](mlir::Float8E5M2Type type) -> std::optional<mlir::Type> {
+      return mlir::IntegerType::get(type.getContext(), 8);
+    });
+    // Internally store bfloat16 as int16
+    addConversion([&](mlir::BFloat16Type type) -> std::optional<mlir::Type> {
+      return mlir::IntegerType::get(type.getContext(), 16);
+    });
+  }
+
+  mlir::Type convertTritonPointerType(mlir::triton::PointerType type) {
+    auto ctx = type.getContext();
+    auto pointeeType = type.getPointeeType();
+    if (pointeeType.isa<mlir::RankedTensorType>()) {
+      assert(false && "convertTritonPointerType");
+    }
+    return mlir::LLVM::LLVMPointerType::get(ctx, type.getAddressSpace());
+  }
+
+  mlir::Type getElementTypeForStruct(
+      mlir::RankedTensorType type) {
+    auto ctx = type.getContext();
+    mlir::Attribute layout = type.getEncoding();
+    mlir::Type elemTy = convertType(type.getElementType());
+    auto dotOpLayout = layout.dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>();
+    if (!dotOpLayout) {
+      return elemTy;
+    }
+    assert(false && "getElementTypeForStruct");
+  }
+
+  mlir::Type convertTritonTensorType(
+      mlir::RankedTensorType type) {
+    auto ctx = type.getContext();
+    mlir::Attribute layout = type.getEncoding();
+    llvm::SmallVector<int64_t> shape(type.getShape().begin(), type.getShape().end());
+    mlir::Type eltType = getElementTypeForStruct(type);
+
+    if (auto shared_layout = layout.dyn_cast<mlir::_tritoncc::SharedEncodingAttr>()) {
+      assert(false && "shared_layout");
+    }
+
+    unsigned numElementsPerThread = getTotalElemsPerThread(type);
+    llvm::SmallVector<mlir::Type, 4> types(numElementsPerThread, eltType);
+    return mlir::LLVM::LLVMStructType::getLiteral(ctx, types);
+  }
+};
+
 class TritonLLVMConversionTarget : public mlir::ConversionTarget {
  public:
   explicit TritonLLVMConversionTarget(mlir::MLIRContext &ctx)
       : ConversionTarget(ctx) {
     addLegalDialect<mlir::LLVM::LLVMDialect>();
     addLegalDialect<mlir::NVVM::NVVMDialect>();
-    addLegalDialect<mlir::_tritoncc::NVGPUDialect>();
+    addLegalDialect<mlir::_tritoncc::nvgpu::NVGPUDialect>();
     addIllegalDialect<mlir::triton::TritonDialect>();
     addIllegalDialect<mlir::triton::gpu::TritonGPUDialect>();
     addIllegalDialect<mlir::_tritoncc::TritonNvidiaGPUDialect>();
@@ -68,7 +136,7 @@ struct ConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     option.overrideIndexBitwidth(32);
 
     TritonLLVMConversionTarget convTarget(*context);
-    TritonGPUToLLVMTypeConverter typeConverter(context, option);
+    tritoncc::TritonGPUToLLVMTypeConverter typeConverter(context, option);
     int benefit = 10;
     int numWarps = triton::gpu::TritonGPUDialect::getNumWarps(mod);
     int numCTAs = triton::gpu::TritonGPUDialect::getNumCTAs(mod);
@@ -76,7 +144,7 @@ struct ConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     // lower functions
     {
       mlir::LowerToLLVMOptions option(context);
-      TritonGPUToLLVMTypeConverter typeConverter(context, option);
+      tritoncc::TritonGPUToLLVMTypeConverter typeConverter(context, option);
       TritonLLVMFunctionConversionTarget funcTarget(*context);
       mlir::RewritePatternSet funcPatterns(context);
       funcPatterns.add<FuncOpConversion>(typeConverter, numWarps, /*benefit=*/1);

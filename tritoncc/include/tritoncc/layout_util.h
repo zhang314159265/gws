@@ -9,7 +9,7 @@ unsigned getNumElementsPerThread(mlir::Operation *op, llvm::SmallVector<unsigned
   mlir::Value val = getMemAccessPtr(op);
   assert(val.getType().isa<mlir::RankedTensorType>());
   auto ty = val.getType().cast<mlir::RankedTensorType>();
-  auto shapePerCTA = mlir::triton::gpu::getShapePerCTA(ty);
+  auto shapePerCTA = tritoncc::getShapePerCTA(ty);
   AxisInfo &valInfo = *axisInfoAnalysis.getAxisInfo(val);
   unsigned elemNumBits = getElementBitWidth(ty);
   unsigned elemNumBytes = std::max(elemNumBits / 8, 1u);

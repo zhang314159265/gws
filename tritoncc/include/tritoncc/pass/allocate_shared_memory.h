@@ -195,7 +195,7 @@ class AllocationAnalysis {
       assert(false && "ScanOp");
     } else if (auto histogram = llvm::dyn_cast<mlir::triton::HistogramOp>(op)) {
       assert(false && "HistogramOp");
-    } else if (auto cvtLayout = llvm::dyn_cast<mlir::triton::gpu::ConvertLayoutOp>(op)) {
+    } else if (auto cvtLayout = llvm::dyn_cast<mlir::_tritoncc::ConvertLayoutOp>(op)) {
       auto srcTy = cvtLayout.getSrc().getType();
       auto dstTy = cvtLayout.getType();
       auto srcEncoding = srcTy.getEncoding();
