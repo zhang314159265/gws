@@ -51,7 +51,7 @@ class ElementwiseOpConversionBase : public mlir::ConvertOpToLLVMPattern<SourceOp
       mlir::LLVMTypeConverter &typeConverter,
       ModuleAxisInfoAnalysis &axisAnalysisPass,
       mlir::PatternBenefit benefit)
-    : ConvertOpToLLVMPattern<SourceOp>(typeConverter, benefit),
+    : mlir::ConvertOpToLLVMPattern<SourceOp>(typeConverter, benefit),
       axisAnalysisPass(axisAnalysisPass) { }
 
   mlir::LogicalResult

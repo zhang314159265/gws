@@ -28,7 +28,7 @@ struct FuncOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::Func
     if (tritoncc::isKernel(funcOp)) {
       // Set an attribute to indicate this function is a kernel entry.
       newFuncOp->setAttr("nvvm.kernel",
-        rewriter.getIntegerAttr(type::u1Ty(ctx), 1));
+        rewriter.getIntegerAttr(tritoncc::type::u1Ty(ctx), 1));
     } else {
       assert(false && "device function");
     }

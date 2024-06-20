@@ -363,4 +363,10 @@ auto applyPermutation(const VecT &vec, const PermT &permutation) {
   return applyPermutation(llvm::ArrayRef(vec), llvm::ArrayRef(permutation));
 }
 
+namespace type {
+mlir::Type u1Ty(mlir::MLIRContext *ctx) {
+  return mlir::IntegerType::get(ctx, 1, mlir::IntegerType::Unsigned);
+}
+}
+
 }

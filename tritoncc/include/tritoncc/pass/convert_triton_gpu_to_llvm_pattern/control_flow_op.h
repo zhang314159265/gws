@@ -42,7 +42,7 @@ void populateControlFlowOpToLLVMPattern(
 #else
 void populateControlFlowOpToLLVMPattern(
     mlir::LLVMTypeConverter &typeConverter, mlir::RewritePatternSet &patterns,
-    PatternBenefit benefit) {
+    mlir::PatternBenefit benefit) {
   patterns.add<ReturnOpConversion>(typeConverter, benefit);
 }
 #endif

@@ -80,13 +80,13 @@ unsigned LoadStoreConversionBase::getVectorSize(mlir::Value ptr) const {
   return std::min<unsigned>(128 / pointeeBitWidth, contiguity);
 }
 
-struct LoadOpConversion : public ConvertOpToLLVMPattern<mlir::triton::LoadOp>,
+struct LoadOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::LoadOp>,
                           public LoadStoreConversionBase {
   using ConvertOpToLLVMPattern<mlir::triton::LoadOp>::ConvertOpToLLVMPattern;
 
-  LoadOpConversion(LLVMTypeConverter &converter,
+  LoadOpConversion(mlir::LLVMTypeConverter &converter,
       ModuleAxisInfoAnalysis &axisAnalysisPass,
-      PatternBenefit benefit)
+      mlir::PatternBenefit benefit)
       : ConvertOpToLLVMPattern<mlir::triton::LoadOp>(converter, benefit),
         LoadStoreConversionBase(axisAnalysisPass) {}
 
@@ -172,7 +172,7 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
 
     const bool hasL2EvictPolicy = false;
 
-    PTXBuilder ptxBuilder;
+    mlir::triton::PTXBuilder ptxBuilder;
 
     mlir::Value pred = mask ? maskElems[vecStart] : int_val(1, 1);
 
@@ -195,12 +195,12 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
     auto &ld = ptxBuilder.create<>("ld")
         ->o("volatile", op.getIsVolatile())
         .global()
-        .o("ca", op.getCache() == triton::CacheModifier::CA)
-        .o("cg", op.getCache() == triton::CacheModifier::CG)
+        .o("ca", op.getCache() == mlir::triton::CacheModifier::CA)
+        .o("cg", op.getCache() == mlir::triton::CacheModifier::CG)
         .o("L1::evict_first",
-            op.getEvict() == triton::EvictionPolicy::EVICT_FIRST)
+            op.getEvict() == mlir::triton::EvictionPolicy::EVICT_FIRST)
         .o("L1::evict_last",
-            op.getEvict() == triton::EvictionPolicy::EVICT_LAST)
+            op.getEvict() == mlir::triton::EvictionPolicy::EVICT_LAST)
         .o("L1::cache_hint", hasL2EvictPolicy)
         .v(nWords)
         .b(width);
@@ -210,12 +210,12 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
     if (other) {
       for (size_t ii = 0; ii < nWords; ++ii) {
         // PTX doesn't support mov.u8, so we need to use mov.u16
-        PTXInstr &mov =
+        mlir::triton::PTXInstr &mov =
             ptxBuilder.create<>("mov")->o("u" + std::to_string(movWidth));
         
         size_t size = width / valueElemNBits;
 
-        auto vecTy = LLVM::getFixedVectorType(valueElemTy, size);
+        auto vecTy = mlir::LLVM::getFixedVectorType(valueElemTy, size);
         mlir::Value v = macro_undef(vecTy);
         for (size_t s = 0; s < size; ++s) {
           mlir::Value falseVal = otherElems[vecStart + ii * size + s];
@@ -225,7 +225,7 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
         }
         v = bitcast(v, mlir::IntegerType::get(getContext(), width));
 
-        PTXInstr::Operand *opr{};
+        mlir::triton::PTXInstr::Operand *opr{};
 
         if (otherIsSplatConstInt) {
           for (size_t s = 0; s < 32; s += valueElemNBits) {
@@ -243,7 +243,7 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
     // Create inline ASM signature
     llvm::SmallVector<mlir::Type> retTys(nWords, mlir::IntegerType::get(getContext(), width));
     mlir::Type retTy = retTys.size() > 1
-        ? LLVM::LLVMStructType::getLiteral(getContext(), retTys)
+        ? mlir::LLVM::LLVMStructType::getLiteral(getContext(), retTys)
         : retTys[0];
 
     mlir::Value ret = ptxBuilder.launch(rewriter, loc, retTy);
@@ -252,12 +252,12 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
     llvm::SmallVector<mlir::Value> rets;
     for (unsigned int ii = 0; ii < nWords; ++ii) {
       mlir::Value curr;
-      if (retTy.isa<LLVM::LLVMStructType>()) {
-        curr = extract_val(IntegerType::get(getContext(), width), ret, ii);
+      if (retTy.isa<mlir::LLVM::LLVMStructType>()) {
+        curr = extract_val(mlir::IntegerType::get(getContext(), width), ret, ii);
       } else {
         curr = ret;
       }
-      curr = bitcast(curr, LLVM::getFixedVectorType(valueElemTy,
+      curr = bitcast(curr, mlir::LLVM::getFixedVectorType(valueElemTy,
           width / valueElemNBits));
       rets.push_back(curr);
     }
@@ -279,13 +279,13 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
   return mlir::success();
 }
 
-struct StoreOpConversion : public ConvertOpToLLVMPattern<mlir::triton::StoreOp>,
+struct StoreOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::StoreOp>,
     public LoadStoreConversionBase {
   using ConvertOpToLLVMPattern<mlir::triton::StoreOp>::ConvertOpToLLVMPattern;
 
-  StoreOpConversion(LLVMTypeConverter &converter,
+  StoreOpConversion(mlir::LLVMTypeConverter &converter,
       ModuleAxisInfoAnalysis &axisAnalysisPass,
-      PatternBenefit benefit) : ConvertOpToLLVMPattern<mlir::triton::StoreOp>(converter, benefit), LoadStoreConversionBase(axisAnalysisPass) {}
+      mlir::PatternBenefit benefit) : ConvertOpToLLVMPattern<mlir::triton::StoreOp>(converter, benefit), LoadStoreConversionBase(axisAnalysisPass) {}
 
   mlir::LogicalResult matchAndRewrite(
       mlir::triton::StoreOp op,
@@ -370,7 +370,7 @@ mlir::LogicalResult StoreOpConversion::matchAndRewrite(
     }
 
     // Prepare the PTX inline asm
-    PTXBuilder ptxBuilder;
+    mlir::triton::PTXBuilder ptxBuilder;
     auto *asmArgList = ptxBuilder.newListOperand(asmArgs);
 
     mlir::Value maskVal = llMask ? and_(mask, maskElems[vecStart]) : mask;

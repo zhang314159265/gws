@@ -124,8 +124,8 @@ struct BroadcastOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton:
 };
 
 void populateViewOpToLLVMPatterns(
-  mlir::LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
-  PatternBenefit benefit
+  mlir::LLVMTypeConverter &typeConverter, mlir::RewritePatternSet &patterns,
+  mlir::PatternBenefit benefit
 ) {
   patterns.add<SplatOpConversion>(typeConverter, benefit);
   patterns.add<ExpandDimsOpConversion>(typeConverter, benefit);

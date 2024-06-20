@@ -190,7 +190,7 @@ struct ConvertLayoutOpConversion
             mlir::Value currVal = extract_element(llvmElemTy, valVec, i32_val(v));
             if (isInt1) {
               currVal = icmp_ne(currVal,
-                  rewriter.create<LLVM::ConstantOp>(
+                  rewriter.create<mlir::LLVM::ConstantOp>(
                     loc, i8_ty, rewriter.getI8IntegerAttr(0)));
             } else if (isPtr) {
               currVal = inttoptr(llvmElemTyOrig, currVal);
@@ -346,10 +346,10 @@ struct ConvertLayoutOpConversion
         << ", dst type " << dstTy << "\n";
     });
 
-    if (tritoncc::isaDistributedLayout(srcLayout) && dstLayout.isa<mlir::triton::gpu::SharedEncodingAttr>()) {
+    if (tritoncc::isaDistributedLayout(srcLayout) && dstLayout.isa<mlir::_tritoncc::SharedEncodingAttr>()) {
       assert(false && "distributed to shared");
     }
-    if (srcLayout.isa<mlir::triton::gpu::SharedEncodingAttr>() &&
+    if (srcLayout.isa<mlir::_tritoncc::SharedEncodingAttr>() &&
         dstLayout.isa<mlir::_tritoncc::DotOperandEncodingAttr>()) {
       assert(false && "shared to dot");
     }

@@ -200,8 +200,8 @@ class AllocationAnalysis {
       auto dstTy = cvtLayout.getType();
       auto srcEncoding = srcTy.getEncoding();
       auto dstEncoding = dstTy.getEncoding();
-      if (srcEncoding.isa<mlir::triton::gpu::SharedEncodingAttr>() ||
-          dstEncoding.isa<mlir::triton::gpu::SharedEncodingAttr>()) {
+      if (srcEncoding.isa<mlir::_tritoncc::SharedEncodingAttr>() ||
+          dstEncoding.isa<mlir::_tritoncc::SharedEncodingAttr>()) {
         // Conversions from/to shared memory do not need scratch memory.
         return;
       }
@@ -506,7 +506,7 @@ struct AllocateSharedMemory : public mlir::OperationPass<mlir::ModuleOp> {
           return;
         }
         op->setAttr("allocation.offset",
-            IntegerAttr::get(IntegerType::get(ctx, 32), offset));
+            mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 32), offset));
       });
     });
     mod->setAttr("triton_gpu.shared",

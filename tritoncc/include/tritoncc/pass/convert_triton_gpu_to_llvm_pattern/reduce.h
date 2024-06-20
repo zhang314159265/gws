@@ -146,7 +146,7 @@ void ReduceOpConversion::accumulatePartialReductions(ReduceOpHelper &helper, llv
   auto mod = op.getOperation()->getParentOfType<mlir::ModuleOp>();
   unsigned numThreads =
       product<unsigned>(tritoncc::getWarpsPerCTA(srcLayout)) *
-      mlir::triton::gpu::TritonGPUDialect::getThreadsPerWarp(mod);
+      mlir::_tritoncc::TritonGPUDialect::getThreadsPerWarp(mod);
 
   unsigned elemsPerThread = std::max<unsigned>(elems / numThreads, 1);
   mlir::Value threadIsNeeded = icmp_slt(threadId, i32_val(elems));

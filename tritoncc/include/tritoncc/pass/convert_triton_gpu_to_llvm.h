@@ -2,7 +2,7 @@
 
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "tritoncc/nvidia_util.h"
-#include "TypeConverter.h"
+// #include "TypeConverter.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/reduce.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/make_range.h"
 #include "tritoncc/pass/convert_triton_gpu_to_llvm_pattern/func_op.h"
@@ -92,7 +92,7 @@ class TritonLLVMConversionTarget : public mlir::ConversionTarget {
     addLegalDialect<mlir::NVVM::NVVMDialect>();
     addLegalDialect<mlir::_tritoncc::nvgpu::NVGPUDialect>();
     addIllegalDialect<mlir::triton::TritonDialect>();
-    addIllegalDialect<mlir::triton::gpu::TritonGPUDialect>();
+    addIllegalDialect<mlir::_tritoncc::TritonGPUDialect>();
     addIllegalDialect<mlir::_tritoncc::TritonNvidiaGPUDialect>();
     addIllegalDialect<mlir::gpu::GPUDialect>();
     addLegalOp<mlir::UnrealizedConversionCastOp>();
@@ -138,8 +138,8 @@ struct ConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     TritonLLVMConversionTarget convTarget(*context);
     tritoncc::TritonGPUToLLVMTypeConverter typeConverter(context, option);
     int benefit = 10;
-    int numWarps = triton::gpu::TritonGPUDialect::getNumWarps(mod);
-    int numCTAs = triton::gpu::TritonGPUDialect::getNumCTAs(mod);
+    int numWarps = mlir::_tritoncc::TritonGPUDialect::getNumWarps(mod);
+    int numCTAs = mlir::_tritoncc::TritonGPUDialect::getNumCTAs(mod);
 
     // lower functions
     {
@@ -188,7 +188,7 @@ struct ConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     auto arrayTy = mlir::LLVM::LLVMArrayType::get(elemTy, 0);
     B.create<mlir::LLVM::GlobalOp>(
       loc, arrayTy, /*isConstant=*/false, mlir::LLVM::Linkage::External,
-      "global_smem", /*value=*/Attribute(), /*alignment=*/16,
+      "global_smem", /*value=*/mlir::Attribute(), /*alignment=*/16,
       static_cast<unsigned>(mlir::NVVM::NVVMMemorySpace::kSharedMemorySpace));
   }
 
