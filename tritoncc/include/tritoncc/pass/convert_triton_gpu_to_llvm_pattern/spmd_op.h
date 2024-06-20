@@ -3,11 +3,11 @@
 namespace tritoncc {
 
 struct GetProgramIdOpConversion
-    : public mlir::ConvertOpToLLVMPattern<mlir::triton::GetProgramIdOp> {
-  using ConvertOpToLLVMPattern<mlir::triton::GetProgramIdOp>::ConvertOpToLLVMPattern;
+    : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::GetProgramIdOp> {
+  using ConvertOpToLLVMPattern<mlir::_tritoncc::GetProgramIdOp>::ConvertOpToLLVMPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(mlir::triton::GetProgramIdOp op, OpAdaptor adaptor,
+  matchAndRewrite(mlir::_tritoncc::GetProgramIdOp op, OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Value programId = tritoncc::llGetPid(
         op.getAxisAsInt(), op->getLoc(),

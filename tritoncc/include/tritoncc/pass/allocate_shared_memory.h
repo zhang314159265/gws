@@ -186,22 +186,22 @@ class AllocationAnalysis {
   // initializes temporary shared memory for a given operation.
   void getScratchValueSize(mlir::Operation *op) {
     const size_t scratchAlignment = 128;
-    if (auto reduceOp = llvm::dyn_cast<mlir::triton::ReduceOp>(op)) {
+    if (auto reduceOp = llvm::dyn_cast<mlir::_tritoncc::ReduceOp>(op)) {
       ReduceOpHelper helper(reduceOp);
       unsigned bytes = helper.getScratchSizeInBytes();
       maybeAddScratchBuffer<BufferT::BufferKind::Scratch>(op, bytes,
           scratchAlignment);
-    } else if (auto scanOp = llvm::dyn_cast<mlir::triton::ScanOp>(op)) {
+    } else if (auto scanOp = llvm::dyn_cast<mlir::_tritoncc::ScanOp>(op)) {
       assert(false && "ScanOp");
-    } else if (auto histogram = llvm::dyn_cast<mlir::triton::HistogramOp>(op)) {
+    } else if (auto histogram = llvm::dyn_cast<mlir::_tritoncc::HistogramOp>(op)) {
       assert(false && "HistogramOp");
-    } else if (auto cvtLayout = llvm::dyn_cast<mlir::_tritoncc::ConvertLayoutOp>(op)) {
+    } else if (auto cvtLayout = llvm::dyn_cast<mlir::_tritoncc::gpu::ConvertLayoutOp>(op)) {
       auto srcTy = cvtLayout.getSrc().getType();
       auto dstTy = cvtLayout.getType();
       auto srcEncoding = srcTy.getEncoding();
       auto dstEncoding = dstTy.getEncoding();
-      if (srcEncoding.isa<mlir::_tritoncc::SharedEncodingAttr>() ||
-          dstEncoding.isa<mlir::_tritoncc::SharedEncodingAttr>()) {
+      if (srcEncoding.isa<mlir::_tritoncc::gpu::SharedEncodingAttr>() ||
+          dstEncoding.isa<mlir::_tritoncc::gpu::SharedEncodingAttr>()) {
         // Conversions from/to shared memory do not need scratch memory.
         return;
       }
@@ -217,13 +217,13 @@ class AllocationAnalysis {
           std::multiplies{});
 
       auto bytes =
-          srcTy.getElementType().isa<mlir::triton::PointerType>()
+          srcTy.getElementType().isa<mlir::_tritoncc::PointerType>()
             ? elems * kPtrBitWidth / 8
             : elems * std::max<int>(8, srcTy.getElementTypeBitWidth()) / 8;
       maybeAddScratchBuffer<BufferT::BufferKind::Scratch>(op, bytes, scratchAlignment);
-    } else if (auto atomicRMWOp = llvm::dyn_cast<mlir::triton::AtomicRMWOp>(op)) {
+    } else if (auto atomicRMWOp = llvm::dyn_cast<mlir::_tritoncc::AtomicRMWOp>(op)) {
       assert(false && "AtomicRMWOp");
-    } else if (auto atomicCASOp = llvm::dyn_cast<mlir::triton::AtomicCASOp>(op)) {
+    } else if (auto atomicCASOp = llvm::dyn_cast<mlir::_tritoncc::AtomicCASOp>(op)) {
       assert(false && "AtomicCASOp");
     } else if (auto callOp = llvm::dyn_cast<mlir::CallOpInterface>(op)) {
       assert(false && "CallOpInterface");

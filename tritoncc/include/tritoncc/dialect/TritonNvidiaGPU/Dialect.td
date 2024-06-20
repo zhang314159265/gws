@@ -10,8 +10,8 @@ def TritonNvidiaGPU_Dialect : Dialect {
   let cppNamespace = "::mlir::_tritoncc";
 
   let dependentDialects = [
-    "triton::TritonDialect",
-    "mlir::_tritoncc::TritonGPUDialect",
+    "mlir::_tritoncc::TritonDialect",
+    "mlir::_tritoncc::gpu::TritonGPUDialect",
     "mlir::gpu::GPUDialect",
     "tensor::TensorDialect",
   ];

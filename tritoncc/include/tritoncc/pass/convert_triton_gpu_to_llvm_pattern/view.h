@@ -2,8 +2,8 @@
 
 namespace tritoncc {
 
-struct SplatOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::SplatOp> {
-  using ConvertOpToLLVMPattern<mlir::triton::SplatOp>::ConvertOpToLLVMPattern;
+struct SplatOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::SplatOp> {
+  using ConvertOpToLLVMPattern<mlir::_tritoncc::SplatOp>::ConvertOpToLLVMPattern;
 
   static mlir::Value convertSplatLikeOp(
       mlir::Type elemType, mlir::Type resType, mlir::Value constVal,
@@ -25,7 +25,7 @@ struct SplatOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::Spl
     return tritoncc::packLLElements(loc, typeConverter, elems, rewriter, resType);
   }
 
-  mlir::LogicalResult matchAndRewrite(mlir::triton::SplatOp op, OpAdaptor adaptor,
+  mlir::LogicalResult matchAndRewrite(mlir::_tritoncc::SplatOp op, OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const {
     auto loc = op->getLoc();
     auto src = adaptor.getSrc();
@@ -38,10 +38,10 @@ struct SplatOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::Spl
   }
 };
 
-struct ExpandDimsOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::ExpandDimsOp> {
-  using ConvertOpToLLVMPattern<mlir::triton::ExpandDimsOp>::ConvertOpToLLVMPattern;
+struct ExpandDimsOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::ExpandDimsOp> {
+  using ConvertOpToLLVMPattern<mlir::_tritoncc::ExpandDimsOp>::ConvertOpToLLVMPattern;
   mlir::LogicalResult
-  matchAndRewrite(mlir::triton::ExpandDimsOp op, OpAdaptor adaptor,
+  matchAndRewrite(mlir::_tritoncc::ExpandDimsOp op, OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = op->getLoc();
     auto typeConverter = getTypeConverter();
@@ -49,7 +49,7 @@ struct ExpandDimsOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton
 
     auto srcTy = op.getSrc().getType().cast<mlir::RankedTensorType>();
     auto resultTy = op.getType().template cast<mlir::RankedTensorType>();
-    auto srcLayout = srcTy.getEncoding().dyn_cast<mlir::_tritoncc::SliceEncodingAttr>();
+    auto srcLayout = srcTy.getEncoding().dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>();
     if (!srcLayout) {
       return emitOptionalError(
         loc, "ExpandDimsOp only supports SliceEncodingAttr as its input");
@@ -76,11 +76,11 @@ struct ExpandDimsOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton
   }
 };
 
-struct BroadcastOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::BroadcastOp> {
-  using ConvertOpToLLVMPattern<mlir::triton::BroadcastOp>::ConvertOpToLLVMPattern;
+struct BroadcastOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::BroadcastOp> {
+  using ConvertOpToLLVMPattern<mlir::_tritoncc::BroadcastOp>::ConvertOpToLLVMPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(mlir::triton::BroadcastOp op, OpAdaptor adaptor,
+  matchAndRewrite(mlir::_tritoncc::BroadcastOp op, OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = op->getLoc();
     mlir::Value src = adaptor.getSrc();

@@ -33,8 +33,8 @@ llvm::SmallVector<mlir::Value> reorderValues(const llvm::SmallVector<mlir::Value
   if (!inTensorTy || !ouTensorTy) {
     return values;
   }
-  auto inEncoding = llvm::dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>(inTensorTy.getEncoding());
-  auto ouEncoding = llvm::dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>(ouTensorTy.getEncoding());
+  auto inEncoding = llvm::dyn_cast<mlir::_tritoncc::gpu::DotOperandEncodingAttr>(inTensorTy.getEncoding());
+  auto ouEncoding = llvm::dyn_cast<mlir::_tritoncc::gpu::DotOperandEncodingAttr>(ouTensorTy.getEncoding());
   assert(inEncoding == ouEncoding);
   if (!inEncoding) {
     return values;
@@ -141,11 +141,11 @@ struct FAddOpConversion : ElementwiseOpConversionBase<mlir::arith::AddFOp, FAddO
   }
 };
 
-struct AddPtrOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::AddPtrOp> {
-  using ConvertOpToLLVMPattern<mlir::triton::AddPtrOp>::ConvertOpToLLVMPattern;
+struct AddPtrOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::AddPtrOp> {
+  using ConvertOpToLLVMPattern<mlir::_tritoncc::AddPtrOp>::ConvertOpToLLVMPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(mlir::triton::AddPtrOp op, OpAdaptor adaptor,
+  matchAndRewrite(mlir::_tritoncc::AddPtrOp op, OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = op->getLoc();
     auto resultTy = op.getType();
@@ -154,7 +154,7 @@ struct AddPtrOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::Ad
     if (resultTensorTy) {
       unsigned elems = tritoncc::getTotalElemsPerThread(resultTy);
       mlir::Type elemTy = typeConverter->convertType(
-          resultTensorTy.getElementType().cast<mlir::triton::PointerType>().getPointeeType());
+          resultTensorTy.getElementType().cast<mlir::_tritoncc::PointerType>().getPointeeType());
       mlir::Type ptrTy = typeConverter->convertType(resultTensorTy.getElementType());
       auto ptrs = tritoncc::unpackLLElements(loc, adaptor.getPtr(), rewriter);
       auto offsets = tritoncc::unpackLLElements(loc, adaptor.getOffset(), rewriter);
@@ -186,6 +186,15 @@ struct ElementwiseOpConversion
       mlir::ConversionPatternRewriter &rewriter,
       mlir::Type elemTy, MultipleOperandsRange operands,
       mlir::Location loc) const {
+    #if 0
+    if (operands[0].size() == 2) {
+      auto rhs = operands[0][1];
+      std::string str;
+      llvm::raw_string_ostream os(str);
+      os << rhs;
+      std::cerr << "str is " << str << std::endl; // TODO
+    }
+    #endif
     return {rewriter.create<DestOp>(loc, elemTy, operands[0],
         adaptor.getAttributes().getValue()) };
   }

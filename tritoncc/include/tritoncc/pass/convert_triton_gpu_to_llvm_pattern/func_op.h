@@ -4,13 +4,13 @@
 
 namespace tritoncc {
 
-struct FuncOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::FuncOp> {
+struct FuncOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::FuncOp> {
   FuncOpConversion(mlir::LLVMTypeConverter &converter, int numWarps,
       mlir::PatternBenefit benefit)
       : ConvertOpToLLVMPattern(converter, benefit), numWarps(numWarps) { }
 
   mlir::LogicalResult
-  matchAndRewrite(mlir::triton::FuncOp funcOp, OpAdaptor adaptor,
+  matchAndRewrite(mlir::_tritoncc::FuncOp funcOp, OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const override {
     // Prevent LLVM's inliner to inline this function
     auto amendedFuncOp = funcOp;

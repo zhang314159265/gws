@@ -2,11 +2,11 @@
 
 namespace tritoncc {
 
-struct MakeRangeOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::MakeRangeOp> {
-  using ConvertOpToLLVMPattern<mlir::triton::MakeRangeOp>::ConvertOpToLLVMPattern;
+struct MakeRangeOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::MakeRangeOp> {
+  using ConvertOpToLLVMPattern<mlir::_tritoncc::MakeRangeOp>::ConvertOpToLLVMPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(mlir::triton::MakeRangeOp op, OpAdaptor adaptor, mlir::ConversionPatternRewriter &rewriter) const override {
+  matchAndRewrite(mlir::_tritoncc::MakeRangeOp op, OpAdaptor adaptor, mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = op->getLoc();
     auto rankedTy = op.getResult().getType().cast<mlir::RankedTensorType>();
     auto shape = rankedTy.getShape();

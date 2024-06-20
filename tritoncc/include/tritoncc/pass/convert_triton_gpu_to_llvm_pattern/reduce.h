@@ -4,10 +4,10 @@
 
 namespace tritoncc {
 
-class ReduceOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::ReduceOp> {
+class ReduceOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::ReduceOp> {
  public:
   explicit ReduceOpConversion(mlir::LLVMTypeConverter &typeConverter)
-      : mlir::ConvertOpToLLVMPattern<mlir::triton::ReduceOp>(typeConverter, 10) {
+      : mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::ReduceOp>(typeConverter, 10) {
   }
 
   llvm::SmallVector<mlir::Value> getMultiDimWarpId(
@@ -30,11 +30,11 @@ class ReduceOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::Red
       mlir::ConversionPatternRewriter &rewriter) const;
 
   llvm::SmallVector<mlir::Value> getSmemBases(
-      mlir::triton::ReduceOp op, unsigned elems, mlir::ConversionPatternRewriter &rewriter) const;
+      mlir::_tritoncc::ReduceOp op, unsigned elems, mlir::ConversionPatternRewriter &rewriter) const;
 
   void warpReduce(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      llvm::SmallVector<mlir::Value> &acc, mlir::triton::ReduceOp op,
+      llvm::SmallVector<mlir::Value> &acc, mlir::_tritoncc::ReduceOp op,
       unsigned numLaneToReduce, unsigned interleave) const;
 
   void reduceWithinWarps(ReduceOpHelper &helper,
@@ -53,18 +53,18 @@ class ReduceOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::Red
 
   llvm::SmallVector<llvm::SmallVector<mlir::Value>>
   unpackInputs(
-      mlir::Location loc, mlir::triton::ReduceOp op, OpAdaptor adaptor,
+      mlir::Location loc, mlir::_tritoncc::ReduceOp op, OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const;
 
   mlir::LogicalResult matchAndRewrite(
-      mlir::triton::ReduceOp op, OpAdaptor adaptor, mlir::ConversionPatternRewriter &rewriter) const;
+      mlir::_tritoncc::ReduceOp op, OpAdaptor adaptor, mlir::ConversionPatternRewriter &rewriter) const;
 
-  mlir::Type getElementType(mlir::triton::ReduceOp op, int i) const {
+  mlir::Type getElementType(mlir::_tritoncc::ReduceOp op, int i) const {
     auto ty = op.getInputTypes()[i].getElementType();
     return getTypeConverter()->convertType(ty);
   }
 
-  void sync(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc, mlir::triton::ReduceOp op) const {
+  void sync(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc, mlir::_tritoncc::ReduceOp op) const {
     rewriter.create<mlir::gpu::BarrierOp>(loc);
   }
 };
@@ -77,7 +77,7 @@ llvm::SmallVector<mlir::Value> ReduceOpConversion::getMultiDimWarpId(
   auto srcShape = helper.getSrcShape();
   auto order = tritoncc::getOrder(srcLayout);
   llvm::SmallVector<mlir::Value> multiDimWarpId;
-  if (auto sliceLayout = srcLayout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
+  if (auto sliceLayout = srcLayout.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>()) {
     assert(false && "SliceEncodingAttr");
   } else {
     auto warpsPerCTA =
@@ -92,7 +92,7 @@ void ReduceOpConversion::loadReductionAndPackResult(
     llvm::SmallVector<unsigned> smemShape,
     llvm::SmallVector<mlir::Value> &smemBases,
     mlir::ConversionPatternRewriter &rewriter) const {
-  mlir::triton::ReduceOp op = helper.getOperation();
+  mlir::_tritoncc::ReduceOp op = helper.getOperation();
   mlir::Location loc = op.getLoc();
   auto srcLayout = helper.getSrcLayout();
   auto axis = op.getAxis();
@@ -103,7 +103,7 @@ void ReduceOpConversion::loadReductionAndPackResult(
     if (auto resultTy =
         op.getResult()[i].getType().dyn_cast<mlir::RankedTensorType>()) {
       // nd-tensor where n >= 1
-      auto resultLayout = resultTy.getEncoding().cast<mlir::_tritoncc::SliceEncodingAttr>();
+      auto resultLayout = resultTy.getEncoding().cast<mlir::_tritoncc::gpu::SliceEncodingAttr>();
       unsigned resultElems = tritoncc::getTotalElemsPerThread(resultTy);
       auto resultIndices =
           emitIndices(loc, rewriter, resultLayout, resultTy, true);
@@ -131,7 +131,7 @@ void ReduceOpConversion::loadReductionAndPackResult(
 }
 
 void ReduceOpConversion::accumulatePartialReductions(ReduceOpHelper &helper, llvm::SmallVector<mlir::Value> &smemBases, mlir::ConversionPatternRewriter &rewriter) const {
-  mlir::triton::ReduceOp op = helper.getOperation();
+  mlir::_tritoncc::ReduceOp op = helper.getOperation();
   auto srcLayout = helper.getSrcLayout();
   auto smemShape = helper.getScratchConfig();
   unsigned elems = product<unsigned>(smemShape);
@@ -146,7 +146,7 @@ void ReduceOpConversion::accumulatePartialReductions(ReduceOpHelper &helper, llv
   auto mod = op.getOperation()->getParentOfType<mlir::ModuleOp>();
   unsigned numThreads =
       product<unsigned>(tritoncc::getWarpsPerCTA(srcLayout)) *
-      mlir::_tritoncc::TritonGPUDialect::getThreadsPerWarp(mod);
+      mlir::_tritoncc::gpu::TritonGPUDialect::getThreadsPerWarp(mod);
 
   unsigned elemsPerThread = std::max<unsigned>(elems / numThreads, 1);
   mlir::Value threadIsNeeded = icmp_slt(threadId, i32_val(elems));
@@ -190,7 +190,7 @@ void ReduceOpConversion::storeWarpReduceToSharedMemory(
     std::map<llvm::SmallVector<unsigned>, llvm::SmallVector<mlir::Value>> &indices,
     llvm::SmallVector<mlir::Value> &smemBases,
     mlir::ConversionPatternRewriter &rewriter) const {
-  mlir::triton::ReduceOp op = helper.getOperation();
+  mlir::_tritoncc::ReduceOp op = helper.getOperation();
   mlir::Location loc = op.getLoc();
   mlir::Value threadId = getThreadId(rewriter, loc);
   mlir::Value warpSize = i32_val(32);
@@ -233,7 +233,7 @@ void ReduceOpConversion::storeWarpReduceToSharedMemory(
 }
 
 llvm::SmallVector<mlir::Value> ReduceOpConversion::getSmemBases(
-    mlir::triton::ReduceOp op, unsigned elems, mlir::ConversionPatternRewriter &rewriter) const {
+    mlir::_tritoncc::ReduceOp op, unsigned elems, mlir::ConversionPatternRewriter &rewriter) const {
   auto loc = op.getLoc();
   // indices will store the index of the op operands in descending order
   // of their bitwidths
@@ -267,7 +267,7 @@ llvm::SmallVector<mlir::Value> ReduceOpConversion::getSmemBases(
 
 void ReduceOpConversion::warpReduce(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    llvm::SmallVector<mlir::Value> &acc, mlir::triton::ReduceOp op,
+    llvm::SmallVector<mlir::Value> &acc, mlir::_tritoncc::ReduceOp op,
     unsigned numLaneToReduce, unsigned interleave) const {
   for (unsigned N = numLaneToReduce / 2; N > 0; N >>= 1) {
     llvm::SmallVector<mlir::Value> shfl(acc.size());
@@ -281,7 +281,7 @@ void ReduceOpConversion::warpReduce(
 void ReduceOpConversion::reduceWithinWarps(ReduceOpHelper &helper,
     std::map<llvm::SmallVector<unsigned>, llvm::SmallVector<mlir::Value>> &accs,
     mlir::ConversionPatternRewriter &rewriter) const {
-  mlir::triton::ReduceOp op = helper.getOperation();
+  mlir::_tritoncc::ReduceOp op = helper.getOperation();
   unsigned sizeIntraWarps = 32;
   unsigned threadOffsetOnReductionAxis = 1;
   for (auto &it : accs) {
@@ -303,7 +303,7 @@ void ReduceOpConversion::accumulate(mlir::ConversionPatternRewriter &rewriter,
   mlir::Region &parent = *currentBlock->getParent();
   rewriter.cloneRegionBefore(combineOp, &parent.front());
   auto &newReduce = parent.front();
-  auto returnOp = llvm::dyn_cast<mlir::triton::ReduceReturnOp>(newReduce.getTerminator());
+  auto returnOp = llvm::dyn_cast<mlir::_tritoncc::ReduceReturnOp>(newReduce.getTerminator());
 
   llvm::SmallVector<mlir::Value> combineArgs(2 * acc.size());
   for (unsigned i = 0; i < acc.size(); ++i) {
@@ -327,7 +327,7 @@ void ReduceOpConversion::reduceWithinThreads(
     std::map<llvm::SmallVector<unsigned>, llvm::SmallVector<mlir::Value>> &accs,
     std::map<llvm::SmallVector<unsigned>, llvm::SmallVector<mlir::Value>> &indices,
     mlir::ConversionPatternRewriter &rewriter) const {
-  mlir::triton::ReduceOp op = helper.getOperation();
+  mlir::_tritoncc::ReduceOp op = helper.getOperation();
   mlir::RankedTensorType operandType = op.getInputTypes()[0];
   llvm::SmallVector<llvm::SmallVector<unsigned>> offset =
       tritoncc::emitOffsetForLayout(helper.getSrcLayout(), operandType);
@@ -351,7 +351,7 @@ void ReduceOpConversion::reduceWithinThreads(
 
 llvm::SmallVector<llvm::SmallVector<mlir::Value>>
 ReduceOpConversion::unpackInputs(
-    mlir::Location loc, mlir::triton::ReduceOp op, OpAdaptor adaptor,
+    mlir::Location loc, mlir::_tritoncc::ReduceOp op, OpAdaptor adaptor,
     mlir::ConversionPatternRewriter &rewriter) const {
   auto types = op.getInputTypes();
   auto operands = adaptor.getOperands();
@@ -368,7 +368,7 @@ ReduceOpConversion::unpackInputs(
 }
 
 mlir::LogicalResult ReduceOpConversion::matchAndRewrite(
-    mlir::triton::ReduceOp op, OpAdaptor adaptor, mlir::ConversionPatternRewriter &rewriter) const {
+    mlir::_tritoncc::ReduceOp op, OpAdaptor adaptor, mlir::ConversionPatternRewriter &rewriter) const {
   ReduceOpHelper helper(op);
   assert(helper.isSupportedLayout());
   mlir::Location loc = op->getLoc();

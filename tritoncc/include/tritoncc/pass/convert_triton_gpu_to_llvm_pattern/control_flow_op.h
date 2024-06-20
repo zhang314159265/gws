@@ -10,11 +10,11 @@
 
 namespace tritoncc {
 
-struct ReturnOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::ReturnOp> {
-  using ConvertOpToLLVMPattern<mlir::triton::ReturnOp>::ConvertOpToLLVMPattern;
+struct ReturnOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::ReturnOp> {
+  using ConvertOpToLLVMPattern<mlir::_tritoncc::ReturnOp>::ConvertOpToLLVMPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(mlir::triton::ReturnOp op, OpAdaptor adaptor,
+  matchAndRewrite(mlir::_tritoncc::ReturnOp op, OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const override {
     auto funcOp = op->getParentOfType<mlir::LLVM::LLVMFuncOp>();
     if (funcOp->hasAttr("nvvm.kernel")) {

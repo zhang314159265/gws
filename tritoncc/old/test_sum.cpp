@@ -14,9 +14,9 @@
 
 using namespace tritoncc;
 
-mlir::triton::FuncOp createSumCombineFunc(mlir::MLIRContext& ctx, mlir::ModuleOp& M) {
+mlir::_tritoncc::FuncOp createSumCombineFunc(mlir::MLIRContext& ctx, mlir::ModuleOp& M) {
   LocationOpBuilder B(&ctx);
-  mlir::triton::FuncOp F = B.createFuncOp("sum_combine",
+  mlir::_tritoncc::FuncOp F = B.createFuncOp("sum_combine",
     {B.f32ty(), B.f32ty()},
     {B.f32ty()},
     false);
@@ -28,9 +28,9 @@ mlir::triton::FuncOp createSumCombineFunc(mlir::MLIRContext& ctx, mlir::ModuleOp
 }
 
 // NOTE: each call to CodeGenerator create a separate builder object
-mlir::triton::FuncOp createSumReduceFunc(mlir::MLIRContext& ctx, mlir::ModuleOp& M) {
+mlir::_tritoncc::FuncOp createSumReduceFunc(mlir::MLIRContext& ctx, mlir::ModuleOp& M) {
   LocationOpBuilder B(&ctx);
-  mlir::triton::FuncOp F = B.createFuncOp("sum_reduce",
+  mlir::_tritoncc::FuncOp F = B.createFuncOp("sum_reduce",
     {B.blockty({2, 1024}, B.f32ty())},
     {B.blockty({2}, B.f32ty())},
     false);
@@ -66,9 +66,9 @@ int main(int argc, char** argv) {
 
   mlir::Type i32ty = builder.getBuilder().getI32Type();
   mlir::Type f32ty = builder.getBuilder().getF32Type();
-  mlir::Type f32pty = mlir::triton::PointerType::get(f32ty, 1);
+  mlir::Type f32pty = mlir::_tritoncc::PointerType::get(f32ty, 1);
 
-  mlir::triton::FuncOp funcop = builder.createFuncOp("sum_fn", {f32pty, f32pty, i32ty, i32ty}, {}, true);
+  mlir::_tritoncc::FuncOp funcop = builder.createFuncOp("sum_fn", {f32pty, f32pty, i32ty, i32ty}, {}, true);
   {
     auto attrTy = mlir::IntegerType::get(&ctx, 32);
     funcop.setArgAttr(0, "tt.divisibility", mlir::IntegerAttr::get(attrTy, 16));
@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
   );
 
 
-  B.create<mlir::triton::ReturnOp>(std::vector<mlir::Value>());
+  B.create<mlir::_tritoncc::ReturnOp>(std::vector<mlir::Value>());
   module.dump();
   Option opt{
      .num_warps=4, // how is this decided?

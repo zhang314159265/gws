@@ -129,7 +129,7 @@ llvm::SmallVector<mlir::Value> delinearize(
 llvm::SmallVector<mlir::Value>
 emitBaseIndexWithinCTAForBlockedLayout(
     mlir::Location loc, mlir::RewriterBase &rewriter,
-    const mlir::_tritoncc::BlockedEncodingAttr &blockedLayout,
+    const mlir::_tritoncc::gpu::BlockedEncodingAttr &blockedLayout,
     mlir::RankedTensorType type) {
   auto shape = type.getShape();
   mlir::Value threadId = getThreadId(rewriter, loc);
@@ -206,14 +206,14 @@ emitBaseIndexForLayout(mlir::Location loc, mlir::RewriterBase &rewriter,
   llvm::SmallVector<mlir::Value> baseIndex;
   mlir::RewriterBase::InsertionGuard guard(rewriter);
   llvm::SmallVector<mlir::Value> result;
-  if (auto blockedLayout = layout.dyn_cast<mlir::_tritoncc::BlockedEncodingAttr>()) {
+  if (auto blockedLayout = layout.dyn_cast<mlir::_tritoncc::gpu::BlockedEncodingAttr>()) {
     result = emitBaseIndexWithinCTAForBlockedLayout(loc, rewriter,
         blockedLayout, type);
-  } else if (auto mmaLayout = layout.dyn_cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>()) {
+  } else if (auto mmaLayout = layout.dyn_cast<mlir::_tritoncc::gpu::NvidiaMmaEncodingAttr>()) {
     assert(false && "mma");
-  } else if (auto mfmaLayout = layout.dyn_cast<mlir::_tritoncc::AMDMfmaEncodingAttr>()) {
+  } else if (auto mfmaLayout = layout.dyn_cast<mlir::_tritoncc::gpu::AMDMfmaEncodingAttr>()) {
     assert(false && "mfma");
-  } else if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
+  } else if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>()) {
     auto parentLayout = sliceLayout.getParent();
     auto parentShape = sliceLayout.paddedShape(type.getShape());
     mlir::RankedTensorType parentTy =
@@ -237,7 +237,7 @@ emitBaseIndexForLayout(mlir::Location loc, mlir::RewriterBase &rewriter,
 }
 
 llvm::SmallVector<llvm::SmallVector<unsigned>>
-emitOffsetForBlockedLayout(const mlir::_tritoncc::BlockedEncodingAttr &blockedLayout,
+emitOffsetForBlockedLayout(const mlir::_tritoncc::gpu::BlockedEncodingAttr &blockedLayout,
     mlir::RankedTensorType type) {
   auto shape = type.getShape();
   auto sizePerThread = blockedLayout.getSizePerThread();
@@ -278,7 +278,7 @@ llvm::SmallVector<llvm::SmallVector<unsigned>>
 emitOffsetForLayout(mlir::Attribute layout, mlir::RankedTensorType type);
 
 llvm::SmallVector<mlir::SmallVector<unsigned>>
-emitOffsetForSliceLayout(const mlir::_tritoncc::SliceEncodingAttr &sliceLayout,
+emitOffsetForSliceLayout(const mlir::_tritoncc::gpu::SliceEncodingAttr &sliceLayout,
     mlir::RankedTensorType type) {
   auto parentEncoding = sliceLayout.getParent();
   unsigned dim = sliceLayout.getDim();
@@ -304,10 +304,10 @@ emitOffsetForSliceLayout(const mlir::_tritoncc::SliceEncodingAttr &sliceLayout,
 
 llvm::SmallVector<llvm::SmallVector<unsigned>>
 emitOffsetForLayout(mlir::Attribute layout, mlir::RankedTensorType type) {
-  if (auto blockedLayout = layout.dyn_cast<mlir::_tritoncc::BlockedEncodingAttr>()) {
+  if (auto blockedLayout = layout.dyn_cast<mlir::_tritoncc::gpu::BlockedEncodingAttr>()) {
     return emitOffsetForBlockedLayout(blockedLayout, type);
   }
-  if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
+  if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>()) {
     return emitOffsetForSliceLayout(sliceLayout, type);
   }
   assert(false && "emitOffsetForLayout");
@@ -354,7 +354,7 @@ mlir::Value storeShared(mlir::ConversionPatternRewriter &rewriter,
   unsigned bits = std::max(8u, val.getType().getIntOrFloatBitWidth());
   const char *c = bits == 64 ? "l" : (bits == 16 ? "h" : "r");
 
-  mlir::triton::PTXBuilder builder;
+  tritoncc::PTXBuilder builder;
   auto *ptrOpr = builder.newAddrOperand(ptr, "r");
   auto *valOpr = builder.newOperand(val, c);
   auto &st = builder.create<>("st")->shared().b(bits);
@@ -371,7 +371,7 @@ mlir::Value loadShared(mlir::ConversionPatternRewriter &rewriter,
 
   const char *c = bitwidth == 64 ? "=l" : (bitwidth == 16 ? "=h" : "=r");
 
-  mlir::triton::PTXBuilder builder;
+  tritoncc::PTXBuilder builder;
   auto *dOpr = builder.newOperand(c);
   auto *ptrOpr = builder.newAddrOperand(ptr, "r");
   auto &ld = builder.create<>("ld")->shared().b(bitwidth);
@@ -405,7 +405,7 @@ T getLinearIndex(llvm::ArrayRef<T> multiDimIndex, llvm::ArrayRef<T> shape,
 }
 
 mlir::Value getSRegValue(mlir::OpBuilder &b, mlir::Location loc, const std::string &sRegStr) {
-  mlir::triton::PTXBuilder builder;
+  tritoncc::PTXBuilder builder;
   auto &mov = builder.create("mov")->o("u32");
   auto *destOpr = builder.newOperand("=r");
   auto *sRegOpr = builder.newConstantOperand(sRegStr);
@@ -424,7 +424,7 @@ mlir::Value llGetPid(int axis, mlir::Location loc, mlir::ModuleOp moduleOp,
   // decide the semantic of GetProgramIdOp. If numCTAs = 1, then
   // GetProgramIdOp is converted to "%ctaid", otherwise it is converted to
   // "%clusterid".
-  int numCTAs = mlir::_tritoncc::TritonGPUDialect::getNumCTAs(moduleOp);
+  int numCTAs = mlir::_tritoncc::gpu::TritonGPUDialect::getNumCTAs(moduleOp);
 
   std::string sreg = numCTAs == 1 ? "%ctaid." : "%clusterid.";
   sreg.append(1, 'x' + axis);
@@ -551,10 +551,10 @@ mlir::Value linearize(mlir::ConversionPatternRewriter &rewriter, mlir::Location 
 
 // Return the operand used to access the memory in the operation.
 mlir::Value getMemAccessPtr(mlir::Operation* op) {
-  if (mlir::triton::LoadOp ld = llvm::dyn_cast<mlir::triton::LoadOp>(op)) {
+  if (mlir::_tritoncc::LoadOp ld = llvm::dyn_cast<mlir::_tritoncc::LoadOp>(op)) {
     return ld.getPtr();
   }
-  if (mlir::triton::StoreOp st = llvm::dyn_cast<mlir::triton::StoreOp>(op)) {
+  if (mlir::_tritoncc::StoreOp st = llvm::dyn_cast<mlir::_tritoncc::StoreOp>(op)) {
     return st.getPtr();
   }
   return nullptr;
@@ -562,8 +562,8 @@ mlir::Value getMemAccessPtr(mlir::Operation* op) {
 
 unsigned getElementBitWidth(mlir::RankedTensorType type) {
   auto typeForMem =
-      type.getElementType().isa<mlir::triton::PointerType>()
-          ? type.getElementType().cast<mlir::triton::PointerType>().getPointeeType()
+      type.getElementType().isa<mlir::_tritoncc::PointerType>()
+          ? type.getElementType().cast<mlir::_tritoncc::PointerType>().getPointeeType()
           : type.getElementType();
   return typeForMem.getIntOrFloatBitWidth();
 }

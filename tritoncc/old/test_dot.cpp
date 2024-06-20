@@ -81,7 +81,7 @@ mlir::Value build_load(int argIdx, mlir::Value offset) {
     *punkloc,
     mlir::RankedTensorType::get({32, 32}, f32pty),
     arg);
-  mlir::Value ptr = builder->create<mlir::triton::AddPtrOp>(
+  mlir::Value ptr = builder->create<mlir::_tritoncc::AddPtrOp>(
     *punkloc,
     splat_arg.getType(),
     splat_arg,
@@ -138,7 +138,7 @@ void build_store(mlir::Value ans, mlir::Value offset) {
     mlir::RankedTensorType::get({32, 32}, f32pty),
     arg
   );
-  mlir::Value ptr = builder->create<mlir::triton::AddPtrOp>(
+  mlir::Value ptr = builder->create<mlir::_tritoncc::AddPtrOp>(
     *punkloc,
     splat_arg.getType(),
     splat_arg,
@@ -165,7 +165,7 @@ int main(void) {
   tritoncc::loadDialects(ctx);
   i32ty = builder->getI32Type();
   f32ty = builder->getF32Type();
-  f32pty = mlir::triton::PointerType::get(f32ty, address_space);
+  f32pty = mlir::_tritoncc::PointerType::get(f32ty, address_space);
 
   auto functy = builder->getFunctionType({f32pty, f32pty, f32pty}, {}).dyn_cast<mlir::FunctionType>();
   llvm::SmallVector<mlir::NamedAttribute> attrs = {
@@ -193,7 +193,7 @@ int main(void) {
   auto rhs = build_load(1, off);
   build_store(build_plus_scalar(build_dot(lhs, rhs)), off);
 
-  builder->create<mlir::triton::ReturnOp>(unkloc);
+  builder->create<mlir::_tritoncc::ReturnOp>(unkloc);
   module.dump();
 
   Option opt{

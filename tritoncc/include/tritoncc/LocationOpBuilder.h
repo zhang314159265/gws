@@ -2,8 +2,7 @@
 
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Builders.h"
-#include "triton/Dialect/Triton/IR/Types.h"
-#include "triton/Dialect/Triton/IR/Dialect.h"
+#include "tritoncc/dialect/Triton/Dialect.h"
 
 namespace tritoncc {
 
@@ -46,7 +45,7 @@ class LocationOpBuilder {
     return builder->create<OpTy>(getLastLoc(), std::forward<Args>(args)...);
   }
 
-  mlir::triton::FuncOp createFuncOp(const std::string &funcName, std::vector<mlir::Type> inTypes, std::vector<mlir::Type> outTypes, bool isPublic) {
+  mlir::_tritoncc::FuncOp createFuncOp(const std::string &funcName, std::vector<mlir::Type> inTypes, std::vector<mlir::Type> outTypes, bool isPublic) {
     mlir::FunctionType functy = builder->getFunctionType(inTypes, outTypes).dyn_cast<mlir::FunctionType>();
     llvm::SmallVector<mlir::NamedAttribute> attrs = {
       mlir::NamedAttribute(
@@ -59,15 +58,15 @@ class LocationOpBuilder {
       )
     };
 
-    return this->create<mlir::triton::FuncOp>(funcName, functy, attrs);
+    return this->create<mlir::_tritoncc::FuncOp>(funcName, functy, attrs);
   }
 
   mlir::Value createGetProgramId(int axis) {
-    return create<mlir::triton::GetProgramIdOp>(
+    return create<mlir::_tritoncc::GetProgramIdOp>(
       builder->getI32Type(),
-      mlir::triton::ProgramIDDimAttr::get(
+      mlir::_tritoncc::ProgramIDDimAttr::get(
         builder->getContext(),
-        mlir::triton::ProgramIDDim(axis)
+        mlir::_tritoncc::ProgramIDDim(axis)
       ) 
     );
   }
@@ -91,7 +90,7 @@ class LocationOpBuilder {
   }
 
   mlir::Value createMakeRange(int start, int end) {
-    return create<mlir::triton::MakeRangeOp>(
+    return create<mlir::_tritoncc::MakeRangeOp>(
       mlir::RankedTensorType::get(
         {end - start}, builder->getI32Type()
       ),
@@ -101,7 +100,7 @@ class LocationOpBuilder {
   }
 
   mlir::Value createSplat(mlir::Value arg, std::vector<int64_t> shape) {
-    return createOrFold<mlir::triton::SplatOp>(
+    return createOrFold<mlir::_tritoncc::SplatOp>(
       mlir::RankedTensorType::get(shape, arg.getType()), arg
     );
   }
@@ -111,7 +110,7 @@ class LocationOpBuilder {
     mlir::Type argEltType = argType.getElementType();
     std::vector<int64_t> retShape = argType.getShape();
     retShape.insert(retShape.begin() + axis, 1);
-    return create<mlir::triton::ExpandDimsOp>(
+    return create<mlir::_tritoncc::ExpandDimsOp>(
       mlir::RankedTensorType::get(retShape, argEltType),
       arg,
       axis
@@ -120,7 +119,7 @@ class LocationOpBuilder {
 
   mlir::Value createBroadcast(mlir::Value arg, std::vector<int64_t> shape) {
     mlir::RankedTensorType argType = arg.getType().dyn_cast<mlir::RankedTensorType>();
-    return createOrFold<mlir::triton::BroadcastOp>(
+    return createOrFold<mlir::_tritoncc::BroadcastOp>(
       mlir::RankedTensorType::get(shape, argType.getElementType()),
       arg
     );
@@ -136,44 +135,44 @@ class LocationOpBuilder {
   }
 
   mlir::Value createAddPtr(mlir::Value ptr, mlir::Value offset) {
-    return create<mlir::triton::AddPtrOp>(ptr.getType(), ptr, offset);
+    return create<mlir::_tritoncc::AddPtrOp>(ptr.getType(), ptr, offset);
   }
 
   mlir::Value createLoad(mlir::Value ptr, mlir::Value mask) {
-    return create<mlir::triton::LoadOp>(
+    return create<mlir::_tritoncc::LoadOp>(
       ptr,
       mask,
       mlir::Value(),
-      mlir::triton::CacheModifier::NONE,
-      mlir::triton::EvictionPolicy::NORMAL,
+      mlir::_tritoncc::CacheModifier::NONE,
+      mlir::_tritoncc::EvictionPolicy::NORMAL,
       false
     );
   }
 
   void createStore(mlir::Value ptr, mlir::Value val, mlir::Value mask) {
-    create<mlir::triton::StoreOp>(
+    create<mlir::_tritoncc::StoreOp>(
       ptr, val, mask,
-      mlir::triton::CacheModifier::NONE,
-      mlir::triton::EvictionPolicy::NORMAL
+      mlir::_tritoncc::CacheModifier::NONE,
+      mlir::_tritoncc::EvictionPolicy::NORMAL
     );
   }
 
   mlir::OpState createReturn(std::vector<mlir::Value> vals) {
-    return create<mlir::triton::ReturnOp>(vals);
+    return create<mlir::_tritoncc::ReturnOp>(vals);
   }
 
   mlir::OpState createReduce(std::vector<mlir::Value> operands, int axis) {
-    return create<mlir::triton::ReduceOp>(operands, axis);
+    return create<mlir::_tritoncc::ReduceOp>(operands, axis);
   }
 
   mlir::OpState createReduceReturn(std::vector<mlir::Value> args) {
-    return create<mlir::triton::ReduceReturnOp>(args);
+    return create<mlir::_tritoncc::ReduceReturnOp>(args);
   }
 
   // note that return type is mlir::OpState rather than mlir::Value
-  mlir::OpState createCall(mlir::triton::FuncOp func,
+  mlir::OpState createCall(mlir::_tritoncc::FuncOp func,
       std::vector<mlir::Value> args) {
-    return create<mlir::triton::CallOp>(func, args);
+    return create<mlir::_tritoncc::CallOp>(func, args);
   }
 
   mlir::Type i32ty() {
@@ -185,7 +184,7 @@ class LocationOpBuilder {
   }
 
   mlir::Type f32pty() {
-    return mlir::triton::PointerType::get(f32ty(), 1);
+    return mlir::_tritoncc::PointerType::get(f32ty(), 1);
   }
 
   mlir::RankedTensorType blockty(std::vector<int64_t> shape, mlir::Type elemTy) {

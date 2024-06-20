@@ -23,10 +23,10 @@ class NVGPUOpPatternBase : public mlir::RewritePattern {
   explicit NVGPUOpPatternBase(mlir::MLIRContext *context)
       : mlir::RewritePattern(SourceOp::getOperationName(), 1, context) {}
 
-  llvm::SmallVector<mlir::triton::PTXBuilder::Operand *>
+  llvm::SmallVector<tritoncc::PTXBuilder::Operand *>
   getPtxOutputs(std::vector<std::string> &outputConstraints,
-      mlir::triton::PTXBuilder &ptxBuilder) const {
-    llvm::SmallVector<mlir::triton::PTXBuilder::Operand *> ptxOutputs;
+      tritoncc::PTXBuilder &ptxBuilder) const {
+    llvm::SmallVector<tritoncc::PTXBuilder::Operand *> ptxOutputs;
     for (unsigned i = 0; i < outputConstraints.size(); ++i) {
       auto *ptxOutput = ptxBuilder.newOperand(outputConstraints[i]);
       ptxOutputs.push_back(ptxOutput);
@@ -36,7 +36,7 @@ class NVGPUOpPatternBase : public mlir::RewritePattern {
 
   OperandsAndConstraints
   unpackOperands(OperandsAndConstraints &operandsAndConstraints,
-      mlir::triton::PTXBuilder &ptxBuilder, mlir::Location &loc,
+      tritoncc::PTXBuilder &ptxBuilder, mlir::Location &loc,
       mlir::PatternRewriter &rewriter) const {
     OperandsAndConstraints unpackedOperands;
     for (auto &[operand, constraint] : operandsAndConstraints) {
@@ -50,11 +50,11 @@ class NVGPUOpPatternBase : public mlir::RewritePattern {
     return unpackedOperands;
   }
 
-  llvm::SmallVector<mlir::triton::PTXBuilder::Operand *>
+  llvm::SmallVector<tritoncc::PTXBuilder::Operand *>
   getPtxOperands(OperandsAndConstraints &operandsAndConstraints,
-      mlir::triton::PTXBuilder &ptxBuilder, mlir::Location &loc,
+      tritoncc::PTXBuilder &ptxBuilder, mlir::Location &loc,
       mlir::PatternRewriter &rewriter) const {
-    llvm::SmallVector<mlir::triton::PTXBuilder::Operand *> ptxOperands;
+    llvm::SmallVector<tritoncc::PTXBuilder::Operand *> ptxOperands;
     auto unpackedOperandsAndConstraints =
         unpackOperands(operandsAndConstraints, ptxBuilder, loc, rewriter);
     for (auto &[operand, constraint] : unpackedOperandsAndConstraints) {
@@ -79,13 +79,13 @@ class NVGPUOpPatternBase : public mlir::RewritePattern {
     auto operandsAndConstraints = concrete->getOperandsAndConstraints(sourceOp);
     auto outputConstraints = concrete->getOutputConstraints(sourceOp);
 
-    mlir::triton::PTXBuilder ptxBuilder;
+    tritoncc::PTXBuilder ptxBuilder;
     auto ptxOutputs = getPtxOutputs(outputConstraints, ptxBuilder);
     auto ptxOperands =
         getPtxOperands(operandsAndConstraints, ptxBuilder, loc, rewriter);
-    llvm::SmallVector<mlir::triton::PTXBuilder::Operand *> outputsAndOperands = ptxOutputs;
+    llvm::SmallVector<tritoncc::PTXBuilder::Operand *> outputsAndOperands = ptxOutputs;
     outputsAndOperands.append(ptxOperands.begin(), ptxOperands.end());
-    auto &ptxInstr = *ptxBuilder.create<mlir::triton::PTXInstr>(ptxAsmPatched);
+    auto &ptxInstr = *ptxBuilder.create<tritoncc::PTXInstr>(ptxAsmPatched);
     ptxInstr(outputsAndOperands, /*onlyAttachMLIRArgs=*/true);
     auto retTy =
         op->getNumResults() == 0 ? void_ty(ctx) : op->getResult(0).getType();

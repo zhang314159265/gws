@@ -5,10 +5,10 @@ include "mlir/IR/OpBase.td"
 
 def TritonGPU_Dialect : Dialect {
   let name = "triton_gpu";
-  let cppNamespace = "::mlir::_tritoncc";
+  let cppNamespace = "::mlir::_tritoncc::gpu";
 
   let dependentDialects = [
-    "triton::TritonDialect",
+    "mlir::_tritoncc::TritonDialect",
     "mlir::gpu::GPUDialect",
     "tensor::TensorDialect",
   ];

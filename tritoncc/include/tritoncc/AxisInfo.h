@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef USE_TRITON
+#undef USE_TRITON
+#endif
+
 #define USE_TRITON 0
 
 #if USE_TRITON
@@ -114,7 +118,7 @@ class AxisInfo {
     if (mlir::TensorType ty = value.getType().dyn_cast<mlir::TensorType>()) {
       rank = ty.getRank();
     }
-    if (mlir::triton::PointerType ty = value.getType().dyn_cast<mlir::triton::PointerType>()) {
+    if (mlir::_tritoncc::PointerType ty = value.getType().dyn_cast<mlir::_tritoncc::PointerType>()) {
       if (mlir::TensorType elemTy = ty.getPointeeType().dyn_cast<mlir::TensorType>()) {
         rank = elemTy.getRank();
       }
@@ -222,12 +226,12 @@ class AxisInfoVisitorImpl : public AxisInfoVisitor {
 };
 
 class BroadcastOpAxisInfoVisitor final
-    : public AxisInfoVisitorImpl<mlir::triton::BroadcastOp> {
+    : public AxisInfoVisitorImpl<mlir::_tritoncc::BroadcastOp> {
  public:
-  using AxisInfoVisitorImpl<mlir::triton::BroadcastOp>::AxisInfoVisitorImpl;
+  using AxisInfoVisitorImpl<mlir::_tritoncc::BroadcastOp>::AxisInfoVisitorImpl;
 
   AxisInfo
-  getAxisInfo(mlir::triton::BroadcastOp op,
+  getAxisInfo(mlir::_tritoncc::BroadcastOp op,
       llvm::ArrayRef<const mlir::dataflow::Lattice<AxisInfo>*> operands) override {
     mlir::Type _retTy = *op->result_type_begin();
     mlir::Type _opTy = *op->operand_type_begin();
@@ -252,12 +256,12 @@ class BroadcastOpAxisInfoVisitor final
 };
 
 class ExpandDimsOpAxisInfoVisitor final
-    : public AxisInfoVisitorImpl<mlir::triton::ExpandDimsOp> {
+    : public AxisInfoVisitorImpl<mlir::_tritoncc::ExpandDimsOp> {
  public:
-  using AxisInfoVisitorImpl<mlir::triton::ExpandDimsOp>::AxisInfoVisitorImpl;
+  using AxisInfoVisitorImpl<mlir::_tritoncc::ExpandDimsOp>::AxisInfoVisitorImpl;
 
   AxisInfo
-  getAxisInfo(mlir::triton::ExpandDimsOp op,
+  getAxisInfo(mlir::_tritoncc::ExpandDimsOp op,
       llvm::ArrayRef<const mlir::dataflow::Lattice<AxisInfo>*> operands) override {
     AxisInfo opInfo = operands[0]->getValue();
     AxisInfo::DimVectorT contiguity = opInfo.getContiguity();
@@ -283,12 +287,12 @@ class ExpandDimsOpAxisInfoVisitor final
 };
 
 class SplatOpAxisInfoVisitor final
-    : public AxisInfoVisitorImpl<mlir::triton::SplatOp> {
+    : public AxisInfoVisitorImpl<mlir::_tritoncc::SplatOp> {
  public:
-  using AxisInfoVisitorImpl<mlir::triton::SplatOp>::AxisInfoVisitorImpl;
+  using AxisInfoVisitorImpl<mlir::_tritoncc::SplatOp>::AxisInfoVisitorImpl;
 
   AxisInfo
-  getAxisInfo(mlir::triton::SplatOp op,
+  getAxisInfo(mlir::_tritoncc::SplatOp op,
       llvm::ArrayRef<const mlir::dataflow::Lattice<AxisInfo>*> operands) override {
     mlir::Type _retTy = *op->result_type_begin();
     mlir::TensorType retTy = _retTy.cast<mlir::TensorType>();
@@ -375,9 +379,9 @@ class AddSubOpAxisInfoVisitor final : public BinaryOpVisitorImpl<OpTy> {
   int64_t getDivisibility(OpTy op, const AxisInfo &lhs, const AxisInfo &rhs,
       int dim) override {
     auto rhsDivisibility = rhs.getDivisibility(dim);
-    if constexpr (std::is_same_v<OpTy, mlir::triton::AddPtrOp>) {
+    if constexpr (std::is_same_v<OpTy, mlir::_tritoncc::AddPtrOp>) {
       auto elemSize = std::max<int64_t>(
-        1, mlir::triton::getPointeeBitWidth(op.getPtr().getType()) / 8);
+        1, tritoncc::getPointeeBitWidth(op.getPtr().getType()) / 8);
       rhsDivisibility = multiplyDivisor(rhs.getDivisibility(dim), elemSize);
     }
     return gcd(lhs.getDivisibility(dim), rhsDivisibility);
@@ -575,12 +579,12 @@ class CastOpAxisInfoVisitor final : public AxisInfoVisitorImpl<OpTy> {
 };
 
 class MakeRangeOpAxisInfoVisitor final
-    : public AxisInfoVisitorImpl<mlir::triton::MakeRangeOp> {
+    : public AxisInfoVisitorImpl<mlir::_tritoncc::MakeRangeOp> {
  public:
-  using AxisInfoVisitorImpl<mlir::triton::MakeRangeOp>::AxisInfoVisitorImpl;
+  using AxisInfoVisitorImpl<mlir::_tritoncc::MakeRangeOp>::AxisInfoVisitorImpl;
 
   AxisInfo
-  getAxisInfo(mlir::triton::MakeRangeOp op,
+  getAxisInfo(mlir::_tritoncc::MakeRangeOp op,
       llvm::ArrayRef<const mlir::dataflow::Lattice<AxisInfo>*> operands) override {
     auto start = op.getStart();
     auto end = op.getEnd();
@@ -590,12 +594,12 @@ class MakeRangeOpAxisInfoVisitor final
   }
 };
 
-class LoadOpAxisInfoVisitor final : public AxisInfoVisitorImpl<mlir::triton::LoadOp> {
+class LoadOpAxisInfoVisitor final : public AxisInfoVisitorImpl<mlir::_tritoncc::LoadOp> {
  public:
-  using AxisInfoVisitorImpl<mlir::triton::LoadOp>::AxisInfoVisitorImpl;
+  using AxisInfoVisitorImpl<mlir::_tritoncc::LoadOp>::AxisInfoVisitorImpl;
 
   AxisInfo
-  getAxisInfo(mlir::triton::LoadOp op,
+  getAxisInfo(mlir::_tritoncc::LoadOp op,
       llvm::ArrayRef<const mlir::dataflow::Lattice<AxisInfo>*> operands) override  {
     // If pointers and mask both have constancy properties, those properties
     // will also extend to output.
@@ -656,7 +660,7 @@ class AxisInfoAnalysis : public mlir::dataflow::SparseForwardDataFlowAnalysis<ml
     visitors.append<BroadcastOpAxisInfoVisitor>();
     visitors.append<ExpandDimsOpAxisInfoVisitor>();
     visitors.append<SplatOpAxisInfoVisitor>();
-    visitors.append<AddSubOpAxisInfoVisitor<mlir::triton::AddPtrOp>,
+    visitors.append<AddSubOpAxisInfoVisitor<mlir::_tritoncc::AddPtrOp>,
         AddSubOpAxisInfoVisitor<mlir::arith::AddIOp>,
         AddSubOpAxisInfoVisitor<mlir::arith::SubIOp>,
         AddSubOpAxisInfoVisitor<mlir::LLVM::AddOp>>();
@@ -674,9 +678,9 @@ class AxisInfoAnalysis : public mlir::dataflow::SparseForwardDataFlowAnalysis<ml
                     CastOpAxisInfoVisitor<mlir::arith::ExtUIOp>,
                     CastOpAxisInfoVisitor<mlir::arith::TruncIOp>,
                     CastOpAxisInfoVisitor<mlir::arith::IndexCastOp>,
-                    CastOpAxisInfoVisitor<mlir::_tritoncc::ConvertLayoutOp>,
+                    CastOpAxisInfoVisitor<mlir::_tritoncc::gpu::ConvertLayoutOp>,
                     CastOpAxisInfoVisitor<mlir::UnrealizedConversionCastOp>,
-                    CastOpAxisInfoVisitor<mlir::triton::BitcastOp>>();
+                    CastOpAxisInfoVisitor<mlir::_tritoncc::BitcastOp>>();
   }
 
   void visitOperation(mlir::Operation *op,
@@ -780,7 +784,7 @@ class ModuleAxisInfoAnalysis : public tritoncc::CallGraph<AxisInfoMapT> {
     auto order = tritoncc::getOrder(layout);
     auto maxMultipleBytes = axisInfo->getDivisibility(order[0]);
     auto maxContig = axisInfo->getContiguity(order[0]);
-    auto elemNumBits = mlir::triton::getPointeeBitWidth(tensorTy);
+    auto elemNumBits = tritoncc::getPointeeBitWidth(tensorTy);
     auto elemNumBytes = std::max<unsigned>(elemNumBits / 8, 1);
     auto maxMultiple = std::max<int64_t>(maxMultipleBytes / elemNumBytes, 1);
     unsigned alignment = std::min(maxMultiple, maxContig);

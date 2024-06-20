@@ -21,11 +21,11 @@ int main(void) {
   int address_space = 1;
   assert(!module.lookupSymbol(function_name));
 
-  ctx.loadDialect<mlir::triton::TritonDialect>();
+  ctx.loadDialect<mlir::_tritoncc::TritonDialect>();
 
   auto i32ty = builder->getI32Type();
   auto f32ty = builder->getF32Type();
-  auto f32pty = mlir::triton::PointerType::get(f32ty, address_space);
+  auto f32pty = mlir::_tritoncc::PointerType::get(f32ty, address_space);
 
   auto functy = builder->getFunctionType({f32pty, f32pty, f32pty, i32ty}, {}).dyn_cast<mlir::FunctionType>();
 
@@ -39,17 +39,17 @@ int main(void) {
       builder->getBoolAttr(false)
     )
   };
-  auto funcop = builder->create<mlir::triton::FuncOp>(unkloc, function_name, functy, attrs);
+  auto funcop = builder->create<mlir::_tritoncc::FuncOp>(unkloc, function_name, functy, attrs);
   module.push_back(funcop);
 
   builder->setInsertionPointToStart(funcop.addEntryBlock());
 
-  auto pid = builder->create<mlir::triton::GetProgramIdOp>(unkloc, i32ty, mlir::triton::ProgramIDDimAttr::get(&ctx, mlir::triton::ProgramIDDim(0)));
-  auto range = builder->create<mlir::triton::MakeRangeOp>(unkloc,
+  auto pid = builder->create<mlir::_tritoncc::GetProgramIdOp>(unkloc, i32ty, mlir::_tritoncc::ProgramIDDimAttr::get(&ctx, mlir::_tritoncc::ProgramIDDim(0)));
+  auto range = builder->create<mlir::_tritoncc::MakeRangeOp>(unkloc,
     mlir::RankedTensorType::get({BLOCK_SIZE}, i32ty),
     0, BLOCK_SIZE);
 
-  auto broadcasted = builder->createOrFold<mlir::triton::SplatOp>(
+  auto broadcasted = builder->createOrFold<mlir::_tritoncc::SplatOp>(
     unkloc,
     mlir::RankedTensorType::get({BLOCK_SIZE}, i32ty),
     builder->create<mlir::arith::MulIOp>(unkloc,
@@ -63,7 +63,7 @@ int main(void) {
     broadcasted
   );
 
-  auto broadcasted_num = builder->createOrFold<mlir::triton::SplatOp>(
+  auto broadcasted_num = builder->createOrFold<mlir::_tritoncc::SplatOp>(
     unkloc,
     mlir::RankedTensorType::get({BLOCK_SIZE}, i32ty),
     funcop.getArgument(3)
@@ -77,16 +77,16 @@ int main(void) {
   );
 
   // lhs_ptr
-  auto lhs_ptr = builder->createOrFold<mlir::triton::SplatOp>(
+  auto lhs_ptr = builder->createOrFold<mlir::_tritoncc::SplatOp>(
     unkloc,
     mlir::RankedTensorType::get({BLOCK_SIZE}, f32pty),
     funcop.getArgument(0)
   );
     
   // load lhs
-  auto lhs = builder->create<mlir::triton::LoadOp>(
+  auto lhs = builder->create<mlir::_tritoncc::LoadOp>(
     unkloc,
-    builder->create<mlir::triton::AddPtrOp>(
+    builder->create<mlir::_tritoncc::AddPtrOp>(
       unkloc,
       lhs_ptr.getType(),
       lhs_ptr,
@@ -94,22 +94,22 @@ int main(void) {
     ),
     mask,
     mlir::Value(),
-    mlir::triton::CacheModifier::NONE,
-    mlir::triton::EvictionPolicy::NORMAL,
+    mlir::_tritoncc::CacheModifier::NONE,
+    mlir::_tritoncc::EvictionPolicy::NORMAL,
     false
   );
 
   // rhs_ptr
-  auto rhs_ptr = builder->createOrFold<mlir::triton::SplatOp>(
+  auto rhs_ptr = builder->createOrFold<mlir::_tritoncc::SplatOp>(
     unkloc,
     mlir::RankedTensorType::get({BLOCK_SIZE}, f32pty),
     funcop.getArgument(1)
   );
     
   // load rhs
-  auto rhs = builder->create<mlir::triton::LoadOp>(
+  auto rhs = builder->create<mlir::_tritoncc::LoadOp>(
     unkloc,
-    builder->create<mlir::triton::AddPtrOp>(
+    builder->create<mlir::_tritoncc::AddPtrOp>(
       unkloc,
       rhs_ptr.getType(),
       rhs_ptr,
@@ -117,8 +117,8 @@ int main(void) {
     ),
     mask,
     mlir::Value(),
-    mlir::triton::CacheModifier::NONE,
-    mlir::triton::EvictionPolicy::NORMAL,
+    mlir::_tritoncc::CacheModifier::NONE,
+    mlir::_tritoncc::EvictionPolicy::NORMAL,
     false
   );
 
@@ -130,16 +130,16 @@ int main(void) {
   );
 
   // ans_ptr
-  auto ans_ptr = builder->createOrFold<mlir::triton::SplatOp>(
+  auto ans_ptr = builder->createOrFold<mlir::_tritoncc::SplatOp>(
     unkloc,
     mlir::RankedTensorType::get({BLOCK_SIZE}, f32pty),
     funcop.getArgument(2)
   );
 
   // store ans
-  builder->create<mlir::triton::StoreOp>(
+  builder->create<mlir::_tritoncc::StoreOp>(
     unkloc,
-    builder->create<mlir::triton::AddPtrOp>(
+    builder->create<mlir::_tritoncc::AddPtrOp>(
       unkloc,
       ans_ptr.getType(),
       ans_ptr,
@@ -147,11 +147,11 @@ int main(void) {
     ),
     ans,
     mask,
-    mlir::triton::CacheModifier::NONE,
-    mlir::triton::EvictionPolicy::NORMAL
+    mlir::_tritoncc::CacheModifier::NONE,
+    mlir::_tritoncc::EvictionPolicy::NORMAL
   );
 
-  builder->create<mlir::triton::ReturnOp>(unkloc);
+  builder->create<mlir::_tritoncc::ReturnOp>(unkloc);
 
   module.dump();
   Option opt{

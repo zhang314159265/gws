@@ -56,12 +56,14 @@ std::string make_llir(mlir::ModuleOp &M, Option &opt) {
 
   pm.addPass(tritoncc::createConvertNVGPUToLLVMPass());
 
+  std::cerr << "Before pm.run in make_llir" << std::endl;
+  M.dump();
+
   bool success = !mlir::failed(pm.run(M.getOperation()));
-  std::cerr << "llvm dialect:\n"; M.dump();
   if (!success) {
     std::cerr << "make_llir fail" << std::endl;
-    M.dump();
   }
+  std::cerr << "llvm dialect:\n"; M.dump();
   assert(success);
 
   auto llirSrc = optimizeLLIR(M, opt);

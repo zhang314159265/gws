@@ -21,7 +21,7 @@ class TritonGPUToLLVMTypeConverter : public mlir::LLVMTypeConverter {
   using TypeConverter::convertType;
 
   TritonGPUToLLVMTypeConverter(mlir::MLIRContext *ctx, mlir::LowerToLLVMOptions &option, const mlir::DataLayoutAnalysis *analysis = nullptr) : LLVMTypeConverter(ctx, option, analysis) {
-    addConversion([&](mlir::triton::PointerType type) -> std::optional<mlir::Type> {
+    addConversion([&](mlir::_tritoncc::PointerType type) -> std::optional<mlir::Type> {
       return convertTritonPointerType(type);
     });
     addConversion([&](mlir::RankedTensorType type) -> std::optional<mlir::Type> {
@@ -46,7 +46,7 @@ class TritonGPUToLLVMTypeConverter : public mlir::LLVMTypeConverter {
     });
   }
 
-  mlir::Type convertTritonPointerType(mlir::triton::PointerType type) {
+  mlir::Type convertTritonPointerType(mlir::_tritoncc::PointerType type) {
     auto ctx = type.getContext();
     auto pointeeType = type.getPointeeType();
     if (pointeeType.isa<mlir::RankedTensorType>()) {
@@ -60,7 +60,7 @@ class TritonGPUToLLVMTypeConverter : public mlir::LLVMTypeConverter {
     auto ctx = type.getContext();
     mlir::Attribute layout = type.getEncoding();
     mlir::Type elemTy = convertType(type.getElementType());
-    auto dotOpLayout = layout.dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>();
+    auto dotOpLayout = layout.dyn_cast<mlir::_tritoncc::gpu::DotOperandEncodingAttr>();
     if (!dotOpLayout) {
       return elemTy;
     }
@@ -74,7 +74,7 @@ class TritonGPUToLLVMTypeConverter : public mlir::LLVMTypeConverter {
     llvm::SmallVector<int64_t> shape(type.getShape().begin(), type.getShape().end());
     mlir::Type eltType = getElementTypeForStruct(type);
 
-    if (auto shared_layout = layout.dyn_cast<mlir::_tritoncc::SharedEncodingAttr>()) {
+    if (auto shared_layout = layout.dyn_cast<mlir::_tritoncc::gpu::SharedEncodingAttr>()) {
       assert(false && "shared_layout");
     }
 
@@ -91,8 +91,8 @@ class TritonLLVMConversionTarget : public mlir::ConversionTarget {
     addLegalDialect<mlir::LLVM::LLVMDialect>();
     addLegalDialect<mlir::NVVM::NVVMDialect>();
     addLegalDialect<mlir::_tritoncc::nvgpu::NVGPUDialect>();
-    addIllegalDialect<mlir::triton::TritonDialect>();
-    addIllegalDialect<mlir::_tritoncc::TritonGPUDialect>();
+    addIllegalDialect<mlir::_tritoncc::TritonDialect>();
+    addIllegalDialect<mlir::_tritoncc::gpu::TritonGPUDialect>();
     addIllegalDialect<mlir::_tritoncc::TritonNvidiaGPUDialect>();
     addIllegalDialect<mlir::gpu::GPUDialect>();
     addLegalOp<mlir::UnrealizedConversionCastOp>();
@@ -138,8 +138,8 @@ struct ConvertTritonGPUToLLVM : public mlir::OperationPass<mlir::ModuleOp> {
     TritonLLVMConversionTarget convTarget(*context);
     tritoncc::TritonGPUToLLVMTypeConverter typeConverter(context, option);
     int benefit = 10;
-    int numWarps = mlir::_tritoncc::TritonGPUDialect::getNumWarps(mod);
-    int numCTAs = mlir::_tritoncc::TritonGPUDialect::getNumCTAs(mod);
+    int numWarps = mlir::_tritoncc::gpu::TritonGPUDialect::getNumWarps(mod);
+    int numCTAs = mlir::_tritoncc::gpu::TritonGPUDialect::getNumCTAs(mod);
 
     // lower functions
     {

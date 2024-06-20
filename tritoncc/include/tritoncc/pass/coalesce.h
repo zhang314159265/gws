@@ -95,14 +95,14 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     }
     perThread = std::min<int>(perThread, numElemsPerThread);
 
-    if (!llvm::dyn_cast<mlir::triton::LoadOp>(op)) {
+    if (!llvm::dyn_cast<mlir::_tritoncc::LoadOp>(op)) {
       perThread = std::min<int>(
         perThread, tritoncc::getNumElementsPerThread(op, order, axisInfoAnalysis));
     }
     llvm::SmallVector<unsigned> sizePerThread(refTensorType.getRank(), 1);
     sizePerThread[order[0]] = perThread;
-    mlir::_tritoncc::CTALayoutAttr CTALayout = tritoncc::getCTALayout(refTensorType.getEncoding());
-    layoutMap[op] = mlir::_tritoncc::BlockedEncodingAttr::get(
+    mlir::_tritoncc::gpu::CTALayoutAttr CTALayout = tritoncc::getCTALayout(refTensorType.getEncoding());
+    layoutMap[op] = mlir::_tritoncc::gpu::BlockedEncodingAttr::get(
       &getContext(), refTensorType.getShape(), sizePerThread, order, numWarps,
       threadsPerWarp, CTALayout);
   }
@@ -120,9 +120,9 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     llvm::SmallVector<mlir::Value, 4> newArgs;
     for (mlir::Value operand : op->getOperands()) {
       mlir::RankedTensorType tensorType = operand.getType().dyn_cast<mlir::RankedTensorType>();
-      if (tensorType && !tensorType.getEncoding().isa<mlir::_tritoncc::SharedEncodingAttr>()) {
+      if (tensorType && !tensorType.getEncoding().isa<mlir::_tritoncc::gpu::SharedEncodingAttr>()) {
         mlir::Type newType = getNewType(tensorType, encoding);
-        newArgs.push_back(builder.create<mlir::_tritoncc::ConvertLayoutOp>(op->getLoc(), newType, operand));
+        newArgs.push_back(builder.create<mlir::_tritoncc::gpu::ConvertLayoutOp>(op->getLoc(), newType, operand));
       } else {
         newArgs.push_back(operand);
       }
@@ -131,7 +131,7 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     // convert output types
     llvm::SmallVector<mlir::Type, 4> newTypes;
     for (mlir::Type t : op->getResultTypes()) {
-      bool isAsync = llvm::isa<mlir::_tritoncc::InsertSliceAsyncOp>(op);
+      bool isAsync = llvm::isa<mlir::_tritoncc::gpu::InsertSliceAsyncOp>(op);
       newTypes.push_back(isAsync ? t : getNewType(t, encoding));
     }
 
@@ -140,7 +140,7 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
     for (size_t i = 0; i < op->getNumResults(); ++i) {
       mlir::Value newResult = newOp->getResult(i);
       if (newTypes[i] != op->getResultTypes()[i]) {
-        newResult = builder.create<mlir::_tritoncc::ConvertLayoutOp>(
+        newResult = builder.create<mlir::_tritoncc::gpu::ConvertLayoutOp>(
           op->getLoc(), op->getResult(i).getType(), newResult);
       }
       op->getResult(i).replaceAllUsesWith(newResult);
@@ -157,15 +157,15 @@ class CoalescePass : public mlir::OperationPass<mlir::ModuleOp> {
       if (!ptr) {
         return;
       }
-      if (mlir::triton::PointerType ptrType = ptr.getType().dyn_cast<mlir::triton::PointerType>()) {
+      if (mlir::_tritoncc::PointerType ptrType = ptr.getType().dyn_cast<mlir::_tritoncc::PointerType>()) {
         assert(false && "Pointer to tensor not supported yet. Please use tensor of pointers");
       }
       mlir::RankedTensorType tensorType = ptr.getType().dyn_cast<mlir::RankedTensorType>();
       assert(tensorType);
 
       mlir::ModuleOp mod = curr->getParentOfType<mlir::ModuleOp>();
-      int numWarps = mlir::_tritoncc::TritonGPUDialect::getNumWarps(mod);
-      int threadsPerWarp = mlir::_tritoncc::TritonGPUDialect::getThreadsPerWarp(mod);
+      int numWarps = mlir::_tritoncc::gpu::TritonGPUDialect::getNumWarps(mod);
+      int threadsPerWarp = mlir::_tritoncc::gpu::TritonGPUDialect::getThreadsPerWarp(mod);
       setCoalescedEncoding(axisInfoAnalysis, curr, numWarps, threadsPerWarp, layoutMap);
     });
     for (auto &kv : layoutMap) {

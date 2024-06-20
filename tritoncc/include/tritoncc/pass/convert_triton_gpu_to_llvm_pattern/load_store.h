@@ -80,24 +80,24 @@ unsigned LoadStoreConversionBase::getVectorSize(mlir::Value ptr) const {
   return std::min<unsigned>(128 / pointeeBitWidth, contiguity);
 }
 
-struct LoadOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::LoadOp>,
+struct LoadOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::LoadOp>,
                           public LoadStoreConversionBase {
-  using ConvertOpToLLVMPattern<mlir::triton::LoadOp>::ConvertOpToLLVMPattern;
+  using ConvertOpToLLVMPattern<mlir::_tritoncc::LoadOp>::ConvertOpToLLVMPattern;
 
   LoadOpConversion(mlir::LLVMTypeConverter &converter,
       ModuleAxisInfoAnalysis &axisAnalysisPass,
       mlir::PatternBenefit benefit)
-      : ConvertOpToLLVMPattern<mlir::triton::LoadOp>(converter, benefit),
+      : ConvertOpToLLVMPattern<mlir::_tritoncc::LoadOp>(converter, benefit),
         LoadStoreConversionBase(axisAnalysisPass) {}
 
   mlir::LogicalResult matchAndRewrite(
-      mlir::triton::LoadOp op,
+      mlir::_tritoncc::LoadOp op,
       OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const override;
 };
 
 mlir::LogicalResult LoadOpConversion::matchAndRewrite(
-    mlir::triton::LoadOp op,
+    mlir::_tritoncc::LoadOp op,
     OpAdaptor adaptor,
     mlir::ConversionPatternRewriter &rewriter) const {
   mlir::Location loc = op->getLoc();
@@ -172,7 +172,7 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
 
     const bool hasL2EvictPolicy = false;
 
-    mlir::triton::PTXBuilder ptxBuilder;
+    tritoncc::PTXBuilder ptxBuilder;
 
     mlir::Value pred = mask ? maskElems[vecStart] : int_val(1, 1);
 
@@ -195,12 +195,12 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
     auto &ld = ptxBuilder.create<>("ld")
         ->o("volatile", op.getIsVolatile())
         .global()
-        .o("ca", op.getCache() == mlir::triton::CacheModifier::CA)
-        .o("cg", op.getCache() == mlir::triton::CacheModifier::CG)
+        .o("ca", op.getCache() == mlir::_tritoncc::CacheModifier::CA)
+        .o("cg", op.getCache() == mlir::_tritoncc::CacheModifier::CG)
         .o("L1::evict_first",
-            op.getEvict() == mlir::triton::EvictionPolicy::EVICT_FIRST)
+            op.getEvict() == mlir::_tritoncc::EvictionPolicy::EVICT_FIRST)
         .o("L1::evict_last",
-            op.getEvict() == mlir::triton::EvictionPolicy::EVICT_LAST)
+            op.getEvict() == mlir::_tritoncc::EvictionPolicy::EVICT_LAST)
         .o("L1::cache_hint", hasL2EvictPolicy)
         .v(nWords)
         .b(width);
@@ -210,7 +210,7 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
     if (other) {
       for (size_t ii = 0; ii < nWords; ++ii) {
         // PTX doesn't support mov.u8, so we need to use mov.u16
-        mlir::triton::PTXInstr &mov =
+        tritoncc::PTXInstr &mov =
             ptxBuilder.create<>("mov")->o("u" + std::to_string(movWidth));
         
         size_t size = width / valueElemNBits;
@@ -225,7 +225,7 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
         }
         v = bitcast(v, mlir::IntegerType::get(getContext(), width));
 
-        mlir::triton::PTXInstr::Operand *opr{};
+        tritoncc::PTXInstr::Operand *opr{};
 
         if (otherIsSplatConstInt) {
           for (size_t s = 0; s < 32; s += valueElemNBits) {
@@ -279,22 +279,22 @@ mlir::LogicalResult LoadOpConversion::matchAndRewrite(
   return mlir::success();
 }
 
-struct StoreOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::triton::StoreOp>,
+struct StoreOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::StoreOp>,
     public LoadStoreConversionBase {
-  using ConvertOpToLLVMPattern<mlir::triton::StoreOp>::ConvertOpToLLVMPattern;
+  using ConvertOpToLLVMPattern<mlir::_tritoncc::StoreOp>::ConvertOpToLLVMPattern;
 
   StoreOpConversion(mlir::LLVMTypeConverter &converter,
       ModuleAxisInfoAnalysis &axisAnalysisPass,
-      mlir::PatternBenefit benefit) : ConvertOpToLLVMPattern<mlir::triton::StoreOp>(converter, benefit), LoadStoreConversionBase(axisAnalysisPass) {}
+      mlir::PatternBenefit benefit) : ConvertOpToLLVMPattern<mlir::_tritoncc::StoreOp>(converter, benefit), LoadStoreConversionBase(axisAnalysisPass) {}
 
   mlir::LogicalResult matchAndRewrite(
-      mlir::triton::StoreOp op,
+      mlir::_tritoncc::StoreOp op,
       OpAdaptor adaptor,
       mlir::ConversionPatternRewriter &rewriter) const override;
 };
 
 mlir::LogicalResult StoreOpConversion::matchAndRewrite(
-    mlir::triton::StoreOp op,
+    mlir::_tritoncc::StoreOp op,
     OpAdaptor adaptor,
     mlir::ConversionPatternRewriter &rewriter) const {
   mlir::Value ptr = op.getPtr();
@@ -370,7 +370,7 @@ mlir::LogicalResult StoreOpConversion::matchAndRewrite(
     }
 
     // Prepare the PTX inline asm
-    mlir::triton::PTXBuilder ptxBuilder;
+    tritoncc::PTXBuilder ptxBuilder;
     auto *asmArgList = ptxBuilder.newListOperand(asmArgs);
 
     mlir::Value maskVal = llMask ? and_(mask, maskElems[vecStart]) : mask;
@@ -381,14 +381,14 @@ mlir::LogicalResult StoreOpConversion::matchAndRewrite(
     auto &ptxStoreInstr =
         ptxBuilder.create<>("st")
           ->global()
-          .o("wb", op.getCache() == mlir::triton::CacheModifier::WB)
-          .o("cg", op.getCache() == mlir::triton::CacheModifier::CG)
-          .o("cs", op.getCache() == mlir::triton::CacheModifier::CS)
-          .o("wt", op.getCache() == mlir::triton::CacheModifier::WT)
+          .o("wb", op.getCache() == mlir::_tritoncc::CacheModifier::WB)
+          .o("cg", op.getCache() == mlir::_tritoncc::CacheModifier::CG)
+          .o("cs", op.getCache() == mlir::_tritoncc::CacheModifier::CS)
+          .o("wt", op.getCache() == mlir::_tritoncc::CacheModifier::WT)
           .o("L1::evict_first",
-            op.getEvict() == mlir::triton::EvictionPolicy::EVICT_FIRST)
+            op.getEvict() == mlir::_tritoncc::EvictionPolicy::EVICT_FIRST)
           .o("L1::evict_last",
-            op.getEvict() == mlir::triton::EvictionPolicy::EVICT_LAST)
+            op.getEvict() == mlir::_tritoncc::EvictionPolicy::EVICT_LAST)
           .v(nWords)
           .b(width);
 

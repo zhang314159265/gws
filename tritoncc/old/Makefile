@@ -11,36 +11,18 @@ endif
 TBLGEN := ${LLVM_ROOT}/bin/mlir-tblgen
 
 # TODO: don't add path in triton/
-TBLGEN_INC_FLAGS := -I${LLVM_ROOT}/include -I../include -I$(HOME)/ws/triton/include
-
+TBLGEN_INC_FLAGS := -I${LLVM_ROOT}/include -I../include
 TRITON_SRC_ROOT := $(HOME)/ws/triton
 TRITON_BUILD_ROOT := $(TRITON_SRC_ROOT)/python/build/cmake.linux-x86_64-cpython-3.10
 LIBPYTHON_DIR := /home/shunting/ws/miniconda3/envs/pytorch/lib
 
 PTXAS := $(TRITON_SRC_ROOT)/third_party/nvidia/backend/bin/ptxas
 
-CFLAGS := -I$(LLVM_ROOT)/include -I$(TRITON_SRC_ROOT)/third_party -I$(TRITON_SRC_ROOT)/include -I$(TRITON_BUILD_ROOT)/include -I../include -I../out/include -I$(TRITON_SRC_ROOT) -I$(TRITON_SRC_ROOT)/lib/Conversion/TritonGPUToLLVM -I$(TRITON_SRC_ROOT)/include/triton/Conversion/TritonGPUToLLVM -fno-rtti
+CFLAGS := -I$(LLVM_ROOT)/include -I../include -I../out/include -fno-rtti
 LDFLAGS := -L$(LLVM_ROOT)/lib
 
 # misc libs
 LDFLAGS += -lz
-
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Analysis/CMakeFiles/TritonAnalysis.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/TritonGPUToLLVM.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/TritonGPUToLLVM.dir/ConvertLayoutOpToLLVM/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonGPUToLLVM/CMakeFiles/TritonGPUToLLVM.dir/DotOpToLLVM/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Conversion/TritonToTritonGPU/CMakeFiles/TritonToTritonGPU.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/Triton/IR/CMakeFiles/TritonIR.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/Triton/Transforms/CMakeFiles/TritonTransforms.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/TritonGPU/IR/CMakeFiles/TritonGPUIR.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/TritonGPU/Transforms/CMakeFiles/TritonGPUTransforms.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/TritonNvidiaGPU/IR/CMakeFiles/TritonNvidiaGPUIR.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/TritonNvidiaGPU/Transforms/CMakeFiles/TritonNvidiaGPUTransforms.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/lib/Dialect/NVGPU/IR/CMakeFiles/NVGPUIR.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/CMakeFiles/TritonNVIDIAGPUToLLVM.dir/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/CMakeFiles/TritonNVIDIAGPUToLLVM.dir/ConvertLayoutOpToLLVM/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/CMakeFiles/TritonNVIDIAGPUToLLVM.dir/DotOpToLLVM/*.o
-LDFLAGS += $(TRITON_BUILD_ROOT)/third_party/nvidia/lib/NVGPUToLLVM/CMakeFiles/NVGPUToLLVM.dir/*.o
 
 OVERRIDE_LIB_PATH := $(TRITON_SRC_ROOT)/python/triton/_C:$(LIBPYTHON_DIR)
 
@@ -72,6 +54,7 @@ run_tblgen:
 	mkdir -p ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU
 	mkdir -p ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/NVGPU
 	mkdir -p ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU
+	mkdir -p ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/Triton
 	${TBLGEN} -gen-dialect-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonNvidiaGPU/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU/Dialect.h.inc
 	${TBLGEN} -gen-dialect-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonNvidiaGPU/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU/Dialect.cpp.inc
 	${TBLGEN} -gen-attrdef-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonNvidiaGPU/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonNvidiaGPU/AttrDefs.cpp.inc
@@ -88,6 +71,14 @@ run_tblgen:
 	${TBLGEN} -gen-attrdef-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonGPU/AttrDefs.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU/AttrDefs.cpp.inc
 	${TBLGEN} -gen-attr-interface-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonGPU/AttrDefs.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU/AttrInterfaces.h.inc
 	${TBLGEN} -gen-attr-interface-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/TritonGPU/AttrDefs.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/TritonGPU/AttrInterfaces.cpp.inc
+	${TBLGEN} -gen-op-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/Triton/Ops.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/Triton/Ops.h.inc
+	${TBLGEN} -gen-op-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/Triton/Ops.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/Triton/Ops.cpp.inc
+	${TBLGEN} -gen-dialect-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/Triton/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/Triton/Dialect.h.inc
+	${TBLGEN} -gen-dialect-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/Triton/Dialect.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/Triton/Dialect.cpp.inc
+	${TBLGEN} -gen-enum-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/Triton/Ops.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/Triton/OpsEnums.h.inc
+	${TBLGEN} -gen-enum-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/Triton/Ops.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/Triton/OpsEnums.cpp.inc
+	${TBLGEN} -gen-typedef-decls ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/Triton/Types.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/Triton/Types.h.inc
+	${TBLGEN} -gen-typedef-defs ${TBLGEN_INC_FLAGS} ${TRITONCC_INC_DIR}/tritoncc/dialect/Triton/Types.td -o ${TRITONCC_OUT_DIR}/include/tritoncc/dialect/Triton/Types.cpp.inc
 
 test_sum: run_tblgen
 	g++ test_sum.cpp $(ALLFLAGS) -o a.out
@@ -102,7 +93,7 @@ test_dot:
 	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_dot_cubin_and_run /tmp/tritoncc.cubin
 
-test_add:
+test_add: run_tblgen
 	time g++ test_add.cpp $(ALLFLAGS) -o a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_LIB_PATH) ./a.out
 	LD_LIBRARY_PATH=$(OVERRIDE_TORCH_LIB_PATH) out/test_load_add_cubin_and_run /tmp/tritoncc.cubin

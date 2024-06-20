@@ -4,7 +4,7 @@
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 include "tritoncc/dialect/TritonGPU/Dialect.td"
-include "triton/Dialect/Triton/IR/TritonTypes.td"
+include "tritoncc/dialect/Triton/Types.td"
 
 // Type definition copied from TritonIR TritonTypes.td
 // def TT_PTR : TT_PtrOf<[AnyType]>;

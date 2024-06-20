@@ -20,7 +20,7 @@ using mlir::multiRootTopologicalSort;
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
-#include "triton/Dialect/Triton/IR/Dialect.h"
+#include "tritoncc/dialect/Triton/Dialect.h"
 #include "tritoncc/dialect/TritonGPU/Dialect.h"
 
 #include "tritoncc/dialect/TritonNvidiaGPU/Dialect.h"
@@ -329,21 +329,21 @@ class CallGraph {
 bool maybeSharedAllocationOp(mlir::Operation *op) {
   auto *dialect = op->getDialect();
   return dialect &&
-    (dialect->getTypeID() == mlir::TypeID::get<mlir::_tritoncc::TritonGPUDialect>() ||
+    (dialect->getTypeID() == mlir::TypeID::get<mlir::_tritoncc::gpu::TritonGPUDialect>() ||
      dialect->getTypeID() == mlir::TypeID::get<mlir::_tritoncc::TritonNvidiaGPUDialect>() ||
-     dialect->getTypeID() == mlir::TypeID::get<mlir::triton::TritonDialect>() ||
+     dialect->getTypeID() == mlir::TypeID::get<mlir::_tritoncc::TritonDialect>() ||
      dialect->getTypeID() == mlir::TypeID::get<mlir::arith::ArithDialect>() ||
      dialect->getTypeID() == mlir::TypeID::get<mlir::tensor::TensorDialect>());
 }
 
 bool maybeAliasOp(mlir::Operation *op) {
-  return llvm::isa<mlir::_tritoncc::ExtractSliceOp, mlir::triton::TransOp, mlir::_tritoncc::InsertSliceAsyncOp, mlir::tensor::InsertSliceOp>(op);
+  return llvm::isa<mlir::_tritoncc::gpu::ExtractSliceOp, mlir::_tritoncc::TransOp, mlir::_tritoncc::gpu::InsertSliceAsyncOp, mlir::tensor::InsertSliceOp>(op);
 }
 
 class ReduceOpHelper {
  public:
-  explicit ReduceOpHelper(mlir::triton::ReduceOp op) {
-    this->op = mlir::triton::ReduceOp(op.getOperation());
+  explicit ReduceOpHelper(mlir::_tritoncc::ReduceOp op) {
+    this->op = mlir::_tritoncc::ReduceOp(op.getOperation());
     this->axis = op.getAxis();
     mlir::RankedTensorType firstTy = op.getOperands()[0].getType().cast<mlir::RankedTensorType>();
     srcShape = firstTy.getShape();
@@ -351,7 +351,7 @@ class ReduceOpHelper {
     srcElementTypes = op.getElementTypes();
   }
 
-  mlir::triton::ReduceOp getOperation() { return op; }
+  mlir::_tritoncc::ReduceOp getOperation() { return op; }
 
   llvm::SmallVector<unsigned> getOrderWithAxisAtBeginning() {
     auto srcLayout = getSrcLayout();
@@ -395,7 +395,7 @@ class ReduceOpHelper {
       return false;
     }
     auto srcLayout = getSrcLayout();
-    if (srcLayout.isa<mlir::_tritoncc::BlockedEncodingAttr>()) {
+    if (srcLayout.isa<mlir::_tritoncc::gpu::BlockedEncodingAttr>()) {
       return true;
     }
     assert(false && "isSupportedLayout");
@@ -431,7 +431,7 @@ class ReduceOpHelper {
     return bytesPerElem * elems;
   }
  private:
-  mlir::triton::ReduceOp op;
+  mlir::_tritoncc::ReduceOp op;
   llvm::ArrayRef<int64_t> srcShape;
   mlir::Attribute srcEncoding;
   llvm::SmallVector<mlir::Type> srcElementTypes;
@@ -495,9 +495,9 @@ class SharedMemoryAliasAnalysis
     bool pessimistic = true;
     // These ops may allocate a new shared memory buffer.
     auto result = op->getResult(0);
-    if (llvm::isa<mlir::_tritoncc::ExtractSliceOp, mlir::triton::TransOp>(op)) {
+    if (llvm::isa<mlir::_tritoncc::gpu::ExtractSliceOp, mlir::_tritoncc::TransOp>(op)) {
       assert(false && "ExtractSliceOp or TransOp");
-    } else if (llvm::isa<mlir::tensor::InsertSliceOp, mlir::_tritoncc::InsertSliceAsyncOp>(op)) {
+    } else if (llvm::isa<mlir::tensor::InsertSliceOp, mlir::_tritoncc::gpu::InsertSliceAsyncOp>(op)) {
       assert(false && "InsertSliceOp or InsertSliceAsyncOp");
     } else if (tritoncc::hasSharedEncoding(result)) {
       aliasInfo.insert(result);

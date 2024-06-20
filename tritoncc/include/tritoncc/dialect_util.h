@@ -8,7 +8,7 @@ namespace tritoncc {
 void loadDialects(mlir::MLIRContext &ctx) {
   { // follows ir.load_dialects
     mlir::DialectRegistry registry;
-    registry.insert<mlir::triton::TritonDialect>();
+    registry.insert<mlir::_tritoncc::TritonDialect>();
     mlir::registerBuiltinDialectTranslation(registry);
     mlir::registerLLVMDialectTranslation(registry);
     ctx.appendDialectRegistry(registry);

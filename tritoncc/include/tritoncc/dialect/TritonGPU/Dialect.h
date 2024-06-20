@@ -30,7 +30,7 @@
 #include "tritoncc/util.h"
 
 struct TritonGPUInferLayoutInterface
-    : public mlir::triton::DialectInferLayoutInterface {
+    : public tritoncc::DialectInferLayoutInterface {
   using DialectInferLayoutInterface::DialectInferLayoutInterface;
 
   mlir::LogicalResult
@@ -44,7 +44,7 @@ struct TritonGPUInferLayoutInterface
   inferReduceOpEncoding(mlir::Attribute operandEncoding,
       unsigned axis,
       mlir::Attribute &resultEncoding) const override {
-    resultEncoding = mlir::_tritoncc::SliceEncodingAttr::get(
+    resultEncoding = mlir::_tritoncc::gpu::SliceEncodingAttr::get(
       getDialect()->getContext(),
       axis,
       operandEncoding);
@@ -56,7 +56,7 @@ struct TritonGPUInferLayoutInterface
       unsigned axis,
       mlir::Attribute &resultEncoding,
       std::optional<mlir::Location> location) const override {
-    auto sliceEncoding = operandEncoding.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>();
+    auto sliceEncoding = operandEncoding.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>();
     if (!sliceEncoding) {
       return emitOptionalError(
         location, "ExpandDimsOp operand encoding must be SliceEncodingAttr");
@@ -106,7 +106,7 @@ struct TritonGPUInferLayoutInterface
   }
 };
 
-void mlir::_tritoncc::TritonGPUDialect::initialize() {
+void mlir::_tritoncc::gpu::TritonGPUDialect::initialize() {
   addAttributes<
 #define GET_ATTRDEF_LIST
 #include "tritoncc/dialect/TritonGPU/AttrDefs.cpp.inc"
@@ -145,7 +145,7 @@ llvm::SmallVector<unsigned> getElemsPerThread(mlir::Attribute layout,
 }
 
 unsigned getTotalElemsPerThread(mlir::Type type) {
-  if (type.isIntOrIndexOrFloat() || type.isa<mlir::triton::PointerType>()) {
+  if (type.isIntOrIndexOrFloat() || type.isa<mlir::_tritoncc::PointerType>()) {
     return 1;
   }
   auto tensorType = type.cast<mlir::RankedTensorType>();
@@ -155,7 +155,7 @@ unsigned getTotalElemsPerThread(mlir::Type type) {
 
 // 1 element per thread
 // order = reverse(arange(rank))
-mlir::_tritoncc::BlockedEncodingAttr
+mlir::_tritoncc::gpu::BlockedEncodingAttr
 getDefaultBlockedEncoding(mlir::MLIRContext *context, llvm::ArrayRef<int64_t> shape,
     int numWarps, int threadsPerWarp, int numCTAs) {
   int rank = shape.size();
@@ -163,7 +163,7 @@ getDefaultBlockedEncoding(mlir::MLIRContext *context, llvm::ArrayRef<int64_t> sh
   std::iota(order.begin(), order.end(), 0);
   std::reverse(order.begin(), order.end());
   llvm::SmallVector<unsigned> sizePerThread(rank, 1);
-  return mlir::_tritoncc::BlockedEncodingAttr::get(
+  return mlir::_tritoncc::gpu::BlockedEncodingAttr::get(
     context, shape, sizePerThread,
     order, numWarps, threadsPerWarp,
     numCTAs);
@@ -173,9 +173,9 @@ llvm::SmallVector<unsigned> getCTAsPerCGA(mlir::Attribute layout) {
   llvm::ArrayRef<unsigned> ref;
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
     return distributedLayout.getCTAsPerCGA();
-  } else if (auto mfmaLayout = layout.dyn_cast<mlir::_tritoncc::AMDMfmaEncodingAttr>()) {
+  } else if (auto mfmaLayout = layout.dyn_cast<mlir::_tritoncc::gpu::AMDMfmaEncodingAttr>()) {
     return {1, 1};
-  } else if (auto sharedLayout = layout.dyn_cast<mlir::_tritoncc::SharedEncodingAttr>()) {
+  } else if (auto sharedLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SharedEncodingAttr>()) {
     ref = sharedLayout.getCTALayout().getCTAsPerCGA();
   } else {
     llvm::report_fatal_error("Unimplemented usage of getCTAsPerCGA");
@@ -187,9 +187,9 @@ llvm::SmallVector<unsigned> getCTASplitNum(mlir::Attribute layout) {
   llvm::SmallVector<unsigned> res;
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
     return distributedLayout.getCTASplitNum();
-  } else if (auto mfmaLayout = layout.dyn_cast<mlir::_tritoncc::AMDMfmaEncodingAttr>()) {
+  } else if (auto mfmaLayout = layout.dyn_cast<mlir::_tritoncc::gpu::AMDMfmaEncodingAttr>()) {
     assert(false && "AMDMfmaEncodingAttr");
-  } else if (auto sharedLayout = layout.dyn_cast<mlir::_tritoncc::SharedEncodingAttr>()) {
+  } else if (auto sharedLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SharedEncodingAttr>()) {
     assert(false && "SharedEncodingAttr");
   } else {
     assert(false && "Unimplemented usage of getCTASplitNum");
@@ -201,9 +201,9 @@ llvm::SmallVector<unsigned> getCTAOrder(mlir::Attribute layout) {
   llvm::SmallVector<unsigned> res;
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
     res = distributedLayout.getCTAOrder();
-  } else if (auto mfmaLayout = layout.dyn_cast<mlir::_tritoncc::AMDMfmaEncodingAttr>()) {
+  } else if (auto mfmaLayout = layout.dyn_cast<mlir::_tritoncc::gpu::AMDMfmaEncodingAttr>()) {
     return {0, 1};
-  } else if (auto sharedLayout = layout.dyn_cast<mlir::_tritoncc::SharedEncodingAttr>()) {
+  } else if (auto sharedLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SharedEncodingAttr>()) {
     res = llvm::SmallVector<unsigned>(sharedLayout.getCTALayout().getCTAOrder());
   } else {
     llvm::report_fatal_error("Unimplemented usage of getCTAOrder");
@@ -211,13 +211,13 @@ llvm::SmallVector<unsigned> getCTAOrder(mlir::Attribute layout) {
   return res;
 }
 
-mlir::_tritoncc::CTALayoutAttr getCTALayout(mlir::Attribute layout) {
+mlir::_tritoncc::gpu::CTALayoutAttr getCTALayout(mlir::Attribute layout) {
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
-    return mlir::_tritoncc::CTALayoutAttr::get(
+    return mlir::_tritoncc::gpu::CTALayoutAttr::get(
         layout.getContext(), getCTAsPerCGA(distributedLayout),
         getCTASplitNum(distributedLayout),
         getCTAOrder(distributedLayout));
-  } else if (auto sharedLayout = layout.dyn_cast<mlir::_tritoncc::SharedEncodingAttr>()) {
+  } else if (auto sharedLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SharedEncodingAttr>()) {
     return sharedLayout.getCTALayout();
   } else {
     llvm::report_fatal_error("Unimplemented usage of getCTALayout");
@@ -238,7 +238,7 @@ llvm::SmallVector<int64_t> getShapePerCTA(llvm::ArrayRef<unsigned> CTASplitNum,
 }
 
 llvm::SmallVector<int64_t> getShapePerCTA(mlir::Attribute layout, llvm::ArrayRef<int64_t> shape) {
-  if (auto sharedLayout = layout.dyn_cast<mlir::_tritoncc::SharedEncodingAttr>()) {
+  if (auto sharedLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SharedEncodingAttr>()) {
     assert(false && "SharedEncodingAttr");
   }
   return getShapePerCTA(getCTASplitNum(layout), shape);
@@ -279,10 +279,10 @@ unsigned getWarpSize(mlir::Attribute layout) {
 }
 
 llvm::SmallVector<unsigned> getOrder(mlir::Attribute layout) {
-  if (auto blockedLayout = layout.dyn_cast<mlir::_tritoncc::BlockedEncodingAttr>()) {
+  if (auto blockedLayout = layout.dyn_cast<mlir::_tritoncc::gpu::BlockedEncodingAttr>()) {
     return llvm::SmallVector<unsigned>(blockedLayout.getOrder().begin(),
         blockedLayout.getOrder().end());
-  } else if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
+  } else if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>()) {
     llvm::SmallVector<unsigned> parentOrder = getOrder(sliceLayout.getParent());
     unsigned dim = sliceLayout.getDim();
     llvm::SmallVector<unsigned> order;
@@ -313,11 +313,11 @@ llvm::SmallVector<unsigned> getSizePerThread(mlir::Attribute layout) {
 }
 
 llvm::SmallVector<unsigned> getContigPerThread(mlir::Attribute layout) {
-  if (auto mmaLayout = layout.dyn_cast<mlir::_tritoncc::NvidiaMmaEncodingAttr>()) {
+  if (auto mmaLayout = layout.dyn_cast<mlir::_tritoncc::gpu::NvidiaMmaEncodingAttr>()) {
     assert(false && "NvidiaMma");
-  } else if (layout.isa<mlir::_tritoncc::AMDMfmaEncodingAttr>()) {
+  } else if (layout.isa<mlir::_tritoncc::gpu::AMDMfmaEncodingAttr>()) {
     return {1, 1};
-  } else if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
+  } else if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>()) {
     assert(false && "slice");
   } else {
     return getSizePerThread(layout);
@@ -328,7 +328,7 @@ llvm::SmallVector<unsigned> getUniqueContigPerThread(mlir::Attribute layout,
     llvm::ArrayRef<int64_t> shape) {
   // If slice layout, call recursively on parent layout, and drop
   // sliced dim
-  if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
+  if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>()) {
     auto parentLayout = sliceLayout.getParent();
     auto parentShape = sliceLayout.paddedShape(shape);
     auto parentUniqueContigPerThread =
@@ -359,7 +359,7 @@ llvm::SmallVector<unsigned> getWarpsPerCTA(mlir::Attribute layout) {
 
 llvm::SmallVector<unsigned>
 getWarpsPerCTAWithUniqueData(mlir::Attribute layout, llvm::ArrayRef<int64_t> tensorShape) {
-  if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
+  if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>()) {
     assert(false && "slice");
   }
   auto warpsPerCTA = getWarpsPerCTA(layout);
@@ -378,7 +378,7 @@ getWarpsPerCTAWithUniqueData(mlir::Attribute layout, llvm::ArrayRef<int64_t> ten
 llvm::SmallVector<unsigned>
 getThreadsPerWarpWithUniqueData(mlir::Attribute layout,
     llvm::ArrayRef<int64_t> tensorShape) {
-  if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>()) {
+  if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>()) {
     assert(false && "slice");
   }
   auto threadsPerWarp = getThreadsPerWarp(layout);
@@ -416,6 +416,7 @@ bool shouldUseDistSmem(mlir::Attribute srcLayout, mlir::Attribute dstLayout) {
 
 namespace mlir {
 namespace _tritoncc {
+namespace gpu {
 
 template <typename T>
 bool hasEncoding(mlir::Value value) {
@@ -428,7 +429,7 @@ bool hasEncoding(mlir::Value value) {
 }
 
 bool hasSharedEncoding(mlir::Value value) {
-  return hasEncoding<mlir::_tritoncc::SharedEncodingAttr>(value);
+  return hasEncoding<mlir::_tritoncc::gpu::SharedEncodingAttr>(value);
 }
 
 struct CanonicalizeConvertFromConvert
@@ -448,16 +449,16 @@ struct CanonicalizeConvertFromConvert
     // heuristic to accomodate fused attention.
     auto srcType = op.getSrc().getType();
     auto dstType = op.getType();
-    if (dstType.getEncoding().isa<mlir::_tritoncc::DotOperandEncodingAttr>() &&
-        srcType.getEncoding().isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>()) {
+    if (dstType.getEncoding().isa<mlir::_tritoncc::gpu::DotOperandEncodingAttr>() &&
+        srcType.getEncoding().isa<mlir::_tritoncc::gpu::NvidiaMmaEncodingAttr>()) {
       return mlir::failure();
     }
 
     // for hopper MMAv3
-    if (dstType.getEncoding().isa<mlir::_tritoncc::SharedEncodingAttr>() && 
-        srcType.getEncoding().isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>() &&
+    if (dstType.getEncoding().isa<mlir::_tritoncc::gpu::SharedEncodingAttr>() && 
+        srcType.getEncoding().isa<mlir::_tritoncc::gpu::NvidiaMmaEncodingAttr>() &&
         llvm::any_of(op.getResult().getUsers(),
-            [](mlir::Operation *dot) { return llvm::isa<mlir::triton::DotOp>(dot); })) {
+            [](mlir::Operation *dot) { return llvm::isa<mlir::_tritoncc::DotOp>(dot); })) {
       return mlir::failure();
     }
 
@@ -467,37 +468,37 @@ struct CanonicalizeConvertFromConvert
     }
 
     // cvt(reshape) -> reshape
-    if (auto reshape = llvm::dyn_cast<mlir::triton::ReshapeOp>(arg)) {
+    if (auto reshape = llvm::dyn_cast<mlir::_tritoncc::ReshapeOp>(arg)) {
       assert(false && "cvt(reshape)");
     }
 
     // cvt(histogram) -> histogram
-    if (auto histogram = llvm::dyn_cast<mlir::triton::HistogramOp>(arg)) {
+    if (auto histogram = llvm::dyn_cast<mlir::_tritoncc::HistogramOp>(arg)) {
       assert(false && "cvt(histogram)");
     }
 
     // cvt(cat) -> cat
-    if (auto cat = llvm::dyn_cast<mlir::triton::CatOp>(arg)) {
+    if (auto cat = llvm::dyn_cast<mlir::_tritoncc::CatOp>(arg)) {
       assert(false && "cvt(cat)");
     }
 
     // cvt(alloc_tensor(x), type2) -> alloc_tensor(x, type2)
-    if (auto alloc_tensor = llvm::dyn_cast<mlir::_tritoncc::AllocTensorOp>(arg)) {
+    if (auto alloc_tensor = llvm::dyn_cast<mlir::_tritoncc::gpu::AllocTensorOp>(arg)) {
       assert(false && "cvt(alloc_tensor)");
     }
 
     // cvt(insert_slice)
-    if (auto insert_slice = llvm::dyn_cast<mlir::_tritoncc::InsertSliceAsyncOp>(arg)) {
+    if (auto insert_slice = llvm::dyn_cast<mlir::_tritoncc::gpu::InsertSliceAsyncOp>(arg)) {
       assert(false && "cvt(insert_slice)");
     }
 
     // cvt(extract_slice)
-    if (auto extract_slice = llvm::dyn_cast<mlir::_tritoncc::ExtractSliceOp>(arg)) {
+    if (auto extract_slice = llvm::dyn_cast<mlir::_tritoncc::gpu::ExtractSliceOp>(arg)) {
       assert(false && "cvt(extract_slice)");
     }
 
     // cvt(cvt)
-    if (auto cvt = llvm::dyn_cast<mlir::_tritoncc::ConvertLayoutOp>(arg)) {
+    if (auto cvt = llvm::dyn_cast<mlir::_tritoncc::gpu::ConvertLayoutOp>(arg)) {
       if (cvt.getSrc().getDefiningOp() && !hasSharedEncoding(cvt.getSrc()) &&
           hasSharedEncoding(op.getSrc()) && !hasSharedEncoding(op.getResult())) {
         return mlir::failure();
@@ -509,24 +510,24 @@ struct CanonicalizeConvertFromConvert
 
       auto srcType = op.getSrc().getType();
       auto srcShared =
-          srcType.getEncoding().dyn_cast<mlir::_tritoncc::SharedEncodingAttr>();
+          srcType.getEncoding().dyn_cast<mlir::_tritoncc::gpu::SharedEncodingAttr>();
       if (srcShared && srcShared.getVec() > 1) {
         return mlir::failure();
       }
 
-      rewriter.replaceOpWithNewOp<mlir::_tritoncc::ConvertLayoutOp>(
+      rewriter.replaceOpWithNewOp<mlir::_tritoncc::gpu::ConvertLayoutOp>(
           op, op->getResultTypes().front(), cvt.getSrc());
       return mlir::success();
     }
 
     // cvt(splat)
-    if (auto splat = llvm::dyn_cast<mlir::triton::SplatOp>(arg)) {
+    if (auto splat = llvm::dyn_cast<mlir::_tritoncc::SplatOp>(arg)) {
       assert(false && "cvt(splat)");
     }
 
     // cvt(make_range)
-    if (auto range = llvm::dyn_cast<mlir::triton::MakeRangeOp>(arg)) {
-      rewriter.replaceOpWithNewOp<mlir::triton::MakeRangeOp>(
+    if (auto range = llvm::dyn_cast<mlir::_tritoncc::MakeRangeOp>(arg)) {
+      rewriter.replaceOpWithNewOp<mlir::_tritoncc::MakeRangeOp>(
           op, op->getResultTypes(), range.getStart(), range.getEnd());
       return mlir::success();
     }
@@ -542,11 +543,11 @@ struct CanonicalizeConvertFromConvert
 
 // reshape(cvt) -> reshape
 struct CanonicalizeConvertFromReshape
-    : public mlir::OpRewritePattern<mlir::triton::ReshapeOp> {
+    : public mlir::OpRewritePattern<mlir::_tritoncc::ReshapeOp> {
   using OpRewritePattern::OpRewritePattern;
 
   mlir::LogicalResult
-  matchAndRewrite(mlir::triton::ReshapeOp op,
+  matchAndRewrite(mlir::_tritoncc::ReshapeOp op,
       mlir::PatternRewriter &rewriter) const override {
     assert(false && "matchAndRewrite");
   }
@@ -554,11 +555,11 @@ struct CanonicalizeConvertFromReshape
 
 // histogram(cvt) -> histogram
 struct CanonicalizeConvertFromHistogram
-    : public mlir::OpRewritePattern<mlir::triton::HistogramOp> {
+    : public mlir::OpRewritePattern<mlir::_tritoncc::HistogramOp> {
   using OpRewritePattern::OpRewritePattern;
 
   mlir::LogicalResult
-  matchAndRewrite(mlir::triton::HistogramOp op,
+  matchAndRewrite(mlir::_tritoncc::HistogramOp op,
       mlir::PatternRewriter &rewriter) const override {
     assert(false && "matchAndRewrite");
   }
@@ -855,4 +856,4 @@ SharedEncodingAttr::getElemsPerThread(llvm::ArrayRef<int64_t> shape,
   assert(false && "getElemsPerThread");
 }
 
-} }
+} } }

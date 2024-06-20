@@ -7,17 +7,13 @@
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/ArrayRef.h"
 
-namespace tritoncc {
+#include "tritoncc/dialect/Triton/Traits.h"
 
-bool isTensorPointerType(mlir::Type type) {
-  if (mlir::triton::PointerType ptrType = type.dyn_cast<mlir::triton::PointerType>()) {
-    return ptrType.getPointeeType().isa<mlir::RankedTensorType>();
-  }
-  return false;
-}
+namespace tritoncc {
 
 bool isSingleValue(mlir::Value value) {
   if (mlir::RankedTensorType tensorTy = value.getType().dyn_cast<mlir::RankedTensorType>()) {
@@ -57,19 +53,19 @@ bool isExpensiveLoadOrStore(mlir::Operation *op) {
 }
 
 bool canFoldIntoConversion(mlir::Operation *op, mlir::Attribute targetEncoding) {
-  if (llvm::isa<mlir::triton::CatOp>(op)) {
+  if (llvm::isa<mlir::_tritoncc::CatOp>(op)) {
     assert(false && "CatOp");
   }
-  if (auto convert = llvm::dyn_cast<mlir::_tritoncc::ConvertLayoutOp>(op)) {
+  if (auto convert = llvm::dyn_cast<mlir::_tritoncc::gpu::ConvertLayoutOp>(op)) {
     assert(false && "ConvertLayoutOp");
   }
-  if (auto reshape = llvm::dyn_cast<mlir::triton::ReshapeOp>(op)) {
+  if (auto reshape = llvm::dyn_cast<mlir::_tritoncc::ReshapeOp>(op)) {
     assert(false && "ReshapeOp");
   }
   return llvm::isa<mlir::arith::ConstantOp,
-    mlir::triton::MakeRangeOp,
-    mlir::triton::SplatOp,
-    mlir::triton::HistogramOp>(op);
+    mlir::_tritoncc::MakeRangeOp,
+    mlir::_tritoncc::SplatOp,
+    mlir::_tritoncc::HistogramOp>(op);
 }
 
 template <typename T>
@@ -83,34 +79,34 @@ bool hasEncoding(mlir::Value value) {
 }
 
 bool hasSharedEncoding(mlir::Value value) {
-  return hasEncoding<mlir::_tritoncc::SharedEncodingAttr>(value);
+  return hasEncoding<mlir::_tritoncc::gpu::SharedEncodingAttr>(value);
 }
 
-mlir::Attribute inferDstEncoding(mlir::triton::ReduceOp op,
+mlir::Attribute inferDstEncoding(mlir::_tritoncc::ReduceOp op,
     mlir::Attribute encoding) {
-  return mlir::_tritoncc::SliceEncodingAttr::get(op->getContext(), op.getAxis(), encoding);
+  return mlir::_tritoncc::gpu::SliceEncodingAttr::get(op->getContext(), op.getAxis(), encoding);
 }
 
 mlir::Attribute inferDstEncoding(mlir::Operation *op, mlir::Attribute encoding) {
-  if (llvm::isa<mlir::triton::ScanOp>(op)) {
+  if (llvm::isa<mlir::_tritoncc::ScanOp>(op)) {
     assert(false && "ScanOp");
   }
-  if (op->hasTrait<mlir::OpTrait::SameOperandsAndResultEncoding>() ||
-      op->hasTrait<mlir::OpTrait::SameLoadStoreOperandsAndResultEncoding>() ||
+  if (op->hasTrait<tritoncc::SameOperandsAndResultEncoding>() ||
+      op->hasTrait<tritoncc::SameLoadStoreOperandsAndResultEncoding>() ||
       op->hasTrait<mlir::OpTrait::Elementwise>() ||
       llvm::isa<mlir::scf::WhileOp, mlir::scf::ForOp, mlir::scf::YieldOp, mlir::scf::ConditionOp>(op)) {
     return encoding;
   }
-  if (auto reduceOp = llvm::dyn_cast<mlir::triton::ReduceOp>(op)) {
+  if (auto reduceOp = llvm::dyn_cast<mlir::_tritoncc::ReduceOp>(op)) {
     return inferDstEncoding(reduceOp, encoding);
   }
   llvm::errs() << "inferDstEncoding for " << *op << "\n";
   assert(false && "infertDstEncoding");
 }
 
-std::optional<mlir::Attribute> inferSrcEncoding(mlir::triton::ReduceOp op,
+std::optional<mlir::Attribute> inferSrcEncoding(mlir::_tritoncc::ReduceOp op,
     mlir::Attribute encoding) {
-  auto sliceEncoding = encoding.dyn_cast<mlir::_tritoncc::SliceEncodingAttr>();
+  auto sliceEncoding = encoding.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>();
   if (!sliceEncoding) {
     return std::nullopt;
   }
@@ -120,26 +116,26 @@ std::optional<mlir::Attribute> inferSrcEncoding(mlir::triton::ReduceOp op,
   return sliceEncoding.getParent();
 }
 
-std::optional<mlir::Attribute> inferSrcEncoding(mlir::triton::ExpandDimsOp op,
+std::optional<mlir::Attribute> inferSrcEncoding(mlir::_tritoncc::ExpandDimsOp op,
     mlir::Attribute encoding) {
-  return mlir::_tritoncc::SliceEncodingAttr::get(
+  return mlir::_tritoncc::gpu::SliceEncodingAttr::get(
     op->getContext(), op.getAxis(), encoding);
 }
 
 std::optional<mlir::Attribute> inferSrcEncoding(mlir::Operation *op, mlir::Attribute encoding) {
-  if (llvm::isa<mlir::triton::ScanOp>(op)) {
+  if (llvm::isa<mlir::_tritoncc::ScanOp>(op)) {
     assert(false && "ScanOp");
   }
-  if (op->hasTrait<mlir::OpTrait::SameOperandsAndResultEncoding>() ||
-      op->hasTrait<mlir::OpTrait::SameLoadStoreOperandsAndResultEncoding>() ||
+  if (op->hasTrait<tritoncc::SameOperandsAndResultEncoding>() ||
+      op->hasTrait<tritoncc::SameLoadStoreOperandsAndResultEncoding>() ||
       op->hasTrait<mlir::OpTrait::Elementwise>() ||
       llvm::isa<mlir::scf::WhileOp, mlir::scf::YieldOp, mlir::scf::ConditionOp>(op)) {
     return encoding;
   }
-  if (auto reduceOp = llvm::dyn_cast<mlir::triton::ReduceOp>(op)) {
+  if (auto reduceOp = llvm::dyn_cast<mlir::_tritoncc::ReduceOp>(op)) {
     return inferSrcEncoding(reduceOp, encoding);
   }
-  if (auto expand = llvm::dyn_cast<mlir::triton::ExpandDimsOp>(op)) {
+  if (auto expand = llvm::dyn_cast<mlir::_tritoncc::ExpandDimsOp>(op)) {
     return inferSrcEncoding(expand, encoding);
   }
   llvm::errs() << "inferSrcEncoding for " << *op << "\n";
@@ -204,7 +200,7 @@ getConvertBackwardSlice(mlir::Value root, llvm::SetVector<mlir::Value> &slice,
       if (stopPropagation && stopPropagation(definingOp)) {
         continue;
       }
-      if (llvm::isa<mlir::triton::CatOp>(definingOp)) {
+      if (llvm::isa<mlir::_tritoncc::CatOp>(definingOp)) {
         return mlir::failure();
       }
       for (mlir::Value operand : definingOp->getOperands()) {
@@ -227,10 +223,10 @@ mlir::Type getPointeeType(mlir::Type type) {
   if (auto tensorTy = type.dyn_cast<mlir::RankedTensorType>()) {
     // Tensor of pointers
     auto shape = tensorTy.getShape();
-    auto ptrType = tensorTy.getElementType().dyn_cast<mlir::triton::PointerType>();
+    auto ptrType = tensorTy.getElementType().dyn_cast<mlir::_tritoncc::PointerType>();
     mlir::Type pointeeType = ptrType.getPointeeType();
     return mlir::RankedTensorType::get(shape, pointeeType, tensorTy.getEncoding());
-  } else if (auto ptrType = type.dyn_cast<mlir::triton::PointerType>()) {
+  } else if (auto ptrType = type.dyn_cast<mlir::_tritoncc::PointerType>()) {
     // scalar pointer
     return ptrType.getPointeeType();
   }
@@ -264,7 +260,7 @@ mlir::Value packLLElements(mlir::Location loc, const mlir::LLVMTypeConverter *ty
 llvm::SmallVector<mlir::Value> unpackLLElements(mlir::Location loc, mlir::Value llvmStruct, mlir::ConversionPatternRewriter &rewriter) {
   assert(bool(llvmStruct) && "can not unpack null values");
   if (llvmStruct.getType().isIntOrIndexOrFloat() ||
-      llvmStruct.getType().isa<mlir::triton::PointerType>() ||
+      llvmStruct.getType().isa<mlir::_tritoncc::PointerType>() ||
       llvmStruct.getType().isa<mlir::LLVM::LLVMPointerType>()) {
     return {llvmStruct};
   }
@@ -281,8 +277,8 @@ llvm::SmallVector<mlir::Value> unpackI32(const llvm::SmallVector<mlir::Value> &i
   if (!tensorTy) {
     return inValues;
   }
-  auto encoding = tensorTy.getEncoding().dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>();
-  if (!(encoding && encoding.getParent().isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>())) {
+  auto encoding = tensorTy.getEncoding().dyn_cast<mlir::_tritoncc::gpu::DotOperandEncodingAttr>();
+  if (!(encoding && encoding.getParent().isa<mlir::_tritoncc::gpu::NvidiaMmaEncodingAttr>())) {
     return inValues;
   }
   assert(false && "unpackI32");
@@ -293,17 +289,17 @@ llvm::SmallVector<mlir::Value> packI32(const llvm::SmallVector<mlir::Value> &inV
   if (!tensorTy) {
     return inValues;
   }
-  auto encoding = tensorTy.getEncoding().dyn_cast<mlir::_tritoncc::DotOperandEncodingAttr>();
-  if (!(encoding && encoding.getParent().isa<mlir::_tritoncc::NvidiaMmaEncodingAttr>())) {
+  auto encoding = tensorTy.getEncoding().dyn_cast<mlir::_tritoncc::gpu::DotOperandEncodingAttr>();
+  if (!(encoding && encoding.getParent().isa<mlir::_tritoncc::gpu::NvidiaMmaEncodingAttr>())) {
     return inValues;
   }
   assert(false && "packI32");
 }
 
 bool isaDistributedLayout(mlir::Attribute layout) {
-  return layout.isa<mlir::_tritoncc::BlockedEncodingAttr>()
+  return layout.isa<mlir::_tritoncc::gpu::BlockedEncodingAttr>()
     || layout.isa<mlir::_tritoncc::MmaEncodingTrait>()
-    || layout.isa<mlir::_tritoncc::SliceEncodingAttr>();
+    || layout.isa<mlir::_tritoncc::gpu::SliceEncodingAttr>();
 }
 
 template <typename T>
@@ -367,6 +363,11 @@ namespace type {
 mlir::Type u1Ty(mlir::MLIRContext *ctx) {
   return mlir::IntegerType::get(ctx, 1, mlir::IntegerType::Unsigned);
 }
+}
+
+std::string strJoin(llvm::ArrayRef<std::string> strs,
+    llvm::StringRef delimiter) {
+  return llvm::join(strs.begin(), strs.end(), delimiter);
 }
 
 }
