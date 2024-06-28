@@ -3,12 +3,9 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "tritoncc/legacy/Util.h"
-#include "tritoncc/legacy/ProcessPipeline.h"
-#include "tritoncc/legacy/MLIRUtil.h"
 
-#include "triton/Dialect/Triton/IR/Types.h"
-#include "triton/Dialect/Triton/IR/Dialect.h"
+#include "tritoncc/stage/pipeline.h"
+#include "tritoncc/dialect_util.h"
 
 #define BLOCK_SIZE 32
 
@@ -162,7 +159,7 @@ int main(void) {
      .num_ctas=1,
      .capability=90, // H100
   };
-  processPipeline(module, opt);
+  std::string cubinBytes = compile(module, opt);
 
   std::cout << "bye" << std::endl;
   return 0;
