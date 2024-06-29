@@ -10,14 +10,6 @@
 #endif
 
 #include "tritoncc/dialect/TritonNvidiaGPU/Dialect.h.inc"
-#include "tritoncc/dialect/TritonNvidiaGPU/Dialect.cpp.inc"
-
-void mlir::_tritoncc::TritonNvidiaGPUDialect::initialize() {
-  addAttributes<
-#define GET_ATTRDEF_LIST
-#include "tritoncc/dialect/TritonNvidiaGPU/AttrDefs.cpp.inc"
-  >();
-}
 
 namespace tritoncc {
 }

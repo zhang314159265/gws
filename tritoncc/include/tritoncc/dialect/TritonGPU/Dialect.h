@@ -16,10 +16,8 @@
 #include "mlir/IR/DialectImplementation.h"
 
 #include "tritoncc/dialect/TritonGPU/Dialect.h.inc"
-#include "tritoncc/dialect/TritonGPU/Dialect.cpp.inc"
 
 #include "tritoncc/dialect/TritonGPU/AttrInterfaces.h.inc"
-#include "tritoncc/dialect/TritonGPU/AttrInterfaces.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
 #include "tritoncc/dialect/TritonGPU/AttrDefs.h.inc"
@@ -106,24 +104,9 @@ struct TritonGPUInferLayoutInterface
   }
 };
 
-void mlir::_tritoncc::gpu::TritonGPUDialect::initialize() {
-  addAttributes<
-#define GET_ATTRDEF_LIST
-#include "tritoncc/dialect/TritonGPU/AttrDefs.cpp.inc"
-  >();
-  addOperations<
-#define GET_OP_LIST
-#include "tritoncc/dialect/TritonGPU/Ops.cpp.inc"
-  >();
-  addInterfaces<TritonGPUInferLayoutInterface>();
-}
-
-#define GET_OP_CLASSES
-#include "tritoncc/dialect/TritonGPU/Ops.cpp.inc"
-
 namespace tritoncc {
 
-unsigned getTotalElemsPerThread(mlir::Attribute layout, llvm::ArrayRef<int64_t> shape,
+static unsigned getTotalElemsPerThread(mlir::Attribute layout, llvm::ArrayRef<int64_t> shape,
     mlir::Type eltTy) {
   if (auto tritonGPUAttr = layout.dyn_cast<mlir::_tritoncc::TritonGPU_AttrTrait>()) {
     return tritonGPUAttr.getTotalElemsPerThread(shape, eltTy);
@@ -134,7 +117,7 @@ unsigned getTotalElemsPerThread(mlir::Attribute layout, llvm::ArrayRef<int64_t> 
   }
 }
 
-llvm::SmallVector<unsigned> getElemsPerThread(mlir::Attribute layout,
+static llvm::SmallVector<unsigned> getElemsPerThread(mlir::Attribute layout,
     llvm::ArrayRef<int64_t> shape, mlir::Type eltTy) {
   if (auto tritonGPUAttr = layout.dyn_cast<mlir::_tritoncc::TritonGPU_AttrTrait>()) {
     return tritonGPUAttr.getElemsPerThread(shape, eltTy);
@@ -144,7 +127,7 @@ llvm::SmallVector<unsigned> getElemsPerThread(mlir::Attribute layout,
   }
 }
 
-unsigned getTotalElemsPerThread(mlir::Type type) {
+static unsigned getTotalElemsPerThread(mlir::Type type) {
   if (type.isIntOrIndexOrFloat() || type.isa<mlir::_tritoncc::PointerType>()) {
     return 1;
   }
@@ -155,7 +138,7 @@ unsigned getTotalElemsPerThread(mlir::Type type) {
 
 // 1 element per thread
 // order = reverse(arange(rank))
-mlir::_tritoncc::gpu::BlockedEncodingAttr
+static mlir::_tritoncc::gpu::BlockedEncodingAttr
 getDefaultBlockedEncoding(mlir::MLIRContext *context, llvm::ArrayRef<int64_t> shape,
     int numWarps, int threadsPerWarp, int numCTAs) {
   int rank = shape.size();
@@ -169,7 +152,7 @@ getDefaultBlockedEncoding(mlir::MLIRContext *context, llvm::ArrayRef<int64_t> sh
     numCTAs);
 }
 
-llvm::SmallVector<unsigned> getCTAsPerCGA(mlir::Attribute layout) {
+static llvm::SmallVector<unsigned> getCTAsPerCGA(mlir::Attribute layout) {
   llvm::ArrayRef<unsigned> ref;
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
     return distributedLayout.getCTAsPerCGA();
@@ -183,7 +166,7 @@ llvm::SmallVector<unsigned> getCTAsPerCGA(mlir::Attribute layout) {
   return llvm::SmallVector<unsigned>(ref.begin(), ref.end());
 }
 
-llvm::SmallVector<unsigned> getCTASplitNum(mlir::Attribute layout) {
+static llvm::SmallVector<unsigned> getCTASplitNum(mlir::Attribute layout) {
   llvm::SmallVector<unsigned> res;
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
     return distributedLayout.getCTASplitNum();
@@ -197,7 +180,7 @@ llvm::SmallVector<unsigned> getCTASplitNum(mlir::Attribute layout) {
   return res;
 }
 
-llvm::SmallVector<unsigned> getCTAOrder(mlir::Attribute layout) {
+static llvm::SmallVector<unsigned> getCTAOrder(mlir::Attribute layout) {
   llvm::SmallVector<unsigned> res;
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
     res = distributedLayout.getCTAOrder();
@@ -211,7 +194,7 @@ llvm::SmallVector<unsigned> getCTAOrder(mlir::Attribute layout) {
   return res;
 }
 
-mlir::_tritoncc::gpu::CTALayoutAttr getCTALayout(mlir::Attribute layout) {
+static mlir::_tritoncc::gpu::CTALayoutAttr getCTALayout(mlir::Attribute layout) {
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
     return mlir::_tritoncc::gpu::CTALayoutAttr::get(
         layout.getContext(), getCTAsPerCGA(distributedLayout),
@@ -225,7 +208,7 @@ mlir::_tritoncc::gpu::CTALayoutAttr getCTALayout(mlir::Attribute layout) {
   return {};
 }
 
-llvm::SmallVector<int64_t> getShapePerCTA(llvm::ArrayRef<unsigned> CTASplitNum,
+static llvm::SmallVector<int64_t> getShapePerCTA(llvm::ArrayRef<unsigned> CTASplitNum,
     llvm::ArrayRef<int64_t> shape) {
   unsigned rank = shape.size();
   llvm::SmallVector<int64_t> shapePerCTA(rank);
@@ -237,19 +220,19 @@ llvm::SmallVector<int64_t> getShapePerCTA(llvm::ArrayRef<unsigned> CTASplitNum,
   return shapePerCTA;
 }
 
-llvm::SmallVector<int64_t> getShapePerCTA(mlir::Attribute layout, llvm::ArrayRef<int64_t> shape) {
+static llvm::SmallVector<int64_t> getShapePerCTA(mlir::Attribute layout, llvm::ArrayRef<int64_t> shape) {
   if (auto sharedLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SharedEncodingAttr>()) {
     assert(false && "SharedEncodingAttr");
   }
   return getShapePerCTA(getCTASplitNum(layout), shape);
 }
 
-llvm::SmallVector<int64_t> getShapePerCTA(mlir::Type type) {
+static llvm::SmallVector<int64_t> getShapePerCTA(mlir::Type type) {
   auto tensorType = type.cast<mlir::RankedTensorType>();
   return getShapePerCTA(tensorType.getEncoding(), tensorType.getShape());
 }
 
-llvm::SmallVector<unsigned>
+static llvm::SmallVector<unsigned>
 getShapePerCTATile(mlir::Attribute layout,
     llvm::ArrayRef<int64_t> tensorShape = llvm::ArrayRef<int64_t>()) {
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
@@ -260,7 +243,7 @@ getShapePerCTATile(mlir::Attribute layout,
   }
 }
 
-llvm::SmallVector<unsigned> getThreadsPerWarp(mlir::Attribute layout) {
+static llvm::SmallVector<unsigned> getThreadsPerWarp(mlir::Attribute layout) {
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
     return distributedLayout.getThreadsPerWarp();
   } else {
@@ -269,7 +252,7 @@ llvm::SmallVector<unsigned> getThreadsPerWarp(mlir::Attribute layout) {
   }
 }
 
-unsigned getWarpSize(mlir::Attribute layout) {
+static unsigned getWarpSize(mlir::Attribute layout) {
   unsigned size = 1;
   auto threadsPerWarp = getThreadsPerWarp(layout);
   for (auto e : threadsPerWarp) {
@@ -278,7 +261,7 @@ unsigned getWarpSize(mlir::Attribute layout) {
   return size;
 }
 
-llvm::SmallVector<unsigned> getOrder(mlir::Attribute layout) {
+static llvm::SmallVector<unsigned> getOrder(mlir::Attribute layout) {
   if (auto blockedLayout = layout.dyn_cast<mlir::_tritoncc::gpu::BlockedEncodingAttr>()) {
     return llvm::SmallVector<unsigned>(blockedLayout.getOrder().begin(),
         blockedLayout.getOrder().end());
@@ -303,7 +286,7 @@ llvm::SmallVector<unsigned> getOrder(mlir::Attribute layout) {
   return {};
 }
 
-llvm::SmallVector<unsigned> getSizePerThread(mlir::Attribute layout) {
+static llvm::SmallVector<unsigned> getSizePerThread(mlir::Attribute layout) {
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
     return distributedLayout.getSizePerThread();
   } else {
@@ -312,7 +295,7 @@ llvm::SmallVector<unsigned> getSizePerThread(mlir::Attribute layout) {
   }
 }
 
-llvm::SmallVector<unsigned> getContigPerThread(mlir::Attribute layout) {
+static llvm::SmallVector<unsigned> getContigPerThread(mlir::Attribute layout) {
   if (auto mmaLayout = layout.dyn_cast<mlir::_tritoncc::gpu::NvidiaMmaEncodingAttr>()) {
     assert(false && "NvidiaMma");
   } else if (layout.isa<mlir::_tritoncc::gpu::AMDMfmaEncodingAttr>()) {
@@ -324,7 +307,7 @@ llvm::SmallVector<unsigned> getContigPerThread(mlir::Attribute layout) {
   }
 }
 
-llvm::SmallVector<unsigned> getUniqueContigPerThread(mlir::Attribute layout,
+static llvm::SmallVector<unsigned> getUniqueContigPerThread(mlir::Attribute layout,
     llvm::ArrayRef<int64_t> shape) {
   // If slice layout, call recursively on parent layout, and drop
   // sliced dim
@@ -348,7 +331,7 @@ llvm::SmallVector<unsigned> getUniqueContigPerThread(mlir::Attribute layout,
   return ret;
 }
 
-llvm::SmallVector<unsigned> getWarpsPerCTA(mlir::Attribute layout) {
+static llvm::SmallVector<unsigned> getWarpsPerCTA(mlir::Attribute layout) {
   if (auto distributedLayout = layout.dyn_cast<mlir::_tritoncc::DistributedEncodingTrait>()) {
     return distributedLayout.getWarpsPerCTA();
   }
@@ -357,7 +340,7 @@ llvm::SmallVector<unsigned> getWarpsPerCTA(mlir::Attribute layout) {
   return llvm::SmallVector<unsigned>();
 }
 
-llvm::SmallVector<unsigned>
+static llvm::SmallVector<unsigned>
 getWarpsPerCTAWithUniqueData(mlir::Attribute layout, llvm::ArrayRef<int64_t> tensorShape) {
   if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>()) {
     assert(false && "slice");
@@ -375,7 +358,7 @@ getWarpsPerCTAWithUniqueData(mlir::Attribute layout, llvm::ArrayRef<int64_t> ten
   return warpsPerCTA;
 }
 
-llvm::SmallVector<unsigned>
+static llvm::SmallVector<unsigned>
 getThreadsPerWarpWithUniqueData(mlir::Attribute layout,
     llvm::ArrayRef<int64_t> tensorShape) {
   if (auto sliceLayout = layout.dyn_cast<mlir::_tritoncc::gpu::SliceEncodingAttr>()) {
@@ -391,11 +374,11 @@ getThreadsPerWarpWithUniqueData(mlir::Attribute layout,
   return threadsPerWarp;
 }
 
-unsigned getNumCTAs(mlir::Attribute layout) {
+static unsigned getNumCTAs(mlir::Attribute layout) {
   return tritoncc::product<unsigned>(getCTAsPerCGA(layout));
 }
 
-bool shouldUseDistSmem(mlir::Attribute srcLayout, mlir::Attribute dstLayout) {
+static bool shouldUseDistSmem(mlir::Attribute srcLayout, mlir::Attribute dstLayout) {
   // numCTAs here means numCTAsPerCGA rather than numCTAs per grid.
   unsigned numCTAs = tritoncc::getNumCTAs(srcLayout);
   assert(numCTAs == tritoncc::getNumCTAs(dstLayout) &&
@@ -411,208 +394,9 @@ bool shouldUseDistSmem(mlir::Attribute srcLayout, mlir::Attribute dstLayout) {
 
 }
 
-#define GET_ATTRDEF_CLASSES
-#include "tritoncc/dialect/TritonGPU/AttrDefs.cpp.inc"
-
 namespace mlir {
 namespace _tritoncc {
 namespace gpu {
-
-template <typename T>
-bool hasEncoding(mlir::Value value) {
-  auto type = value.getType();
-  if (auto tensorType = type.dyn_cast<mlir::RankedTensorType>()) {
-    auto encoding = tensorType.getEncoding();
-    return encoding && encoding.isa<T>();
-  }
-  return false;
-}
-
-bool hasSharedEncoding(mlir::Value value) {
-  return hasEncoding<mlir::_tritoncc::gpu::SharedEncodingAttr>(value);
-}
-
-struct CanonicalizeConvertFromConvert
-    : public mlir::OpRewritePattern<ConvertLayoutOp> {
-  using OpRewritePattern::OpRewritePattern;
-
-  mlir::LogicalResult
-  matchAndRewrite(ConvertLayoutOp op,
-      mlir::PatternRewriter &rewriter) const override {
-    // Convert to the same layout is redundant.
-    if (op->getResultTypes() == op->getOperandTypes()) {
-      rewriter.replaceOp(op, op->getOperands());
-      return mlir::success();
-    }
-
-    // We don't handle conversions to DotOperandEncodingAttr.  This is a
-    // heuristic to accomodate fused attention.
-    auto srcType = op.getSrc().getType();
-    auto dstType = op.getType();
-    if (dstType.getEncoding().isa<mlir::_tritoncc::gpu::DotOperandEncodingAttr>() &&
-        srcType.getEncoding().isa<mlir::_tritoncc::gpu::NvidiaMmaEncodingAttr>()) {
-      return mlir::failure();
-    }
-
-    // for hopper MMAv3
-    if (dstType.getEncoding().isa<mlir::_tritoncc::gpu::SharedEncodingAttr>() && 
-        srcType.getEncoding().isa<mlir::_tritoncc::gpu::NvidiaMmaEncodingAttr>() &&
-        llvm::any_of(op.getResult().getUsers(),
-            [](mlir::Operation *dot) { return llvm::isa<mlir::_tritoncc::DotOp>(dot); })) {
-      return mlir::failure();
-    }
-
-    mlir::Operation *arg = op.getSrc().getDefiningOp();
-    if (!arg) {
-      return mlir::failure();
-    }
-
-    // cvt(reshape) -> reshape
-    if (auto reshape = llvm::dyn_cast<mlir::_tritoncc::ReshapeOp>(arg)) {
-      assert(false && "cvt(reshape)");
-    }
-
-    // cvt(histogram) -> histogram
-    if (auto histogram = llvm::dyn_cast<mlir::_tritoncc::HistogramOp>(arg)) {
-      assert(false && "cvt(histogram)");
-    }
-
-    // cvt(cat) -> cat
-    if (auto cat = llvm::dyn_cast<mlir::_tritoncc::CatOp>(arg)) {
-      assert(false && "cvt(cat)");
-    }
-
-    // cvt(alloc_tensor(x), type2) -> alloc_tensor(x, type2)
-    if (auto alloc_tensor = llvm::dyn_cast<mlir::_tritoncc::gpu::AllocTensorOp>(arg)) {
-      assert(false && "cvt(alloc_tensor)");
-    }
-
-    // cvt(insert_slice)
-    if (auto insert_slice = llvm::dyn_cast<mlir::_tritoncc::gpu::InsertSliceAsyncOp>(arg)) {
-      assert(false && "cvt(insert_slice)");
-    }
-
-    // cvt(extract_slice)
-    if (auto extract_slice = llvm::dyn_cast<mlir::_tritoncc::gpu::ExtractSliceOp>(arg)) {
-      assert(false && "cvt(extract_slice)");
-    }
-
-    // cvt(cvt)
-    if (auto cvt = llvm::dyn_cast<mlir::_tritoncc::gpu::ConvertLayoutOp>(arg)) {
-      if (cvt.getSrc().getDefiningOp() && !hasSharedEncoding(cvt.getSrc()) &&
-          hasSharedEncoding(op.getSrc()) && !hasSharedEncoding(op.getResult())) {
-        return mlir::failure();
-      }
-
-      if (hasSharedEncoding(op.getSrc()) && hasSharedEncoding(op.getResult())) {
-        return mlir::failure();
-      }
-
-      auto srcType = op.getSrc().getType();
-      auto srcShared =
-          srcType.getEncoding().dyn_cast<mlir::_tritoncc::gpu::SharedEncodingAttr>();
-      if (srcShared && srcShared.getVec() > 1) {
-        return mlir::failure();
-      }
-
-      rewriter.replaceOpWithNewOp<mlir::_tritoncc::gpu::ConvertLayoutOp>(
-          op, op->getResultTypes().front(), cvt.getSrc());
-      return mlir::success();
-    }
-
-    // cvt(splat)
-    if (auto splat = llvm::dyn_cast<mlir::_tritoncc::SplatOp>(arg)) {
-      assert(false && "cvt(splat)");
-    }
-
-    // cvt(make_range)
-    if (auto range = llvm::dyn_cast<mlir::_tritoncc::MakeRangeOp>(arg)) {
-      rewriter.replaceOpWithNewOp<mlir::_tritoncc::MakeRangeOp>(
-          op, op->getResultTypes(), range.getStart(), range.getEnd());
-      return mlir::success();
-    }
-
-    // cvt(constant)
-    if (auto cst = llvm::dyn_cast<mlir::arith::ConstantOp>(arg)) {
-      assert(false && "cvt(constant)");
-    }
-
-    return mlir::failure();
-  }
-};
-
-// reshape(cvt) -> reshape
-struct CanonicalizeConvertFromReshape
-    : public mlir::OpRewritePattern<mlir::_tritoncc::ReshapeOp> {
-  using OpRewritePattern::OpRewritePattern;
-
-  mlir::LogicalResult
-  matchAndRewrite(mlir::_tritoncc::ReshapeOp op,
-      mlir::PatternRewriter &rewriter) const override {
-    assert(false && "matchAndRewrite");
-  }
-};
-
-// histogram(cvt) -> histogram
-struct CanonicalizeConvertFromHistogram
-    : public mlir::OpRewritePattern<mlir::_tritoncc::HistogramOp> {
-  using OpRewritePattern::OpRewritePattern;
-
-  mlir::LogicalResult
-  matchAndRewrite(mlir::_tritoncc::HistogramOp op,
-      mlir::PatternRewriter &rewriter) const override {
-    assert(false && "matchAndRewrite");
-  }
-};
-
-void ConvertLayoutOp::getCanonicalizationPatterns(mlir::RewritePatternSet &patterns,
-    mlir::MLIRContext *context) {
-  patterns.add<CanonicalizeConvertFromConvert>(context);
-  patterns.add<CanonicalizeConvertFromReshape>(context);
-  patterns.add<CanonicalizeConvertFromHistogram>(context);
-}
-
-llvm::SmallVector<unsigned> DotOperandEncodingAttr::getWarpsPerCTA() const {
-  assert(false && "DotOperandEncodingAttr::getWarpsPerCTA");
-}
-
-llvm::SmallVector<unsigned> DotOperandEncodingAttr::getCTASplitNum() const {
-  assert(false && "getCTASplitNum");
-}
-
-llvm::SmallVector<unsigned> DotOperandEncodingAttr::getCTAOrder() const {
-  assert(false && "getCTAOrder");
-}
-
-llvm::SmallVector<unsigned> DotOperandEncodingAttr::getCTAsPerCGA() const {
-  assert(false && "getCTAsPerCGA");
-}
-
-llvm::SmallVector<unsigned> DotOperandEncodingAttr::getSizePerThread() const {
-  assert(false && "getSizePerThread");
-}
-
-llvm::SmallVector<unsigned> DotOperandEncodingAttr::getThreadsPerWarp() const {
-  assert(false && "getThreadsPerWarp");
-}
-
-llvm::SmallVector<unsigned> DotOperandEncodingAttr::getShapePerCTATile(llvm::ArrayRef<int64_t> tensorShape) const {
-  assert(false && "getShapePerCTATile");
-}
-
-unsigned DotOperandEncodingAttr::getTotalElemsPerThread(llvm::ArrayRef<int64_t> shape, mlir::Type eltTy) const {
-  assert(false && "getTotalElemsPerThread");
-}
-
-llvm::SmallVector<unsigned>
-DotOperandEncodingAttr::getElemsPerThread(llvm::ArrayRef<int64_t> shape,
-    mlir::Type eltTy) const {
-  assert(false && "getElemsPerThread");
-}
-
-llvm::SmallVector<unsigned> SliceEncodingAttr::getWarpsPerCTA() const {
-  assert(false && "SliceEncodingAttr::getWarpsPerCTA");
-}
 
 template <class T>
 llvm::SmallVector<T> SliceEncodingAttr::paddedShape(llvm::ArrayRef<T> shape) const {
@@ -629,231 +413,6 @@ llvm::SmallVector<T> SliceEncodingAttr::paddedShape(llvm::ArrayRef<T> shape) con
     }
   }
   return retShape;
-}
-
-void SliceEncodingAttr::print(mlir::AsmPrinter &printer) const {
-  printer << "<{"
-          << "dim = " << getDim() << ", "
-          << "parent = " << getParent() << "}>";
-}
-
-mlir::Attribute SliceEncodingAttr::parse(mlir::AsmParser &parser, mlir::Type type) {
-  assert(false && "SliceEncodingAttr::parse");
-}
-
-
-llvm::SmallVector<unsigned> SliceEncodingAttr::getCTASplitNum() const {
-  llvm::SmallVector<unsigned> res = tritoncc::getCTASplitNum(getParent());
-  res.erase(res.begin() + getDim());
-  return res;
-}
-
-llvm::SmallVector<unsigned> SliceEncodingAttr::getCTAOrder() const {
-  assert(false && "getCTAOrder");
-}
-
-llvm::SmallVector<unsigned> SliceEncodingAttr::getCTAsPerCGA() const {
-  auto parentCTAsPerCGA = tritoncc::getCTAsPerCGA(getParent());
-  if (parentCTAsPerCGA[getDim()] == 1) {
-    parentCTAsPerCGA.erase(parentCTAsPerCGA.begin() + getDim());
-    return parentCTAsPerCGA;
-  }
-  llvm::report_fatal_error(
-      "getCTAsPerCGA for SliceEncodingAttr is not well-defined");
-}
-
-llvm::SmallVector<unsigned> SliceEncodingAttr::getSizePerThread() const {
-  auto sizePerThread = tritoncc::getSizePerThread(getParent());
-  sizePerThread.erase(sizePerThread.begin() + getDim());
-  return sizePerThread;
-}
-
-llvm::SmallVector<unsigned> SliceEncodingAttr::getThreadsPerWarp() const {
-  assert(false && "getThreadsPerWarp");
-}
-
-llvm::SmallVector<unsigned> SliceEncodingAttr::getShapePerCTATile(llvm::ArrayRef<int64_t> tensorShape) const {
-  llvm::SmallVector<unsigned> shape = tritoncc::getShapePerCTATile(getParent(), tensorShape);
-  shape.erase(shape.begin() + getDim());
-  return shape;
-}
-
-unsigned SliceEncodingAttr::getTotalElemsPerThread(llvm::ArrayRef<int64_t> shape, mlir::Type eltTy) const {
-  return tritoncc::product<unsigned>(getElemsPerThread(shape, eltTy));
-}
-
-llvm::SmallVector<unsigned>
-SliceEncodingAttr::getElemsPerThread(llvm::ArrayRef<int64_t> shape,
-    mlir::Type eltTy) const {
-  auto parent = getParent();
-  auto parentElemsPerThread =
-      tritoncc::getElemsPerThread(parent, paddedShape(shape), eltTy);
-  parentElemsPerThread.erase(parentElemsPerThread.begin() + getDim());
-  return parentElemsPerThread;
-}
-
-llvm::SmallVector<unsigned> BlockedEncodingAttr::getWarpsPerCTA() const {
-  return llvm::SmallVector<unsigned>(getWarpsPerCTA__());
-}
-
-llvm::SmallVector<unsigned> BlockedEncodingAttr::getThreadsPerWarp() const {
-  return llvm::SmallVector<unsigned>(getThreadsPerWarp__());
-}
-
-llvm::SmallVector<unsigned> BlockedEncodingAttr::getSizePerThread() const {
-  return llvm::SmallVector<unsigned>(getSizePerThread__());
-}
-
-llvm::SmallVector<unsigned> BlockedEncodingAttr::getCTASplitNum() const {
-  return llvm::SmallVector<unsigned>(getCTALayout().getCTASplitNum());
-}
-
-llvm::SmallVector<unsigned> BlockedEncodingAttr::getCTAOrder() const {
-  return llvm::SmallVector<unsigned>(getCTALayout().getCTAOrder());
-}
-
-llvm::SmallVector<unsigned> BlockedEncodingAttr::getCTAsPerCGA() const {
-  return llvm::SmallVector<unsigned>(getCTALayout().getCTAsPerCGA());
-}
-
-void BlockedEncodingAttr::print(mlir::AsmPrinter &printer) const {
-  printer << "<{"
-          << "sizePerThread = [" << llvm::ArrayRef(getSizePerThread()) << "]"
-          << ", threadsPerWarp = [" << llvm::ArrayRef(getThreadsPerWarp()) << "]"
-          << ", warpsPerCTA = [" << llvm::ArrayRef(getWarpsPerCTA()) << "]"
-          << ", order = [" << getOrder() << "]";
-
-  #if 0
-  maybePrintCTALayout(getContext(), printer, getCTALayout(),
-      /*rank=*/getSizePerThread().size());
-  #endif
-  printer << "}>";
-}
-
-mlir::Attribute BlockedEncodingAttr::parse(mlir::AsmParser &parser, mlir::Type type) {
-  assert(false && "BlockedEncodingAttr::parse");
-}
-
-llvm::SmallVector<unsigned> BlockedEncodingAttr::getShapePerCTATile(llvm::ArrayRef<int64_t> tensorShape) const {
-  llvm::SmallVector<unsigned> shape;
-  for (unsigned d = 0, n = getOrder().size(); d < n; ++d) {
-    shape.push_back(getSizePerThread()[d] * getThreadsPerWarp()[d] *
-        getWarpsPerCTA()[d]);
-  }
-  return shape;
-}
-
-llvm::SmallVector<unsigned>
-BlockedEncodingAttr::getElemsPerThread(llvm::ArrayRef<int64_t> shape,
-    mlir::Type eltTy) const {
-  size_t rank = shape.size();
-  auto sizePerThread = getSizePerThread();
-  auto warpsPerCTA = getWarpsPerCTA();
-  auto threadsPerWarp = getThreadsPerWarp();
-  auto shapePerCTA = tritoncc::getShapePerCTA(*this, shape);
-  assert(rank == sizePerThread.size() &&
-      "unexpected rank in BlockedEncodingAttr::getElemsPerThread");
-  llvm::SmallVector<unsigned> elemsPerThread(rank);
-  for (size_t i = 0; i < rank; ++i) {
-    unsigned t = sizePerThread[i] * threadsPerWarp[i] * warpsPerCTA[i];
-    elemsPerThread[i] = tritoncc::ceil<unsigned>(shapePerCTA[i], t) * sizePerThread[i];
-  }
-  return elemsPerThread;
-}
-
-unsigned BlockedEncodingAttr::getTotalElemsPerThread(llvm::ArrayRef<int64_t> shape, mlir::Type eltTy) const {
-  return tritoncc::product<unsigned>(getElemsPerThread(shape, eltTy));
-}
-
-llvm::SmallVector<unsigned> AMDMfmaEncodingAttr::getWarpsPerCTA() const {
-  return llvm::SmallVector<unsigned>(getWarpsPerCTA__());
-}
-
-llvm::SmallVector<unsigned> AMDMfmaEncodingAttr::getCTASplitNum() const {
-  assert(false && "getCTASplitNum");
-}
-
-llvm::SmallVector<unsigned> AMDMfmaEncodingAttr::getCTAOrder() const {
-  assert(false && "getCTAOrder");
-}
-
-llvm::SmallVector<unsigned> AMDMfmaEncodingAttr::getCTAsPerCGA() const {
-  assert(false && "getCTAsPerCGA");
-}
-
-llvm::SmallVector<unsigned> AMDMfmaEncodingAttr::getSizePerThread() const {
-  assert(false && "getSizePerThread");
-}
-
-llvm::SmallVector<unsigned> AMDMfmaEncodingAttr::getThreadsPerWarp() const {
-  assert(false && "getThreadsPerWarp");
-}
-
-llvm::SmallVector<unsigned> AMDMfmaEncodingAttr::getShapePerCTATile(llvm::ArrayRef<int64_t> tensorShape) const {
-  assert(false && "getShapePerCTATile");
-}
-
-unsigned AMDMfmaEncodingAttr::getTotalElemsPerThread(llvm::ArrayRef<int64_t> shape, mlir::Type eltTy) const {
-  assert(false && "getTotalElemsPerThread");
-}
-
-llvm::SmallVector<unsigned>
-AMDMfmaEncodingAttr::getElemsPerThread(llvm::ArrayRef<int64_t> shape,
-    mlir::Type eltTy) const {
-  assert(false && "getElemsPerThread");
-}
-
-llvm::SmallVector<unsigned> NvidiaMmaEncodingAttr::getWarpsPerCTA() const {
-  return llvm::SmallVector<unsigned>(getWarpsPerCTA__());
-}
-
-llvm::SmallVector<unsigned> NvidiaMmaEncodingAttr::getCTASplitNum() const {
-  assert(false && "getCTASplitNum");
-}
-
-llvm::SmallVector<unsigned> NvidiaMmaEncodingAttr::getCTAOrder() const {
-  assert(false && "getCTAOrder");
-}
-
-llvm::SmallVector<unsigned> NvidiaMmaEncodingAttr::getCTAsPerCGA() const {
-  assert(false && "getCTAsPerCGA");
-}
-
-llvm::SmallVector<unsigned> NvidiaMmaEncodingAttr::getSizePerThread() const {
-  assert(false && "getSizePerThread");
-}
-
-llvm::SmallVector<unsigned> NvidiaMmaEncodingAttr::getThreadsPerWarp() const {
-  assert(false && "getThreadsPerWarp");
-}
-
-llvm::SmallVector<unsigned> NvidiaMmaEncodingAttr::getShapePerCTATile(llvm::ArrayRef<int64_t> tensorShape) const {
-  assert(false && "getShapePerCTATile");
-}
-
-unsigned NvidiaMmaEncodingAttr::getTotalElemsPerThread(llvm::ArrayRef<int64_t> shape, mlir::Type eltTy) const {
-  assert(false && "getTotalElemsPerThread");
-}
-
-llvm::SmallVector<unsigned>
-NvidiaMmaEncodingAttr::getElemsPerThread(llvm::ArrayRef<int64_t> shape,
-    mlir::Type eltTy) const {
-  assert(false && "getElemsPerThread");
-}
-
-bool NvidiaMmaEncodingAttr::isVolta() const { return getVersionMajor() == 1; }
-bool NvidiaMmaEncodingAttr::isHopper() const { assert(false); }
-bool NvidiaMmaEncodingAttr::isAmpere() const { assert(false); }
-
-
-unsigned SharedEncodingAttr::getTotalElemsPerThread(llvm::ArrayRef<int64_t> shape, mlir::Type eltTy) const {
-  assert(false && "getTotalElemsPerThread");
-}
-
-llvm::SmallVector<unsigned>
-SharedEncodingAttr::getElemsPerThread(llvm::ArrayRef<int64_t> shape,
-    mlir::Type eltTy) const {
-  assert(false && "getElemsPerThread");
 }
 
 } } }

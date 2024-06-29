@@ -4,12 +4,7 @@
 
 namespace tritoncc {
 
-bool isTensorPointerType(mlir::Type type) {
-  if (mlir::_tritoncc::PointerType ptrType = type.dyn_cast<mlir::_tritoncc::PointerType>()) {
-    return ptrType.getPointeeType().isa<mlir::RankedTensorType>();
-  }
-  return false;
-}
+bool isTensorPointerType(mlir::Type type);
 
 namespace impl {
 
@@ -35,7 +30,7 @@ static mlir::LogicalResult verifySameEncoding(mlir::Type typeA, mlir::Type typeB
   return encodingA == encodingB ? mlir::success() : mlir::failure();
 }
 
-mlir::LogicalResult
+static mlir::LogicalResult
 verifySameOperandsEncoding(mlir::Operation *op,
     bool allowTensorPointerType) {
   if (mlir::failed(verifyAtLeastNOperands(op, 1))) {
@@ -51,7 +46,7 @@ verifySameOperandsEncoding(mlir::Operation *op,
   return mlir::success();
 }
 
-mlir::LogicalResult verifySameOperandsAndResultEncoding(
+static mlir::LogicalResult verifySameOperandsAndResultEncoding(
     mlir::Operation *op, bool allowTensorPointerType = false) {
   if (op->getNumOperands() == 0) {
     return mlir::success();

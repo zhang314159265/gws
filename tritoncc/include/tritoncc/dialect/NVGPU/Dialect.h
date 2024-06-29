@@ -10,24 +10,9 @@
 #endif
 
 #include "tritoncc/dialect/NVGPU/Dialect.h.inc"
-#include "tritoncc/dialect/NVGPU/Dialect.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "tritoncc/dialect/NVGPU/Ops.h.inc"
-
-void mlir::_tritoncc::nvgpu::NVGPUDialect::initialize() {
-  addAttributes<
-#define GET_ATTRDEF_LIST
-#include "tritoncc/dialect/NVGPU/AttrDefs.cpp.inc"
-  >();
-  addOperations<
-#define GET_OP_LIST
-#include "tritoncc/dialect/NVGPU/Ops.cpp.inc"
-  >();
-}
-
-#define GET_OP_CLASSES
-#include "tritoncc/dialect/NVGPU/Ops.cpp.inc"
 
 namespace tritoncc {
 }
