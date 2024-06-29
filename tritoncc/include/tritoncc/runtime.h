@@ -1,5 +1,7 @@
 #pragma once
 
+#include "cuda.h"
+
 #define DEBUG_RUNTIME 0
 
 namespace tritoncc {

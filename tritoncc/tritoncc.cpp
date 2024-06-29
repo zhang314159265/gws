@@ -4,8 +4,8 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Parser/Parser.h"
 
-#include "tritoncc/ProcessPipeline.h"
-#include "tritoncc/MLIRUtil.h"
+#include "tritoncc/stage/pipeline.h"
+#include "tritoncc/dialect_util.h"
 
 int main(int argc, char** argv) {
   if (argc < 2) {
@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
      .num_ctas=1,
      .capability=90, // H100
   };
-  tritoncc::processPipeline(module, opt);
+  tritoncc::compile(module, opt);
 
   std::cerr << "bye" << std::endl;
   return 0;
