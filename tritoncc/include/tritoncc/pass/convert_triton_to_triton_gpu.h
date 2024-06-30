@@ -259,6 +259,7 @@ void populateArithPatterns(TritonGPUTypeConverter &typeConverter,
     GenericOpPattern<mlir::arith::AndIOp>,
     GenericOpPattern<mlir::arith::MulIOp>,
     GenericOpPattern<mlir::arith::AddFOp>,
+    GenericOpPattern<mlir::arith::SubFOp>,
     GenericOpPattern<mlir::arith::CmpIOp>
   >(typeConverter, context);
 }

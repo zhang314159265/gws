@@ -9,12 +9,15 @@ CUDA_LDFLAGS = -lcuda
 
 LLVM_ROOT := $(HOME)/old.triton/llvm/llvm-4017f04e-ubuntu-x64
 
-first: test_sum
+first: ext
 
 TRITONCC_ROOT := .
 include ../llvm_or_mlir_libs.make
 include tblgen.make
 TRITONCC_CFLAGS := -Iinclude -I$(LLVM_ROOT)/include -Iout/include -fno-rtti
+TRITONCC_CFLAGS += -fPIC  # need this for pybind
+# PyBind requires rtti?
+PYBIND_CFLAGS := -Iinclude -I$(LLVM_ROOT)/include -Iout/include
 TRITONCC_LDFLAGS := -L$(LLVM_ROOT)/lib -lz -Wl,--start-group $(LLVM_OR_MLIR_LIBS) -Wl,--end-group
 
 RUNTIME_TORCH_LIB_PATH := $(TORCH_ROOT)/torch/lib
@@ -65,3 +68,12 @@ build_tritoncc_o:
 	
 tritoncc: build_tritoncc_o build_dialects
 	time g++ out/tritoncc.o $(DIALECT_OBJ_LIST) $(TRITONCC_LDFLAGS) -o out/tritoncc
+
+# NOTE: not depend on build_dialects and assume dialect .o's are up to date
+# It's for faster build time
+B := 1
+ext:
+ifeq ($(B), 1)
+	time g++ pybind.cpp -shared -fPIC $(PYBIND_CFLAGS) $(DIALECT_OBJ_LIST) $(TRITONCC_LDFLAGS) $(shell python -m pybind11 --includes) -o _C.so
+endif
+	PYTHONPATH=`realpath ..` python test_fe_add.py

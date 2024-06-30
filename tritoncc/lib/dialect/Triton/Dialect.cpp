@@ -213,7 +213,27 @@ void StoreOp::build(OpBuilder &builder, OperationState &state, Value ptr,
 }
 
 mlir::Type PointerType::parse(mlir::AsmParser &parser) {
-  assert(false && "parse");
+  if (parser.parseLess()) {
+    return mlir::Type();
+  }
+
+  mlir::Type pointeeType;
+  if (parser.parseType(pointeeType)) {
+    return mlir::Type();
+  }
+
+  int addressSpace = 1;
+  if (mlir::succeeded(parser.parseOptionalComma())) {
+    if (parser.parseInteger(addressSpace)) {
+      return mlir::Type();
+    }
+  }
+
+  if (parser.parseGreater()) {
+    return mlir::Type();
+  }
+
+  return PointerType::get(pointeeType, addressSpace);
 }
 
 void PointerType::print(mlir::AsmPrinter &printer) const {

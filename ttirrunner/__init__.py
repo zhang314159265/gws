@@ -13,6 +13,7 @@ def ttir_to_ptx(ttir_code, ptx_version="8.0"):
             f.write(ttir_code)
 
         cmd = f"tritoncc {ttir_path}"
+        print(f"ttir_to_prx {cmd=}")
         subprocess.check_call(cmd, shell=True)
 
         # read the ptx code

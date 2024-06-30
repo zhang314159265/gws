@@ -56,6 +56,9 @@ mlir/include/mlir/IR/PatternMatch.h
 - RewritePattern
 - RewritePatternSet
 
+mlir/include/mlir/IR/Types.h
+- class Type
+
 mlir/include/mlir/IR/Value.h
 - class Value
 

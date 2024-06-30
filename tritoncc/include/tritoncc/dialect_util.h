@@ -4,6 +4,11 @@
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/NVVM/NVVMToLLVMIRTranslation.h"
 
+#include "tritoncc/dialect/TritonNvidiaGPU/Dialect.h"
+#include "tritoncc/dialect/NVGPU/Dialect.h"
+#include "tritoncc/dialect/Triton/Dialect.h"
+#include "tritoncc/dialect/TritonGPU/Dialect.h"
+
 namespace tritoncc {
 void loadDialects(mlir::MLIRContext &ctx) {
   { // follows ir.load_dialects

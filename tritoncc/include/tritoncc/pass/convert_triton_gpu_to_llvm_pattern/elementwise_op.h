@@ -141,6 +141,27 @@ struct FAddOpConversion : ElementwiseOpConversionBase<mlir::arith::AddFOp, FAddO
   }
 };
 
+struct FSubOpConversion : ElementwiseOpConversionBase<mlir::arith::SubFOp, FSubOpConversion> {
+  using Base = ElementwiseOpConversionBase<mlir::arith::SubFOp, FSubOpConversion>;
+  using Base::Base;
+  using Adaptor = typename Base::OpAdaptor;
+
+  llvm::SmallVector<mlir::Value> createDestOps(
+      mlir::arith::SubFOp op, OpAdaptor adaptor,
+      mlir::ConversionPatternRewriter &rewriter,
+      mlir::Type elemTy, MultipleOperandsRange operands,
+      mlir::Location loc) const {
+    auto lhsElemTy = getElementType(op.getLhs());
+    auto rhsElemTy = getElementType(op.getRhs());
+    if (lhsElemTy.isBF16() && rhsElemTy.isBF16()) {
+      assert(false && "FSubOp BF16");
+    } else {
+      return {rewriter.create<mlir::LLVM::FSubOp>(loc, elemTy, operands[0][0], operands[0][1])};
+    }
+  }
+};
+
+
 struct AddPtrOpConversion : public mlir::ConvertOpToLLVMPattern<mlir::_tritoncc::AddPtrOp> {
   using ConvertOpToLLVMPattern<mlir::_tritoncc::AddPtrOp>::ConvertOpToLLVMPattern;
 
@@ -268,6 +289,7 @@ void populateElementwiseOpToLLVMPatterns(
 #undef POPULATE_ELEMENTWISE_OP
   patterns.add<AddPtrOpConversion>(typeConverter, benefit);
   patterns.add<FAddOpConversion>(typeConverter, axisInfoAnalysis, benefit);
+  patterns.add<FSubOpConversion>(typeConverter, axisInfoAnalysis, benefit);
   patterns.add<CmpIOpConversion>(typeConverter, axisInfoAnalysis, benefit);
 }
 #endif
