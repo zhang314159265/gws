@@ -1,0 +1,90 @@
+This doc derives a general solution for sequence defined by:
+  f(n) = uf(n-1) + vf(n-2), when n >= 2
+  f(0) = a
+  f(1) = b
+
+with restrition that equation:
+  vx^2 + ux - 1 = 0
+having two different real number root r0 and r1. This is equivalent to 'v != 0' and 'u * u  + 4v > 0'.
+
+Define generating function g(x) as:
+  g(x) = sigma(i>=0, f(i) * x^i)
+
+then:
+  ug(x)x + vg(x)x^2
+  = u sigma(i>=0, f(i) * x^i) x + v sigma(i>=0, f(i) * x ^ i) x^2
+  = sigma(i>=0, uf(i) * x^ (i + 1)) + sigma(i>=0, vf(i) * x^(i + 2))
+  = sigma(i>=1, uf(i - 1) * x^i) + sigma(i>=2, vf(i - 2) * x^i)
+  = uax + sigma(i>=2, f(i) * x^i)
+  = uax + g(x) - a - bx
+
+This gives us:
+  (ua - b)x - a = g(x) [ vx^2 + ux - 1]
+
+so:
+  g(x) = [ (ua-b)x - a ] / [vx^2 + ux - 1]
+
+Also:
+  vx^2 + ux - 1 = v(x - r0)(x - r1)
+  1 = [ (x - r0) - (x - r1) ] / (r1 - r0)
+  x = [ r1 * (x - r0) - r0 * (x - r1) ] / (r1 - r0)
+
+then:
+  (ua-b)x - a
+  = (ua-b) [ r1 * (x - r0) - r0 * (x - r1) ] / (r1 - r0) - a [ (x - r0) - (x - r1) ] / (r1 - r0)
+  = (x-r0) (ua-b) r1 / (r1 - r0) - (x-r1) (ua-b) r0 / (r1-r0) - (x-r0) a / (r1-r0) + (x-r1) a / (r1 - r0)
+  = [ (x-r0)(uar1 - br1 -a) + (x-r1)(a - uar0 + br0) ] / (r1 - r0)
+
+  g(x) = [ (x-r0)(uar1 - br1 -a) + (x-r1)(a - uar0 + br0) ] / (r1 - r0) / [ v(x - r0)(x - r1) ] 
+       = (uar1 - br1 - a) / [ (r1 - r0) v] / (x - r1) +
+         (a - uar0 + br0) / [ (r1 - r0) v] / (x - r0)
+
+For 1 / (x + c) with c != 0, we can expand it with taylor series or simply using binomial theorem:
+  1 / (x + c)
+  = (x + c) ^ (-1)
+  = sigma(i>=0, x^i c^(-1 - i) Comb(-1, i))
+  = sigma(i>=0, x^i c^(-1 - i) (-1)^i )
+  = sigma(i>=0, x^i (-1/c)^i / c )
+
+  The nth term is therefore: (-1/c)^n / c = 1 / [c (-c) ^n]
+
+Leveraging this, we get the nth term for g(x) (i.e. f(n)) to be:
+  f(n) = (uar1 - br1 - a) / [ (r1 - r0) v (-r1) r1^n] + (a - uar0 + br0) / [ (r1 - r0) v (-r0) r0^n]
+       = {(uar1 - br1 - a) / [(-r1) r1^n] + (a - uar0 + br0) / [(-r0) r0^n]} / [(r1-r0)v]
+       = {(uar0 - br0 - a) / [r0 r0^n]- (uar1 - br1 - a) / [r1 r1^n]} / [(r1-r0)v]
+       = [(ua - b - a/r0) / r0^n - (ua - b - a/r1) / r1^n ] / [(r1-r0)v]
+
+
+Now we get the general formula:
+   f(n) = [(ua - b - a/r0) / r0^n - (ua - b - a/r1) / r1^n ] / [(r1-r0)v]
+
+Note that r0 and r1 and interchangeable in this formula.
+
+Let's try a few examples.
+
+Example1: Fibonacci sequence
+
+For Fibonacci sequence, a = 0, b = 1, u = v = 1
+u and v meets the condition so we have 2 different real root r0, r1 for
+  'x^2 + x - 1 = 0'
+
+  r0,r1 = [ -1 -/+ sqrt(5) ] / 2
+  r0 * r1 = -1
+  r0^n * r1^n = (-1)^n
+  1 / r0^n = (-r1)^n
+  1 / r1^n = (-r0)^n
+
+  f(n)
+  = [(ua - b - a/r0) / r0^n - (ua - b - a/r1) / r1^n ] / [(r1-r0)v]
+  = [-1 / r0^n + 1 / r1^n ] / [sqrt(5)]
+  = [- (-r1)^n + (-r0)^n) / (sqrt(5))
+  = [([1+sqrt(5)]/2)^n - ([1-sqrt(5)]/2)^n]/sqrt(5)
+
+Example2: (leetcode 276 paint fence)
+  a = k
+  b = k * k
+  u = v = (k - 1)
+  r0,r1 are the two roots of '(k-1)x^2 + (k-1)x - 1 = 0'
+  r0,r1 = [-(k-1) -/+ sqrt( (k-1)^2 + 4 (k-1) )] / [2 * (k-1)]
+
+  And then use these in the final formula we can get the solution. Note that f(n) represents 'n+1' posts in the question.
