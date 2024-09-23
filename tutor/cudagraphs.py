@@ -1,6 +1,6 @@
 import torch
 from torch._inductor import config
-from torch._inductor.utils import do_bench
+from triton.testing import do_bench
 import os
 
 config.triton.unique_kernel_names = True

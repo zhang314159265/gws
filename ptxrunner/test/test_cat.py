@@ -4,7 +4,7 @@ Test the ptx code for tl.cat. The concat may reorder elements.
 import torch
 import ptxrunner
 from torch._inductor import config
-from torch._inductor.utils import do_bench
+from triton.testing import do_bench
 
 config.benchmark_kernel = True
 config.compile_threads = 1

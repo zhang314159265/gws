@@ -1,7 +1,7 @@
 # Benchmark outer reduction
 
 import torch
-from torch._inductor.utils import do_bench
+from triton.testing import do_bench
 from torch._inductor import config
 from torch._dynamo.testing import rand_strided
 

@@ -22,7 +22,7 @@ from transformers import BertForMaskedLM as model_cls
 from model.bert_model import MyBertModel
 from torch._dynamo.testing import reset_rng_state, collect_results
 from torch._dynamo.utils import same
-from torch._inductor.utils import do_bench
+from triton.testing import do_bench
 from torch._inductor import config as inductor_config
 import contextlib
 

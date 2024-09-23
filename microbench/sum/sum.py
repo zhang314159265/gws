@@ -5,7 +5,7 @@
 #   (1024, 1048579), 3.323552 ms, 1.292286 tbgs
 
 import torch
-from torch._inductor.utils import do_bench
+from triton.testing import do_bench
 from torch._inductor import config
 from torch._dynamo import config as dynamo_config
 

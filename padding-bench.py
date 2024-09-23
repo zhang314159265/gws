@@ -4,7 +4,7 @@ import copy
 
 from model_factory import create_model
 from torch._inductor import config as inductor_config
-from torch._inductor.utils import do_bench
+from triton.testing import do_bench
 from torch._dynamo.testing import reduce_to_scalar_loss
 
 MODEL_NAME = os.environ.get("MODEL_NAME", "DistillGPT2")

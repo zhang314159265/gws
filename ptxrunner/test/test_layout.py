@@ -17,12 +17,13 @@ import copy
 import ptxrunner
 import os
 import torch
-from torch._inductor.triton_heuristics import reduction, grid
+from torch._inductor.runtime.triton_heuristics import reduction, grid
+from torch._inductor.runtime.hints import DeviceProperties
 import triton.language as tl
 from torch._inductor.ir import ReductionHint
 from triton.compiler.compiler import AttrsDescriptor
 from torch._dynamo.testing import rand_strided
-from torch._inductor.utils import do_bench
+from triton.testing import do_bench
 from torch._C import _cuda_getCurrentRawStream as get_raw_stream
 from torch._dynamo.testing import reset_rng_state
 
@@ -89,8 +90,7 @@ def apply_inductor_hint(with_divisible_hints):
             'signature': {
                 0: '*fp32', 1: '*fp32', 2: '*fp32', 3: '*fp32' if fp32_output else '*fp16',
             },
-            'device': 0,
-            'device_type': 'cuda',
+            'device': DeviceProperties(tyep="cuda", index=0),
             'constants': {},
             'configs': [AttrsDescriptor(divisible_by_16=divisible_by_16, equal_to_1=())]
         },
