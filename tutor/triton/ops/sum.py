@@ -5,9 +5,6 @@ import functools
 
 from common import bench
 
-M = 1024 * 512
-N = 2048 + 1 # +1 on purpose
-
 # Use a persistent reduction
 # XXX HACK: I mark rnumel as constexpr since it's used in tl.arange
 @triton.jit
@@ -47,21 +44,51 @@ def non_persistent_reduction_kernel(x, y, xnumel, rnumel, XBLK: tl.constexpr):
     yval = tl.sum(accum, axis=1)[:, None]
     tl.store(y + xidx, yval, xmask)
 
-def launch(x, use_persistent_reduction):
+
+@triton.jit
+def blk_ptr_kernel(x, y, xnumel, rnumel, XBLK: tl.constexpr):
+    RBLK: tl.constexpr = 512
+
+    xoff = tl.program_id(0) * XBLK
+    xidx = xoff + tl.arange(0, XBLK)
+
+    # both order [0, 1] and [1, 0] works with the same perf..
+    x_ptr = tl.make_block_ptr(x, [xnumel, rnumel], [rnumel, 1], [xoff, 0], [XBLK, RBLK], [1, 0])
+
+    accum = tl.full([XBLK, RBLK], 0, dtype=tl.float32)
+    for roff in range(0, rnumel, RBLK):
+        xval = tl.load(x_ptr, boundary_check=[0, 1], padding_option="zero")
+        accum = accum + xval
+
+        x_ptr = tl.advance(x_ptr, [0, RBLK])
+
+    yval = tl.sum(accum, 1)
+
+    # y_ptr = tl.make_block_ptr(y, [xnumel], [1], [0], [XBLK], [0])
+    # tl.store(y_ptr, yval)
+    # XXX Use plain ptr for store for now
+    tl.store(y + xidx, yval, xidx < xnumel)
+
+
+def launch(kernel, x):
     # torch.empty may return the previously released memory without changing.
     # Use zeros instead.
-    y = torch.zeros(M, device="cuda") 
+    y = torch.zeros(x.size(0), device="cuda") 
 
     XBLK = 2
-    kernel = persistent_reduction_kernel if use_persistent_reduction else  non_persistent_reduction_kernel
     kernel[(triton.cdiv(x.size(0), XBLK),)](x, y, x.size(0), x.size(1), XBLK)
     return y
 
 
+M = 1024 * 512 + 1
+N = 2048 + 1 # +1 on purpose
 x = torch.randn(M, N, device="cuda")
 
+print("Benchmark the block-ptr kernel")
+bench(lambda x: x.sum(dim=-1), functools.partial(launch, blk_ptr_kernel), (x,))
+
 print("Benchmark the persistent reduction")
-bench(lambda x: x.sum(dim=-1), functools.partial(launch, use_persistent_reduction=True), (x,))
+bench(lambda x: x.sum(dim=-1), functools.partial(launch, persistent_reduction_kernel), (x,))
 
 print("Benchmark the non-persistent reduction")
-bench(lambda x: x.sum(dim=-1), functools.partial(launch, use_persistent_reduction=False), (x,))
+bench(lambda x: x.sum(dim=-1), functools.partial(launch, non_persistent_reduction_kernel), (x,))

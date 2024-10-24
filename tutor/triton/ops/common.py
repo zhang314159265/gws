@@ -8,7 +8,7 @@ def bench(torch_fn, triton_fn, args, tol=1e-4):
 
     if not torch.allclose(expected, actual, atol=tol, rtol=tol):
         print("Numerical check fail!")
-        breakpoint()
+        print(f"expected:\n{expected}\nactual:\n{actual}\n")
         return
     else:
         print("Pass the numerical check")
