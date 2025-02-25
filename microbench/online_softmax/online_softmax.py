@@ -28,14 +28,14 @@ def online_softmax_combine(lhs_max, lhs_sum, rhs_max):
     and computation.
     """
     out_max = triton_helpers.maximum(lhs_max, rhs_max)
-    lhs_scale = myexp(lhs_max - out_max)
-    out_sum = lhs_sum * lhs_scale
-    rhs_scale = myexp(rhs_max - out_max)
+
+    lhs_scale = tl.where(out_max == float("-inf"), 1.0, myexp(lhs_max - out_max))
+    rhs_scale = tl.where(out_max == float("-inf"), 1.0, myexp(rhs_max - out_max))
 
     # Should be
-    #   out_sum = out_sum + rhs_sum * rhs_scale
+    #   out_sum = lhs_sum * lhs_scale + rhs_sum * rhs_scale
     # but since rhs_sum is all 1, we can simpliy it.
-    out_sum = out_sum + rhs_scale
+    out_sum = lhs_sum * lhs_scale + rhs_scale
     return out_max, out_sum
 
 @triton.jit
