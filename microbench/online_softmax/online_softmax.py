@@ -16,7 +16,9 @@ def myexp(inp):
 @triton.jit
 def online_softmax_reduce(lhs_max, lhs_sum, dim):
     out_max = triton_helpers.max2(lhs_max, dim)
-    out_sum = tl.sum(lhs_sum * myexp(lhs_max - out_max[:, None]), dim)
+    out_max_keepdim = out_max[:, None]
+    delta = tl.where(out_max_keepdim == float("-inf"), 0, lhs_max - out_max_keepdim)
+    out_sum = tl.sum(lhs_sum * myexp(delta), dim)
     return out_max, out_sum
 
 @triton.jit
