@@ -4,6 +4,10 @@ from torch._inductor.runtime import triton_helpers
 from triton.language.extra import libdevice
 import os
 
+# NOTE: need force triton recompile with TRITON_ALWAYS_COMPILE=1 to
+# properly test this config. triton does not monitor this envvar and
+# will not recompile if the only thing changed is the value of this
+# envvar.
 EXP_FTZ: tl.constexpr = os.environ.get("EXP_FTZ", "1") == "1"
 
 @triton.jit
