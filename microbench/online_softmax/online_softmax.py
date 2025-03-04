@@ -100,7 +100,7 @@ def online_softmax_opt_kernel(inp, tmax, tsum, xnumel, rnumel, XBLOCK: tl.conste
         tmp3, tmp4 = online_softmax_combine(accmax, accsum, tmp2)
 
         accmax = tmp3
-        accsum = tmp4, accsum
+        accsum = tmp4
 
     for roffset in range(rnumel_round, rnumel, RBLOCK):
         rindex = roffset + rbase
