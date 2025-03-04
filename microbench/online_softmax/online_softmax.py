@@ -124,6 +124,8 @@ def online_softmax_opt_kernel(inp, tmax, tsum, xnumel, rnumel, XBLOCK: tl.conste
     tl.debug_barrier()
     tl.store(tsum + (xindex), tmp9, None)
 
+if os.environ.get("USE_CUSTOM_ONLINE_SM") == "1":
+    raise RuntimeError("Please replace this line with the paste of the custom implementation. Kernel name should be online_softmax_opt_kernel")
 
 def call(args, opt=False):
     inp, tmax, tsum = args
