@@ -3,6 +3,7 @@ Train llama3.1 8B.
 """
 
 import time
+import os
 from dataclasses import dataclass
 from torch import nn
 from torch import Tensor
@@ -37,8 +38,10 @@ def get_mask_mod(mask_mod: _mask_mod_signature, offset: int):
     return _mask_mod
 
 
+NLAYER = int(os.getenv("NLAYER", 32))
+print(f"#layer {NLAYER}")
 transformer_configs = {
-    "llama-3.1-8b": dict(block_size=131072, n_layer=32, n_head=32, n_local_heads=8, dim=4096, intermediate_size=14336, vocab_size=128256, rope_base=500000,
+    "llama-3.1-8b": dict(block_size=131072, n_layer=NLAYER, n_head=32, n_local_heads=8, dim=4096, intermediate_size=14336, vocab_size=128256, rope_base=500000,
         rope_scaling=dict(factor=8.0, low_freq_factor=1.0, high_freq_factor=4.0, original_max_position_embeddings=8192),
     ),
 }
@@ -299,8 +302,26 @@ def apply_rotary_emb(x: Tensor, freqs_cis: Tensor) -> Tensor:
 
 # END code copied from gpt-fast
 
+def trace_ready(prof):
+    path = "/tmp/chrome.json.gz"
+    prof.export_chrome_trace(path)
+    print(f"Profile written to {path}")
+
+@torch.compile
+def fwd_and_bwd(model, idx, input_pos, target):
+    logits = model(mask, idx, input_pos)
+    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), target.view(-1))
+    loss.backward()
+
+
+
 if __name__ == "__main__":
     torch.set_default_device("cuda")
+    ncu_profile_step = 7
+
+    torch.randn(1)
+    torch.cuda.cudart().cudaProfilerStop()
+
     model = Transformer.from_name("llama-3.1-8b").to(device="cuda", dtype=torch.bfloat16)
     # Non compile case
     # batch_size, seq_len = 128, 512
@@ -313,87 +334,110 @@ if __name__ == "__main__":
     # batch_size, seq_len = 128, 512 # OOM
     batch_size, seq_len = 16, 512 # 96.6GB, 10K tokens/s, 822ms
     model.setup_caches(max_batch_size=batch_size, max_seq_length = seq_len)
-    model = torch.compile(model)
+    # model = torch.compile(model)
 
     create_block_mask = torch.compile(create_block_mask)
     mask = create_block_mask(causal_mask, batch_size, model.config.n_head, seq_len, seq_len)
     input_pos = torch.arange(0, seq_len)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.0, fused=True)
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.0, capturable=True, foreach=True)
 
+    profiler = torch.profiler.profile(
+        schedule=torch.profiler.schedule(
+            wait=2,
+            warmup=2,
+            active=3,
+            repeat=1,
+        ),
+        on_trace_ready=trace_ready,
+    )
+    profiler.start()
+
+    print(f"{ncu_profile_step=}")
     for step in range(15):
+        if step == ncu_profile_step:
+            torch.cuda.cudart().cudaProfilerStart()
         torch.cuda.synchronize()
         t0 = time.time()
         idx = torch.randint(0, model.config.vocab_size, (batch_size, seq_len), device="cuda")
         target = torch.randint(0, model.config.vocab_size, (batch_size, seq_len), device="cuda")
-        logits = model(mask, idx, input_pos)
-        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), target.view(-1))
-        loss.backward()
+        fwd_and_bwd(model, idx, input_pos, target)
+        torch.cuda.synchronize()
+
+        # don't profile the optimizer
+        torch.cuda.cudart().cudaProfilerStop()
+
         optimizer.step()
         optimizer.zero_grad(set_to_none=True)
         torch.cuda.synchronize()
+        profiler.step()
+
         elapse = time.time() - t0
         tps = batch_size * seq_len / elapse
+
         print(f"Step {step}: {elapse * 1000:.3f}ms, {tps:.3f}tokens/s")
 
         if step == 3:
             peak_mem = torch.cuda.max_memory_allocated() / 10**9
             print(f"peak_mem: {peak_mem:.3f} GB")
 
-if False: # old manual version
-    class TransformerLayer(nn.Module):
-        def __init__(self, config):
-            super().__init__()
-            self.norm_1 = nn.RMSNorm(config.embed_dim, config.norm_eps)
-            self.attn = None
-            self.norm_2 = nn.RMSNorm(config.embed_dim, config.norm_eps)
-            self.mlp = None
-    
-        def forward(self, x):
-            x = x + self.attn(self.norm_1(x))
-            x = x + self.mlp(self.norm_2(x))
-            return x
-    
-    @dataclass
-    class ModelConfig:
-        vocab_size = 128_256
-        num_layers = 32
-        num_heads = 32
-        num_kv_heads = 8
-        embed_dim = 4096
-        block_size = 1024
-        intermediate_dim = 14336
-        norm_eps = 1e-5
-    
-    class Llama(nn.Module):
-        def __init__(self, config):
-            super().__init__()
-    
-            self.tok_embeddings = nn.Embedding(config.vocab_size, config.embed_dim)
-            self.layers = nn.Sequential(*[
-                TransformerLayer(config) for _ in range(config.num_layers)
-            ])
-            self.output_proj = nn.Linear(config.embed_dim, config.vocab_size, bias=False)
-    
-            self.final_norm = nn.RMSNorm(config.embed_dim, eps=config.norm_eps)
-    
-        def forward(self, idx, target):
-            x = self.tok_embeddings(idx)
-            x = self.layers(x)
-            x = self.final_norm(x)
-            x = self.output_proj(x)
-            loss = F.cross_entropy(x.view(-1, x.size(-1)), target.view(-1))
-            return loss
-    
-    if __name__ == "__main__":
-        config = ModelConfig()
-        model = Llama(config).to("cuda")
-    
-        batch_size = 128
-        seq_len = 512
-    
-        idx = torch.randint(0, config.vocab_size, (batch_size, seq_len), device="cuda")
-        target = torch.randint(0, config.vocab_size, (batch_size, seq_len), device="cuda")
-        loss = model(idx, target)
-        print(f"{loss=}")
-        
-        # print(model)
+    profiler.stop()
+
+# if False: # old manual version
+#     class TransformerLayer(nn.Module):
+#         def __init__(self, config):
+#             super().__init__()
+#             self.norm_1 = nn.RMSNorm(config.embed_dim, config.norm_eps)
+#             self.attn = None
+#             self.norm_2 = nn.RMSNorm(config.embed_dim, config.norm_eps)
+#             self.mlp = None
+#     
+#         def forward(self, x):
+#             x = x + self.attn(self.norm_1(x))
+#             x = x + self.mlp(self.norm_2(x))
+#             return x
+#     
+#     @dataclass
+#     class ModelConfig:
+#         vocab_size = 128_256
+#         num_layers = 32
+#         num_heads = 32
+#         num_kv_heads = 8
+#         embed_dim = 4096
+#         block_size = 1024
+#         intermediate_dim = 14336
+#         norm_eps = 1e-5
+#     
+#     class Llama(nn.Module):
+#         def __init__(self, config):
+#             super().__init__()
+#     
+#             self.tok_embeddings = nn.Embedding(config.vocab_size, config.embed_dim)
+#             self.layers = nn.Sequential(*[
+#                 TransformerLayer(config) for _ in range(config.num_layers)
+#             ])
+#             self.output_proj = nn.Linear(config.embed_dim, config.vocab_size, bias=False)
+#     
+#             self.final_norm = nn.RMSNorm(config.embed_dim, eps=config.norm_eps)
+#     
+#         def forward(self, idx, target):
+#             x = self.tok_embeddings(idx)
+#             x = self.layers(x)
+#             x = self.final_norm(x)
+#             x = self.output_proj(x)
+#             loss = F.cross_entropy(x.view(-1, x.size(-1)), target.view(-1))
+#             return loss
+#     
+#     if __name__ == "__main__":
+#         config = ModelConfig()
+#         model = Llama(config).to("cuda")
+#     
+#         batch_size = 128
+#         seq_len = 512
+#     
+#         idx = torch.randint(0, config.vocab_size, (batch_size, seq_len), device="cuda")
+#         target = torch.randint(0, config.vocab_size, (batch_size, seq_len), device="cuda")
+#         loss = model(idx, target)
+#         print(f"{loss=}")
+#         
+#         # print(model)
