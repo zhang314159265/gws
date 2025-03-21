@@ -309,6 +309,7 @@ def trace_ready(prof):
 
 @torch.compile
 def fwd_and_bwd(model, idx, input_pos, target):
+    mask = None
     logits = model(mask, idx, input_pos)
     loss = F.cross_entropy(logits.view(-1, logits.size(-1)), target.view(-1))
     loss.backward()
@@ -336,8 +337,8 @@ if __name__ == "__main__":
     model.setup_caches(max_batch_size=batch_size, max_seq_length = seq_len)
     # model = torch.compile(model)
 
-    create_block_mask = torch.compile(create_block_mask)
-    mask = create_block_mask(causal_mask, batch_size, model.config.n_head, seq_len, seq_len)
+    # create_block_mask = torch.compile(create_block_mask)
+    # mask = create_block_mask(causal_mask, batch_size, model.config.n_head, seq_len, seq_len)
     input_pos = torch.arange(0, seq_len)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.0, fused=True)
     # optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.0, capturable=True, foreach=True)
