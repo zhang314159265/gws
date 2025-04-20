@@ -34,6 +34,11 @@ pipe = pipeline(
 dataset = load_dataset("distil-whisper/librispeech_long", "clean", split="validation")
 sample = dataset[0]["audio"]
 
-result = pipe(sample)
+path = "/tmp/speech.wav"
+
+if path:
+    result = pipe(path)
+else:
+    result = pipe(sample)
 print(result["text"])
 
