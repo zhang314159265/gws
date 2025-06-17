@@ -1,0 +1,3 @@
+# Avoid using the default github user id for authentication when 'git push'
+  git config credential.username x
+  git push
