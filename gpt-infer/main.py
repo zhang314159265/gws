@@ -5,6 +5,7 @@ from tiktoken.load import load_tiktoken_bpe
 import torch
 from model import Transformer
 import torch.nn.functional as F
+import time
 
 REPO_ID = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 TOKENIZER_FILE = os.path.join("checkpoints", REPO_ID, "tokenizer.model")
@@ -127,23 +128,54 @@ def download(repo_id=REPO_ID):
     else:
         snapshot_download(repo_id, local_dir=local_dir)
 
-def main(prompt):
+def main(prompt, num_samples, compile, compile_prefill):
     download()
     
     tokenizer = Tokenizer(TOKENIZER_FILE)
     device = "cuda"
     encoded = torch.tensor(tokenizer.encode(prompt), dtype=torch.int, device=device)
     print(f"{encoded=}")
+    prompt_length = encoded.size(-1)
     precision = torch.bfloat16
     model = _load_model(CHECKPOINT_PATH, device, precision)
     torch.manual_seed(1234)
-    y = generate(model, encoded, temperature=0.8, top_k=200)
-    print(tokenizer.decode(y[0].tolist()))
+
+    if compile:
+        global decode_one_token, prefill
+        decode_one_token = torch.compile(decode_one_token, mode="reduce-overhead", fullgraph=True)
+
+        if compile_prefill:
+            prefill = torch.compile(prefill, fullgraph=True, dynamic=True)
+
+    start = -1 if compile else 0
+
+    for i in range(start, num_samples):
+        print(f"-------- iteration {i} ----------")
+        torch.cuda.synchronize()
+        t0 = time.perf_counter()
+        y = generate(model, encoded, temperature=0.8, top_k=200)
+        torch.cuda.synchronize()
+
+        if i == -1:
+            print(f"Compilation time: {time.perf_counter() - t0:.2f} seconds")
+            continue
+        t = time.perf_counter() - t0
+
+        tokens_generated = y.size(-1) - prompt_length
+        generated_tokens_sec = tokens_generated / t 
+        print("+ ANSWER:")
+        print(tokenizer.decode(y[0].tolist()))
+        print("+ STATS:")
+        print(f"Time for inference {i + 1}: {t:.02f} sec total, {generated_tokens_sec:.02f} tokens/sec")
+        print()
     print("bye")
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="GPT Inference.")
     parser.add_argument("--prompt", type=str, default="How to estimate pi?", help="Input prompt.")
+    parser.add_argument("--num_samples", type=int, default=3, help="Number of smaples.")
+    parser.add_argument("--compile", action="store_true", help="Whether to compile the model.")
+    parser.add_argument("--compile_prefill", action="store_true", help="Whether to compile the prefill.")
     args = parser.parse_args()
-    main(args.prompt)
+    main(args.prompt, args.num_samples, args.compile, args.compile_prefill)
