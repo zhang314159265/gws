@@ -11,6 +11,8 @@ REPO_ID = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 TOKENIZER_FILE = os.path.join("checkpoints", REPO_ID, "tokenizer.model")
 CHECKPOINT_PATH = os.path.join("checkpoints", REPO_ID, "model.pth")
 
+torch._inductor.config.coordinate_descent_tuning = True
+
 def multinomial_sample_one_no_sync(probs):
     q = torch.empty_like(probs).exponential_(1)
     return torch.argmax(probs / q, dim=-1, keepdim=True).to(dtype=torch.int)
