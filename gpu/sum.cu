@@ -19,7 +19,11 @@ __device__ bfloat16 _sumrow(bfloat16 *rowptr, int N) {
   }
 
   // multi-warp reduction
-  __shared__ float buffer[32]; // TODO use dynamic shared memory
+  #if 1
+  extern __shared__ float buffer[];
+  #else
+  __shared__ float buffer[32];
+  #endif
   if (laneId == 0) {
     buffer[warpId] = accum;
   }
@@ -28,8 +32,9 @@ __device__ bfloat16 _sumrow(bfloat16 *rowptr, int N) {
     return -1.0;
   }
   __syncthreads();
-  accum = buffer[laneId];
-  if (laneId >= blockDim.x / 32) {
+  if (laneId < blockDim.x / 32) {
+    accum = buffer[laneId];
+  } else {
     accum = 0;
   }
 
