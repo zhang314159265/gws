@@ -73,7 +73,7 @@ void runKernel(long _func, int gridX, int gridY, int gridZ, int blockX, int bloc
   ));
 }
 
-PYBIND11_MODULE(curun, m) {
+PYBIND11_MODULE(_curun, m) {
   m.doc() = "Load and run cuda kernel from a cubin file";
   m.def("open", openCubin);
   m.def("sym", findSym);

@@ -16,7 +16,7 @@ cubin:
 	nvcc -cubin add.cu -o add.cubin -arch=$(arch)
 
 curun:
-	g++ curun.cpp -shared -fPIC $(include_dirs) $(shell python -m pybind11 --includes) -o curun.so -lcuda
+	g++ curun.cpp -shared -fPIC $(include_dirs) $(shell python -m pybind11 --includes) -o _curun.so -lcuda
 	python tutor.py
 
 .PHONY: runner
