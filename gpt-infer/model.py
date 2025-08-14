@@ -135,6 +135,10 @@ class RMSNorm(nn.Module):
         output = self._norm(x.float()).type_as(x)
         return output * self.weight
 
+    def forward_kernel(self, x):
+        output = self._norm(x.float()).type_as(x)
+        return output * self.weight
+
 def apply_rope_scaling(freqs, rope_scaling):
     assert isinstance(rope_scaling, dict)
     factor = rope_scaling["factor"]

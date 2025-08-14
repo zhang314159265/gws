@@ -130,8 +130,15 @@ def download(repo_id=REPO_ID):
     else:
         snapshot_download(repo_id, local_dir=local_dir)
 
-def main(prompt, num_samples, compile, compile_prefill):
+def setup_to_use_kernel_lib():
+    from model import RMSNorm
+    RMSNorm.forward = RMSNorm.forward_kernel
+
+def main(prompt, num_samples, compile, compile_prefill, use_kernel_lib):
     download()
+
+    if use_kernel_lib:
+        setup_to_use_kernel_lib()
     
     tokenizer = Tokenizer(TOKENIZER_FILE)
     device = "cuda"
@@ -176,8 +183,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="GPT Inference.")
     parser.add_argument("--prompt", type=str, default="How to estimate pi?", help="Input prompt.")
-    parser.add_argument("--num_samples", type=int, default=3, help="Number of smaples.")
+    parser.add_argument("--num_samples", type=int, default=1, help="Number of smaples.")
     parser.add_argument("--compile", action="store_true", help="Whether to compile the model.")
     parser.add_argument("--compile_prefill", action="store_true", help="Whether to compile the prefill.")
+    parser.add_argument("--use-kernel-lib", action="store_true", help="Whether to use the kernel library")
     args = parser.parse_args()
-    main(args.prompt, args.num_samples, args.compile, args.compile_prefill)
+    main(args.prompt, args.num_samples, args.compile, args.compile_prefill, args.use_kernel_lib)

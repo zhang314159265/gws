@@ -6,14 +6,18 @@ include_dirs := -I$(cuda_home)/include
 
 arch := sm_90a  # h100
 
-first: curun
+first: tmp
+
+tmp:
+	make cubin_sum
+	python sum.py
 
 runner: cubin
 	g++ runner.cpp -o runner $(include_dirs) -lcuda
 	./runner
 
-cubin:
-	nvcc -cubin add.cu -o add.cubin -arch=$(arch)
+cubin_%:
+	nvcc -cubin $*.cu -o $*.cubin -arch=$(arch)
 
 curun:
 	g++ curun.cpp -shared -fPIC $(include_dirs) $(shell python -m pybind11 --includes) -o _curun.so -lcuda
