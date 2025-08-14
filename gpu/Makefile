@@ -19,6 +19,9 @@ runner: cubin
 cubin_%:
 	nvcc -cubin $*.cu -o $*.cubin -arch=$(arch)
 
+ptx_%:
+	nvcc -ptx $*.cu -o /tmp/$*.ptx -arch=$(arch)
+
 curun:
 	g++ curun.cpp -shared -fPIC $(include_dirs) $(shell python -m pybind11 --includes) -o _curun.so -lcuda
 	python tutor.py
