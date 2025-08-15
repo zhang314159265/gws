@@ -6,7 +6,7 @@ include_dirs := -I$(cuda_home)/include
 
 arch := sm_90a  # h100
 
-first: run_memcpy
+first: run_rmsnorm
 
 run_%:
 	make cubin_$*
