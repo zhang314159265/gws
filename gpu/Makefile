@@ -10,17 +10,19 @@ first: tmp
 
 tmp:
 	make cubin_sum
-	python sum.py
+	PYTHONPATH=. python kernel/sum.py
 
 runner: cubin
 	g++ runner.cpp -o runner $(include_dirs) -lcuda
 	./runner
 
 cubin_%:
-	nvcc -cubin $*.cu -o $*.cubin -arch=$(arch)
+	mkdir -p out/
+	nvcc -cubin -I. kernel/$*.cu -o out/$*.cubin -arch=$(arch)
 
 ptx_%:
-	nvcc -ptx $*.cu -o /tmp/$*.ptx -arch=$(arch)
+	mkdir -p out/
+	nvcc -ptx kernel/$*.cu -o out/$*.ptx -arch=$(arch)
 
 curun:
 	g++ curun.cpp -shared -fPIC $(include_dirs) $(shell python -m pybind11 --includes) -o _curun.so -lcuda
