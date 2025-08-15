@@ -1,7 +1,7 @@
 #include "pre.h"
 
 template <int num_warps>
-__device__ bfloat16 _sumrow(__restrict__ bfloat16 *rowptr, int N) {
+__device__ bfloat16 _sumrow(bfloat16 * __restrict__ rowptr, int N) {
   float accum = 0.0;
   int laneId = threadIdx.x % 32;
   int warpId = threadIdx.x / 32;
@@ -53,7 +53,7 @@ __device__ bfloat16 _sumrow(__restrict__ bfloat16 *rowptr, int N) {
   return accum;
 }
 
-extern "C" __global__ void sum_kernel(__restrict__ bfloat16 *x, __restrict__ bfloat16 *y, int M, int N) {
+extern "C" __global__ void sum_kernel(bfloat16 * __restrict__ x, bfloat16 * __restrict__ y, int M, int N) {
   int rowIdx = blockIdx.x;
   bfloat16 *rowptr = x + rowIdx * N;
   int num_warps = blockDim.x / 32;

@@ -16,7 +16,7 @@ def compiled_memcpy(src, dst):
 
 cukernel = curun.open("out/memcpy.cubin").sym("memcpy_kernel")
 def memcpy_with_cuda(src, dst):
-    cukernel[1024, 1024](src, dst, src.numel())
+    cukernel[1024 * 1024 * 2, 32 * 4](src, dst, src.numel())
 
 act.zero_()
 baseline(x, act)
