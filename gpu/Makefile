@@ -6,11 +6,11 @@ include_dirs := -I$(cuda_home)/include
 
 arch := sm_90a  # h100
 
-first: tmp
+first: run_memcpy
 
-tmp:
-	make cubin_sum
-	PYTHONPATH=. python kernel/sum.py
+run_%:
+	make cubin_$*
+	PYTHONPATH=. python kernel/$*.py
 
 runner: cubin
 	g++ runner.cpp -o runner $(include_dirs) -lcuda
