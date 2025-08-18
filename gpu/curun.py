@@ -1,6 +1,6 @@
 from _curun import open as openCubin, sym as findSym, run as runKernel
 import torch
-from compile_utils import compile_cuda
+from compile_utils import compile_cuda, compile_ptx
 
 def padDim3(dims):
     if isinstance(dims, int):
@@ -52,6 +52,8 @@ def open(path):
         cubinpath = path
     elif path.endswith(".cu"):
         cubinpath = compile_cuda(path)
+    elif path.endswith(".ptx"):
+        cubinpath = compile_ptx(path)
     else:
         raise RuntimeError(f"Unrecognized path for curun.open {path}")
     return CuModule(openCubin(cubinpath))
