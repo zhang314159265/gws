@@ -1,0 +1,210 @@
+/*
+ * PTX file generated with the triton kernel.
+ */
+
+.version 8.0
+.target sm_90a
+.address_size 64
+
+.extern .shared .align 16 .b8 global_smem[];
+
+.visible .entry rmsnorm_kernel_triton_ptx(
+	.param .u64 .ptr .global .align 1 param_xptr,
+	.param .u64 .ptr .global .align 1 param_wptr,
+	.param .u64 .ptr .global .align 1 param_optr
+)
+.reqntid 512, 1, 1
+{
+	.reg .pred 	%p<13>;
+	.reg .b16 	%rs<25>;
+	.reg .b32 	%r<63>;
+	.reg .f32 	%f<76>;
+	.reg .b64 	%rd<14>;
+    .reg .b32 %blkidx, %tidx;
+    .reg .b32 %real_warpid, %real_laneid;
+    .reg .b32 %tidx_x4;
+    .reg .b64 %idx, %idx2;
+
+    .reg .b64 %xptr, %wptr, %optr;
+	ld.param.u64 	%xptr, [param_xptr];
+	ld.param.u64 	%wptr, [param_wptr];
+	ld.param.u64 	%optr, [param_optr];
+
+	mov.u32 	%blkidx, %ctaid.x;
+	mov.u32 	%tidx, %tid.x;
+	and.b32  	%real_laneid, %tidx, 31;
+	shl.b32 	%tidx_x4, %tidx, 2;
+
+    // compute idx
+	shl.b32 	%r40, %blkidx, 12;
+	or.b32  	%r41, %tidx_x4, %r40;
+
+    // first load of x
+	mul.wide.s32 	%rd12, %r41, 2;
+	add.s64 	%rd1, %xptr, %rd12;
+	ld.global.L1::evict_last.v2.b32 { %r1, %r2 }, [ %rd1 ];
+	add.s64 	%rd2, %rd1, 4096;
+	ld.global.L1::evict_last.v2.b32 { %r5, %r6 }, [ %rd2 ];
+
+    // intra thread sum
+	mov.b32 	{%rs1, %rs2}, %r1;
+	cvt.f32.bf16 	%f1, %rs1;
+	cvt.f32.bf16 	%f2, %rs2;
+	mov.b32 	{%rs3, %rs4}, %r5;
+	cvt.f32.bf16 	%f3, %rs4;
+	cvt.f32.bf16 	%f4, %rs3;
+	mul.f32 	%f5, %f4, %f4;
+	mul.f32 	%f6, %f3, %f3;
+	fma.rn.f32 	%f7, %f2, %f2, %f6;
+	fma.rn.f32 	%f8, %f1, %f1, %f5;
+	mov.b32 	{%rs5, %rs6}, %r2;
+	cvt.f32.bf16 	%f9, %rs5;
+	cvt.f32.bf16 	%f10, %rs6;
+	mov.b32 	{%rs7, %rs8}, %r6;
+	cvt.f32.bf16 	%f11, %rs8;
+	cvt.f32.bf16 	%f12, %rs7;
+	mul.f32 	%f13, %f12, %f12;
+	mul.f32 	%f14, %f11, %f11;
+	fma.rn.f32 	%f15, %f10, %f10, %f14;
+	fma.rn.f32 	%f16, %f9, %f9, %f13;
+	add.f32 	%f17, %f8, %f7;
+	add.f32 	%f18, %f16, %f17;
+	add.f32 	%f19, %f15, %f18;
+
+    // first round of shuffle
+	mov.b32 	%r42, %f19;
+	shfl.sync.bfly.b32	%r43, %r42, 16, 31, -1;
+	mov.b32 	%f20, %r43;
+	add.f32 	%f21, %f19, %f20;
+
+	mov.b32 	%r44, %f21;
+	shfl.sync.bfly.b32	%r45, %r44, 8, 31, -1;
+	mov.b32 	%f22, %r45;
+	add.f32 	%f23, %f21, %f22;
+
+	mov.b32 	%r46, %f23;
+	shfl.sync.bfly.b32	%r47, %r46, 4, 31, -1;
+	mov.b32 	%f24, %r47;
+	add.f32 	%f25, %f23, %f24;
+
+	mov.b32 	%r48, %f25;
+	shfl.sync.bfly.b32	%r49, %r48, 2, 31, -1;
+	mov.b32 	%f26, %r49;
+	add.f32 	%f27, %f25, %f26;
+
+	mov.b32 	%r50, %f27;
+	shfl.sync.bfly.b32	%r51, %r50, 1, 31, -1;
+	mov.b32 	%f28, %r51;
+	add.f32 	%f29, %f27, %f28;
+
+    // write perf warp sum to smem
+	setp.eq.s32 	%p3, %real_laneid, 0;
+	shr.u32 	%r52, %tidx, 3;
+	and.b32  	%r53, %r52, 60;
+	mov.u32 	%r54, global_smem;
+	add.s32 	%r9, %r54, %r53;
+	mov.b32 	%r10, %f29;
+	@%p3 st.shared.b32 [ %r9 + 0 ], %r10;
+	bar.sync 	0;
+
+    // load from smem
+	setp.lt.s32 	%p4, %tidx, 16;
+	add.s32 	%r12, %r54, %tidx_x4;
+	@%p4 ld.shared.b32 %r11, [ %r12 + 0 ];
+
+    // second round of shuffle
+	mov.b32 	%f30, %r11;
+	shfl.sync.bfly.b32	%r55, %r11, 8, 31, -1;
+	mov.b32 	%f31, %r55;
+	add.f32 	%f32, %f30, %f31;
+
+	mov.b32 	%r56, %f32;
+	shfl.sync.bfly.b32	%r57, %r56, 4, 31, -1;
+	mov.b32 	%f33, %r57;
+	add.f32 	%f34, %f32, %f33;
+
+	mov.b32 	%r58, %f34;
+	shfl.sync.bfly.b32	%r59, %r58, 2, 31, -1;
+	mov.b32 	%f35, %r59;
+	add.f32 	%f36, %f34, %f35;
+    
+	mov.b32 	%r60, %f36;
+	shfl.sync.bfly.b32	%r61, %r60, 1, 31, -1;
+	mov.b32 	%f37, %r61;
+	add.f32 	%f38, %f36, %f37;
+
+    // write sum to smem
+	and.b32  	%r62, %tidx, 15;
+	setp.eq.s32 	%p12, %r62, 0;
+	and.pred  	%p5, %p4, %p12;
+	mov.b32 	%r14, %f38;
+	@%p5 st.shared.b32 [ %r12 + 0 ], %r14;
+	bar.sync 	0;
+
+    // compute mean
+	ld.shared.f32 	%f39, [global_smem];
+	mov.f32 	%f40, 0f45800000;
+	div.full.f32 	%f41, %f39, %f40;
+
+    // compute rstd
+	add.f32 	%f42, %f41, 0f3727C5AC;
+	rsqrt.approx.ftz.f32 	%f43, %f42;
+
+	ld.global.L1::evict_first.v2.b32 { %r15, %r16 }, [ %rd1 + 0 ];
+	mul.wide.u32 	%rd13, %tidx_x4, 2;
+	add.s64 	%rd4, %wptr, %rd13;
+	ld.global.L1::evict_last.v2.b32 { %r19, %r20 }, [ %rd4 + 0 ];
+	add.s64 	%rd5, %optr, %rd12;
+	mov.b32 	{%rs9, %rs10}, %r15;
+	cvt.f32.bf16 	%f44, %rs9;
+	cvt.f32.bf16 	%f45, %rs10;
+	mov.b32 	{%rs11, %rs12}, %r19;
+	cvt.f32.bf16 	%f46, %rs12;
+	cvt.f32.bf16 	%f47, %rs11;
+	mul.f32 	%f48, %f43, %f45;
+	mul.f32 	%f49, %f43, %f44;
+	mul.f32 	%f50, %f49, %f47;
+	mul.f32 	%f51, %f48, %f46;
+	cvt.rn.bf16x2.f32 	%r23, %f51, %f50;
+	mov.b32 	{%rs13, %rs14}, %r16;
+	cvt.f32.bf16 	%f52, %rs13;
+	cvt.f32.bf16 	%f53, %rs14;
+	mov.b32 	{%rs15, %rs16}, %r20;
+	cvt.f32.bf16 	%f54, %rs16;
+	cvt.f32.bf16 	%f55, %rs15;
+	mul.f32 	%f56, %f43, %f53;
+	mul.f32 	%f57, %f43, %f52;
+	mul.f32 	%f58, %f57, %f55;
+	mul.f32 	%f59, %f56, %f54;
+	cvt.rn.bf16x2.f32 	%r24, %f59, %f58;
+	st.global.v2.b32 [ %rd5 + 0 ], { %r23, %r24 };
+
+	ld.global.L1::evict_first.v2.b32 { %r25, %r26 }, [ %rd2 + 0 ];
+	add.s64 	%rd7, %rd4, 4096;
+	ld.global.L1::evict_last.v2.b32 { %r29, %r30 }, [ %rd7 + 0 ];
+	add.s64 	%rd8, %rd5, 4096;
+	mov.b32 	{%rs17, %rs18}, %r25;
+	cvt.f32.bf16 	%f60, %rs17;
+	cvt.f32.bf16 	%f61, %rs18;
+	mov.b32 	{%rs19, %rs20}, %r29;
+	cvt.f32.bf16 	%f62, %rs20;
+	cvt.f32.bf16 	%f63, %rs19;
+	mul.f32 	%f64, %f43, %f61;
+	mul.f32 	%f65, %f43, %f60;
+	mul.f32 	%f66, %f65, %f63;
+	mul.f32 	%f67, %f64, %f62;
+	cvt.rn.bf16x2.f32 	%r33, %f67, %f66;
+	mov.b32 	{%rs21, %rs22}, %r26;
+	cvt.f32.bf16 	%f68, %rs21;
+	cvt.f32.bf16 	%f69, %rs22;
+	mov.b32 	{%rs23, %rs24}, %r30;
+	cvt.f32.bf16 	%f70, %rs24;
+	cvt.f32.bf16 	%f71, %rs23;
+	mul.f32 	%f72, %f43, %f69;
+	mul.f32 	%f73, %f43, %f68;
+	mul.f32 	%f74, %f73, %f71;
+	mul.f32 	%f75, %f72, %f70;
+	cvt.rn.bf16x2.f32 	%r34, %f75, %f74;
+	st.global.v2.b32 [ %rd8 + 0 ], { %r33, %r34 };
+	ret;
+}

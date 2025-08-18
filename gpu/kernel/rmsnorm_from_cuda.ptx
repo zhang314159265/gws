@@ -1,0 +1,264 @@
+/*
+ * Manually modified from the ptx file generated from rmsnorm.cu (VECSIZE == 2)
+ */
+.version 8.0
+.target sm_90a
+.address_size 64
+
+.extern .shared .align 16 .b8 smem[];
+
+.visible .entry rmsnorm_kernel_from_cuda_ptx(
+	.param .u64 param_xptr,
+	.param .u64 param_wptr,
+	.param .u64 param_optr,
+	.param .u32 param_c
+)
+{
+    .reg .b64 %xptr, %wptr, %optr;
+    .reg .b32 %C;
+    .reg .b32 %bidx, %bdim, %tidx;
+    .reg .b32 %bidx_xc_32;
+    .reg .b64 %bidx_xc_64;
+    .reg .b32 %tidx_x4;
+    .reg .b32 %b32_tmp;
+    .reg .b32 %real_warpid;
+    .reg .pred %p_tidx_x4_ge_c;
+    .reg .pred %p_loop1_cond;
+    .reg .pred %p_is_not_lane_0;
+    .reg .f32 %accum, %f_tmp;
+    .reg .b32 %cst_31, %cst_neg1;
+    .reg .b32 %shfl_mask;
+    .reg .b32 %accum_b32;
+    .reg .b32 %loop1_incr;
+    .reg .b32 %loop1_idx;
+    .reg .b64 %loop1_idx_64;
+    .reg .b64 %load1_off;
+    .reg .b64 %load1_off_x2;
+    .reg .b64 %load1_ptr;
+    .reg .b32 %load1_res<2>;
+    .reg .b16 %load1_sres<4>;
+    .reg .f32 %load1_fpres<4>;
+    .reg .f32 %sum, %mean, %rsqrt;
+
+	.reg .pred 	%p<18>;
+	.reg .b16 	%rs<17>;
+	.reg .b32 	%r<58>;
+	.reg .b64 	%rd<24>;
+	.reg .f32 	%f<55>;
+	.reg .f64 	%fd<5>;
+
+    ld.param.u64 %xptr, [param_xptr];
+    ld.param.u64 %wptr, [param_wptr];
+    ld.param.u64 %optr, [param_optr];
+    ld.param.u32 %C, [param_c];
+
+    mov.u32 %bidx, %ctaid.x;
+    mov.u32 %tidx, %tid.x;
+
+    mul.lo.s32 %bidx_xc_32, %bidx, %C;
+    cvt.u64.u32 %bidx_xc_64, %bidx_xc_32;
+    
+    shl.b32 %tidx_x4, %tidx, 2;
+	setp.ge.s32 	%p_tidx_x4_ge_c, %tidx_x4, %C;
+	mov.f32 	%accum, 0f00000000;
+
+	@%p_tidx_x4_ge_c bra 	$loop1_next;
+    mov .u32 %bdim, %ntid.x;
+    shl.b32 %loop1_incr, %bdim, 2;
+
+	mov.u32 	%loop1_idx, %tidx_x4;
+
+$loop1_body:
+	cvt.s64.s32 	%loop1_idx_64, %loop1_idx;
+	add.s64 	%load1_off, %loop1_idx_64, %bidx_xc_64;
+	shl.b64 	%load1_off_x2, %load1_off, 1;
+	add.s64 	%load1_ptr, %xptr, %load1_off_x2;
+	ld.global.L1::evict_last.v2.u32 {%load1_res0, %load1_res1}, [%load1_ptr];
+	mov.b32 	{%load1_sres0, %load1_sres1}, %load1_res0;
+	cvt.f32.bf16 %load1_fpres0, %load1_sres0;
+	fma.rn.f32 	%accum, %load1_fpres0, %load1_fpres0, %accum;
+
+	cvt.f32.bf16 %load1_fpres1, %load1_sres1;
+	fma.rn.f32 	%accum, %load1_fpres1, %load1_fpres1, %accum;
+
+	mov.b32 	{%load1_sres2, %load1_sres3}, %load1_res1;
+	cvt.f32.bf16 %load1_fpres2, %load1_sres2;
+	fma.rn.f32 	%accum, %load1_fpres2, %load1_fpres2, %accum;
+	cvt.f32.bf16 %load1_fpres3, %load1_sres3;
+	fma.rn.f32 	%accum, %load1_fpres3, %load1_fpres3, %accum;
+
+	add.s32 	%loop1_idx, %loop1_idx, %loop1_incr;
+	setp.lt.s32 	%p_loop1_cond, %loop1_idx, %C;
+	@%p_loop1_cond bra 	$loop1_body;
+
+$loop1_next:
+
+	mov.b32 	%accum_b32, %accum;
+	mov.u32 	%cst_31, 31;
+	mov.u32 	%shfl_mask, 1;
+	mov.u32 	%cst_neg1, -1;
+	shfl.sync.bfly.b32 	%accum_b32, %accum_b32, %shfl_mask, %cst_31, %cst_neg1;
+	mov.b32 	%f_tmp, %accum_b32;
+	add.f32 	%accum, %accum, %f_tmp;
+
+	mov.b32 	%accum_b32, %accum;
+	mov.u32 	%shfl_mask, 2;
+	shfl.sync.bfly.b32 	%accum_b32, %accum_b32, %shfl_mask, %cst_31, %cst_neg1;
+	mov.b32 	%f_tmp, %accum_b32;
+	add.f32 	%accum, %accum, %f_tmp;
+
+	mov.b32 	%accum_b32, %accum;
+	mov.u32 	%shfl_mask, 4;
+	shfl.sync.bfly.b32 	%accum_b32, %accum_b32, %shfl_mask, %cst_31, %cst_neg1;
+	mov.b32 	%f_tmp, %accum_b32;
+	add.f32 	%accum, %accum, %f_tmp;
+
+	mov.b32 	%accum_b32, %accum;
+	mov.u32 	%shfl_mask, 8;
+	shfl.sync.bfly.b32 	%accum_b32, %accum_b32, %shfl_mask, %cst_31, %cst_neg1;
+	mov.b32 	%f_tmp, %accum_b32;
+	add.f32 	%accum, %accum, %f_tmp;
+
+	mov.b32 	%accum_b32, %accum;
+	mov.u32 	%shfl_mask, 16;
+	shfl.sync.bfly.b32 	%accum_b32, %accum_b32, %shfl_mask, %cst_31, %cst_neg1;
+	mov.b32 	%f_tmp, %accum_b32;
+	add.f32 	%accum, %accum, %f_tmp;
+
+    mov.b32 %b32_tmp, %laneid;
+	setp.ne.s32 	%p_is_not_lane_0, %b32_tmp, 0;
+	shr.u32 	%real_warpid, %tidx, 5;
+
+	@%p_is_not_lane_0 bra 	$skip_save_warp_accum;
+
+    // save %accum to shared memory
+	shl.b32 	%r40, %real_warpid, 2;
+	mov.u32 	%r41, smem;
+	add.s32 	%r42, %r41, %r40;
+	st.shared.f32 	[%r42], %accum;
+
+$skip_save_warp_accum:
+	bar.sync 	0;
+
+    // compute #warps per block
+	mov.u32 	%r8, %ntid.x;
+	shr.u32 	%r9, %r8, 5;
+
+	setp.ne.s32 	%p10, %real_warpid, 0;
+	@%p10 bra 	$l_after_warp0_job;
+
+    // work done only by warp0
+    // if landid >= #warp
+    mov.b32 %b32_tmp, %laneid;
+	setp.ge.u32 	%p11, %b32_tmp, %r9;
+
+	mov.f32 	%accum, 0f00000000;
+	@%p11 bra 	$L__BB0_10;
+
+    // load accum from smem
+    mov.b32 %b32_tmp, %laneid;
+	shl.b32 	%r43, %b32_tmp, 2;
+	mov.u32 	%r44, smem;
+	add.s32 	%r45, %r44, %r43;
+	ld.shared.f32 	%accum, [%r45];
+
+$L__BB0_10:
+	mov.u32 	%shfl_mask, 1;
+
+    // the second shuffle loop
+$L__BB0_12:
+	mov.b32 	%r47, %accum;
+	mov.u32 	%r48, 31;
+	mov.u32 	%r49, -1;
+	shfl.sync.bfly.b32 	%r50, %r47, %shfl_mask, %r48, %r49;
+	mov.b32 	%f30, %r50;
+	add.f32 	%accum, %accum, %f30;
+	shl.b32 	%shfl_mask, %shfl_mask, 1;
+	setp.lt.u32 	%p14, %shfl_mask, %r9;
+	@%p14 bra 	$L__BB0_12;
+
+	@%p_is_not_lane_0 bra 	$l_after_warp0_job;
+
+	st.shared.f32 	[smem], %accum;
+
+$l_after_warp0_job:
+	bar.sync 	0;
+
+	@%p_tidx_x4_ge_c bra 	$l_done;
+
+	ld.shared.f32 	%sum, [smem];
+	cvt.rn.f32.s32 	%f32, %C;
+	div.rn.f32 	%mean, %sum, %f32;
+
+	cvt.f64.f32 	%fd1, %mean;
+	add.f64 	%fd2, %fd1, 0d3EE4F8B588E368F1;
+	sqrt.rn.f64 	%fd3, %fd2;
+	rcp.rn.f64 	%fd4, %fd3;
+	cvt.rn.f32.f64 	%rsqrt, %fd4;
+
+    // incr
+	shl.b32 	%r12, %r8, 2;
+
+$l_loop2_body:
+
+    // load x
+	cvt.s64.s32 	%rd19, %tidx_x4;
+	add.s64 	%rd20, %rd19, %bidx_xc_64;
+	shl.b64 	%rd21, %rd20, 1;
+	add.s64 	%rd17, %xptr, %rd21;
+	ld.global.L1::evict_first.v2.u32 {%r51, %r52}, [%rd17];
+	
+    // load w
+	mul.wide.s32 	%rd22, %tidx_x4, 2;
+	add.s64 	%rd18, %wptr, %rd22;
+	ld.global.L1::evict_last.v2.u32 {%r53, %r54}, [%rd18];
+	
+	mov.b32 	{%rs5, %rs8}, %r51;
+	cvt.f32.bf16 %f34, %rs5;
+	cvt.f32.bf16 %f37, %rs8;
+
+	mov.b32 	{%rs6, %rs9}, %r53;
+	cvt.f32.bf16 %f35, %rs6;
+	cvt.f32.bf16 %f38, %rs9;
+
+    // compute item 0
+	mul.f32 	%f46, %f34, %rsqrt;
+	mul.f32 	%f36, %f46, %f35;
+
+    // compute item 1
+	mul.f32 	%f47, %f37, %rsqrt;
+	mul.f32 	%f39, %f47, %f38;
+
+	mov.b32 	{%rs11, %rs14}, %r52;
+	cvt.f32.bf16 %f40, %rs11;
+	cvt.f32.bf16 %f43, %rs14;
+
+	mov.b32 	{%rs12, %rs15}, %r54;
+	cvt.f32.bf16 %f41, %rs12;
+	cvt.f32.bf16 %f44, %rs15;
+
+    // compute item 2
+	mul.f32 	%f48, %f40, %rsqrt;
+	mul.f32 	%f42, %f48, %f41;
+
+    // compute item 3
+	mul.f32 	%f49, %f43, %rsqrt;
+	mul.f32 	%f45, %f49, %f44;
+
+    // write output
+	add.s64 	%rd23, %optr, %rd21;
+	cvt.rn.bf16.f32 %rs16, %f45;
+	cvt.rn.bf16.f32 %rs13, %f42;
+	cvt.rn.bf16.f32 %rs10, %f39;
+	cvt.rn.bf16.f32 %rs7, %f36;
+	st.global.v4.u16 	[%rd23], {%rs7, %rs10, %rs13, %rs16};
+
+	add.s32 	%tidx_x4, %tidx_x4, %r12;
+	setp.lt.s32 	%p17, %tidx_x4, %C;
+	@%p17 bra 	$l_loop2_body;
+
+$l_done:
+	ret;
+
+}
+

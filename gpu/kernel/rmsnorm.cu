@@ -2,9 +2,15 @@
 
 __device__ float sumrow(bfloat16 *rowptr, int C) {
   float accum = 0.0;
-  for (int idx = threadIdx.x; idx < C; idx += blockDim.x) {
-    float item = (float) rowptr[idx];
-    accum += item * item;
+  // for (int idx = threadIdx.x * 8; idx < C; idx += blockDim.x * 8) 
+  int idx = threadIdx.x * 8;
+  { // assumes C == blockDim.x * 8
+    int4 xint4 = loadInt4(rowptr + idx, L1EVICT_LAST);
+
+    for (int i = 0; i < 8; ++i) {
+      float item = (float) ((bfloat16*)&xint4)[i];
+      accum += item * item;
+    }
   }
 
   // intra warp shuffle
@@ -42,16 +48,25 @@ __device__ float sumrow(bfloat16 *rowptr, int C) {
   return smem[0];
 }
 
-extern "C" __global__ void rmsnorm_kernel(bfloat16 *xptr, bfloat16 *wptr, bfloat16 *optr, int BT, int C) {
+extern "C" __global__ void rmsnorm_kernel(bfloat16 *xptr, bfloat16 *wptr, bfloat16 *optr, int C) {
   bfloat16 *rowptr = xptr + blockIdx.x * C;
-  double eps = 1e-5;
+  float eps = 1e-5;
   float rsqrt = 1.0 / sqrt(sumrow(rowptr, C) / C + eps);
 
   bfloat16 *outrowptr = optr + blockIdx.x * C;
-  for (int idx = threadIdx.x; idx < C; idx += blockDim.x) {
-    float x = (float) rowptr[idx];
-    float w = (float) wptr[idx];
-    float out = x * rsqrt * w;
-    outrowptr[idx] = (bfloat16) out;
+  // for (int idx = threadIdx.x * 8; idx < C; idx += blockDim.x * 8) 
+  int idx = threadIdx.x * 8;
+  { // assumes C == blockDim.x * 8
+    int4 xintx = loadInt4(rowptr + idx, L1EVICT_FIRST);
+    int4 wintx = loadInt4(wptr + idx, L1EVICT_LAST);
+
+    bfloat16 outpiece[8];
+    for (int i = 0; i < 8; ++i) {
+      float x = (float) ((bfloat16*)&xintx)[i];
+      float w = (float) ((bfloat16*)&wintx)[i];
+      float out = x * rsqrt * w;
+      outpiece[i] = (bfloat16) out;
+    }
+    storeInt4(outrowptr + idx, *(int4 *) &outpiece);
   }
 }

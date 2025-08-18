@@ -14,7 +14,7 @@ def compiled_baseline(x):
     return x.sum(dim=-1)
 
 num_warps = 32
-cukernel = curun.open("out/sum.cubin").sym("sum_kernel")
+cukernel = curun.open("kernel/sum.cu").sym("sum_kernel")
 def sum_with_cuda(x):
     y = torch.empty(M, device="cuda", dtype=torch.bfloat16)
     cukernel[M, 32 * num_warps, num_warps * torch.float.itemsize](x, y, M, N)

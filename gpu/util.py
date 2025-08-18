@@ -24,3 +24,12 @@ def bench(f, label, total_bytes):
 
 def checkclose(ref, act, tol=1e-5):
     assert torch.allclose(ref, act, atol=tol, rtol=tol), f"ref:\n{ref}\nact:\n{act}\n"
+
+def check_and_bench(f, args, ref, total_bytes, tol, label=None):
+    if not label:
+        label = f.__name__
+    act = f(*args)
+    torch.cuda.synchronize()
+    checkclose(ref, act, tol=tol)
+
+    bench(lambda: f(*args), label, total_bytes=total_bytes)
