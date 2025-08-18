@@ -9,7 +9,7 @@ arch := sm_90a  # h100
 first: run_rmsnorm
 
 run_%:
-	make cubin_$*
+	# make cubin_$*
 	PYTHONPATH=. python kernel/$*.py
 
 runner: cubin

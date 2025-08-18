@@ -35,7 +35,8 @@ checkclose(ref, act)
 act = compiled_rmsnorm_py(x)
 checkclose(ref, act)
 
-cukernel = curun.open("out/rmsnorm.cubin").sym("rmsnorm_kernel")
+cukernel = curun.open("kernel/rmsnorm.cu").sym("rmsnorm_kernel")
+
 @register_custom_op("rmsnorm")
 def rmsnorm_cu_kernel(x):
     y = torch.empty_like(x)

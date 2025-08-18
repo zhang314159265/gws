@@ -1,5 +1,6 @@
 from _curun import open as openCubin, sym as findSym, run as runKernel
 import torch
+from compile_utils import compile_cuda
 
 def padDim3(dims):
     if isinstance(dims, int):
@@ -47,7 +48,13 @@ class CuModule:
         return CuFunction(findSym(self.cu_module, name))
 
 def open(path):
-    return CuModule(openCubin(path))
+    if path.endswith(".cubin"):
+        cubinpath = path
+    elif path.endswith(".cu"):
+        cubinpath = compile_cuda(path)
+    else:
+        raise RuntimeError(f"Unrecognized path for curun.open {path}")
+    return CuModule(openCubin(cubinpath))
 
 def run(*args, **kwargs):
     return runKernel(*args, **kwargs)
