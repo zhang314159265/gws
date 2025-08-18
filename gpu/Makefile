@@ -6,10 +6,9 @@ include_dirs := -I$(cuda_home)/include
 
 arch := sm_90a  # h100
 
-first: run_rmsnorm
+first: run_matmul
 
 run_%:
-	# make cubin_$*
 	PYTHONPATH=. python kernel/$*.py
 
 runner: cubin

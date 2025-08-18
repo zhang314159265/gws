@@ -1,5 +1,6 @@
 import torch
 from triton.testing import do_bench
+import os
 
 libkernel = torch.library.Library("kernel", "FRAGMENT")
 
@@ -15,21 +16,31 @@ def register_custom_op(name):
         return f
     return decorator
 
-def bench(f, label, total_bytes):
+def bench(f, label, total_bytes, total_flops=None):
     for _ in range(5):  # warmup
         f()
     ms = do_bench(f)
     gbps = (total_bytes * 1e-9) / (ms * 1e-3)
-    print(f"{label}: {ms:.3f}ms {gbps:.3f}gbps")
+    flops_str = ""
+    if total_flops:
+        tfps = (total_flops * 1e-12) / (ms * 1e-3)
+        flops_str = f" {tfps:.3f}tflops/s"
+    print(f"{label}: {ms:.3f}ms {gbps:.3f}gbps{flops_str}")
 
 def checkclose(ref, act, tol=1e-5):
+    if os.getenv("DBG") == "1" and not torch.allclose(ref, act, atol=tol, rtol=tol):
+        breakpoint()
     assert torch.allclose(ref, act, atol=tol, rtol=tol), f"ref:\n{ref}\nact:\n{act}\n"
 
-def check_and_bench(f, args, ref, total_bytes, tol, label=None):
+def check_and_bench(f, args, ref, total_bytes, tol, *, total_flops=None, label=None):
     if not label:
         label = f.__name__
     act = f(*args)
     torch.cuda.synchronize()
+    # breakpoint()
     checkclose(ref, act, tol=tol)
 
-    bench(lambda: f(*args), label, total_bytes=total_bytes)
+    bench(lambda: f(*args), label, total_bytes=total_bytes, total_flops=total_flops)
+
+def ceildiv(a, b):
+    return (a + b - 1) // b
