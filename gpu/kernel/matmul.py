@@ -21,15 +21,16 @@ def baseline(A, B):
 
 compiled_baseline = torch.compile(baseline)
 
-h_matmul_cuda_kernel_cuda_core = curun.open("kernel/matmul.cu").sym("matmul_cuda_kernel_cuda_core")
-def matmul_cuda_kernel_cuda_core(A, B):
+def run_kernel(kernel, A, B, accum_in_regs=False):
     C = torch.empty(M, N, device="cuda", dtype=torch.bfloat16)
     BSIZ = 64
     num_blocks = (ceildiv(M, BSIZ), ceildiv(N, BSIZ))
 
     num_threads = 1024
-    shared = BSIZ * BSIZ * 2 * torch.bfloat16.itemsize + BSIZ * BSIZ * torch.float32.itemsize
-    h_matmul_cuda_kernel_cuda_core[num_blocks, num_threads, shared](
+    shared = BSIZ * BSIZ * 2 * torch.bfloat16.itemsize
+    if not accum_in_regs:
+        shared += BSIZ * BSIZ * torch.float32.itemsize
+    kernel[num_blocks, num_threads, shared](
         A, B, C,
         M, N, K,
         A.stride(0), A.stride(1),
@@ -39,6 +40,13 @@ def matmul_cuda_kernel_cuda_core(A, B):
     )
     return C
 
+h_matmul_cuda_kernel_cuda_core = curun.open("kernel/matmul_cuda_core.cu").sym("matmul_cuda_kernel_cuda_core")
+def matmul_cuda_kernel_cuda_core(A, B):
+    return run_kernel(h_matmul_cuda_kernel_cuda_core, A, B)
+
+h_matmul_cuda_kernel_cuda_core_accum_in_regs = curun.open("kernel/matmul_cuda_core_accum_in_regs.cu").sym("matmul_cuda_kernel_cuda_core_accum_in_regs")
+def matmul_cuda_kernel_cuda_core_accum_in_regs(A, B):
+    return run_kernel(h_matmul_cuda_kernel_cuda_core_accum_in_regs, A, B, accum_in_regs=True) 
 
 ref = baseline(A, B)
 total_bytes = (M * K + K * N + M * N) * torch.bfloat16.itemsize
@@ -56,8 +64,9 @@ y = matmul_triton(A, B)
 bench(lambda: baseline(A, B), "baseline", total_bytes=total_bytes, total_flops=total_flops)
 check_and_bench(compiled_baseline, label="compiled_baseline")
 check_and_bench(matmul_triton)
-# make sure the next call does not reuse the result of the previous call
-# v1, v2 = [torch.empty(M, N, device="cuda", dtype=torch.bfloat16) for _ in range(2)]
 check_and_bench(matmul_cuda_kernel_cuda_core)
+# make sure the next call does not reuse the result of the previous call
+v1, v2 = [torch.empty(M, N, device="cuda", dtype=torch.bfloat16) for _ in range(2)]
+check_and_bench(matmul_cuda_kernel_cuda_core_accum_in_regs)
 
 print("bye")
