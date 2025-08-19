@@ -5,6 +5,8 @@ import functools
 from matmul_triton import matmul_triton
 import curun
 
+torch.manual_seed(23)
+
 inductor_config.benchmark_kernel = False
 inductor_config.max_autotune = True
 # inductor_config.max_autotune_gemm_backends = "triton"
@@ -21,13 +23,13 @@ def baseline(A, B):
 
 compiled_baseline = torch.compile(baseline)
 
-def run_kernel(kernel, A, B, accum_in_regs=False):
+def run_kernel(kernel, A, B, accum_in_regs=False, BSIZ=64, half_kblk=False, num_warps=32):
     C = torch.empty(M, N, device="cuda", dtype=torch.bfloat16)
-    BSIZ = 64
     num_blocks = (ceildiv(M, BSIZ), ceildiv(N, BSIZ))
 
-    num_threads = 1024
-    shared = BSIZ * BSIZ * 2 * torch.bfloat16.itemsize
+    num_threads = num_warps * 32
+    KSIZ = BSIZ // 2 if half_kblk else BSIZ
+    shared = BSIZ * KSIZ * 2 * torch.bfloat16.itemsize
     if not accum_in_regs:
         shared += BSIZ * BSIZ * torch.float32.itemsize
     kernel[num_blocks, num_threads, shared](
@@ -48,6 +50,15 @@ h_matmul_cuda_kernel_cuda_core_accum_in_regs = curun.open("kernel/matmul_cuda_co
 def matmul_cuda_kernel_cuda_core_accum_in_regs(A, B):
     return run_kernel(h_matmul_cuda_kernel_cuda_core_accum_in_regs, A, B, accum_in_regs=True) 
 
+h_matmul_cuda_kernel_cuda_core_non_square_tile = curun.open("kernel/matmul_cuda_core_non_square_tile.cu").sym("matmul_cuda_kernel_cuda_core_non_square_tile")
+def matmul_cuda_kernel_cuda_core_non_square_tile(A, B):
+    return run_kernel(h_matmul_cuda_kernel_cuda_core_non_square_tile, A, B, accum_in_regs=True, half_kblk=True) 
+
+h_matmul_cuda_core_kernel_1d_thread_tile = curun.open("kernel/matmul_cuda_core_kernel_1d_thread_tile.cu").sym("matmul_cuda_core_kernel_1d_thread_tile")
+def matmul_cuda_core_kernel_1d_thread_tile(A, B):
+    return run_kernel(h_matmul_cuda_core_kernel_1d_thread_tile, A, B, accum_in_regs=True, half_kblk=True, num_warps=16) 
+
+
 ref = baseline(A, B)
 total_bytes = (M * K + K * N + M * N) * torch.bfloat16.itemsize
 total_flops = M * N * K * 2
@@ -65,8 +76,13 @@ bench(lambda: baseline(A, B), "baseline", total_bytes=total_bytes, total_flops=t
 check_and_bench(compiled_baseline, label="compiled_baseline")
 check_and_bench(matmul_triton)
 check_and_bench(matmul_cuda_kernel_cuda_core)
+check_and_bench(matmul_cuda_kernel_cuda_core_accum_in_regs)
+
+# be a bit slower since I didn't increase BM, BN
+check_and_bench(matmul_cuda_kernel_cuda_core_non_square_tile)
+
 # make sure the next call does not reuse the result of the previous call
 v1, v2 = [torch.empty(M, N, device="cuda", dtype=torch.bfloat16) for _ in range(2)]
-check_and_bench(matmul_cuda_kernel_cuda_core_accum_in_regs)
+check_and_bench(matmul_cuda_core_kernel_1d_thread_tile)
 
 print("bye")

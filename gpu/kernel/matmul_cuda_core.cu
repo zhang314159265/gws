@@ -30,6 +30,8 @@ extern "C" __global__ void matmul_cuda_kernel_cuda_core(
 
     // dot product two blocks from shared memory
     dot(asmem, bsmem, BSIZ, BSIZ, BSIZ, csmem);
+
+    __syncthreads();
   }
 
   __syncthreads();
