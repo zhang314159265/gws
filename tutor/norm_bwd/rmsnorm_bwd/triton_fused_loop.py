@@ -2,7 +2,7 @@ import torch
 import triton
 import triton.language as tl
 
-from .utils import cdiv
+from ..utils import cdiv
 
 @triton.jit
 def kernel_fused(x, w, rsqrt, dy, dx, interm, M, N, MBLK: tl.constexpr, NBLK: tl.constexpr):

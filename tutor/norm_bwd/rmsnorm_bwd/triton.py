@@ -1,7 +1,7 @@
 import triton
 import torch
 import triton.language as tl
-from .utils import cdiv, next_power_of_two
+from ..utils import cdiv, next_power_of_two
 
 @triton.jit
 def kernel_dx(x, w, rsqrt, dy, dx, N, R, XBLOCK: tl.constexpr, RBLOCK: tl.constexpr):
@@ -49,7 +49,7 @@ def triton_bwd(x, w, rsqrt, dy, _y_ignore):
     XBLOCK_dx = 32
     kernel_dx[(cdiv(x.size(0), XBLOCK_dx),)](x, w, rsqrt, dy, dx, x.size(0), x.size(1), XBLOCK=XBLOCK_dx, RBLOCK=next_power_of_two(x.size(1)))
 
-    # compute dw
+    # compute dw. No split reduction
     kernel_dw[(x.size(1),)](x, rsqrt, dy, dw, x.size(1), x.size(0), RBLOCK=512)
 
     return dx, dw

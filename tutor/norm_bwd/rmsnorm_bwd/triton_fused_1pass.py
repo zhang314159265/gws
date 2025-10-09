@@ -2,7 +2,7 @@ import torch
 import triton
 import triton.language as tl
 
-from .utils import cdiv, next_power_of_two
+from ..utils import cdiv, next_power_of_two
 
 @triton.jit
 def kernel_fused(x, w, rsqrt, dy, dx, interm, M, N, MBLK: tl.constexpr, NBLK: tl.constexpr):
