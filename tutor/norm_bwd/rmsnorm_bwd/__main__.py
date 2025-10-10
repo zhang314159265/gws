@@ -6,12 +6,27 @@ from .ref import ref_fwd, ref_bwd
 from .triton import triton_bwd
 from .triton_fused_loop import triton_fused_loop_bwd
 from .triton_fused_1pass import triton_fused_1pass_bwd
+from .triton_fused_1pass_smallload import triton_fused_1pass_smallload_bwd
 from functools import partial
 
-def check_and_bench(fn):
+def liger_bwd(x, w, rsqrt, dy, y):
+    from liger_kernel.ops.rms_norm import rms_norm_backward as _liger_bwd
+    from liger_kernel.ops.rms_norm import _CASTING_MODE_LLAMA, _CASTING_MODE_GEMMA
+    from liger_kernel.ops.utils import calculate_settings
+    # adaptor for liger kernel
+    # casting_mode = _CASTING_MODE_LLAMA.value # numerical issue for dw
+    casting_mode = _CASTING_MODE_GEMMA.value
+    block_size, num_warps = calculate_settings(x.size(-1))
+    row_mode = None
+    in_place = True # inplace mode is slightly faster
+    dx, dw = _liger_bwd(dy, x, w, rsqrt, offset=0.0, casting_mode=casting_mode, BLOCK_SIZE=block_size, num_warps=num_warps, in_place=in_place, row_mode=row_mode)
+    return dx, dw
+
+def check_and_bench(fn, name=None):
     grads = fn(x, w, rsqrt, dy, None)
+    # breakpoint()
     assert_close(ref_grads, grads)
-    bench(fn.__name__, lambda: fn(x, w, rsqrt, dy, None))
+    bench(name or fn.__name__, lambda: fn(x, w, rsqrt, dy, None))
 
 # setup inputs
 torch.manual_seed(1337)
@@ -39,7 +54,11 @@ assert_close(ref_grads, inductor_grads)
 bench = partial(bench, total_bytes=total_bytes)
 bench("baseline", lambda: ref_bwd(x, w, rsqrt, dy, ref_y))
 bench("inductor", lambda: ref_bwd(x, w, rsqrt, dy, inductor_y))
+dy_clone = dy.clone()
+check_and_bench(liger_bwd) # out of box perf is very bad. Need enlarge grid size by 32x
+dy = dy_clone
 check_and_bench(triton_fused_1pass_bwd)
+check_and_bench(triton_fused_1pass_smallload_bwd)
 check_and_bench(triton_fused_loop_bwd)
 check_and_bench(triton_bwd)
 
