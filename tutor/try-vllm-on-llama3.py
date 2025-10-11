@@ -17,13 +17,12 @@ from vllm import LLM, SamplingParams
 from vllm.config import CompilationConfig, CompilationLevel
 
 # os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
-
-weight_path = "/home/shunting/meta-llama/Meta-Llama-3.1-8B-Instruct"
+model_name = "openai/gpt-oss-20b"
 
 if __name__ == "__main__":
     # XXX Fail when using the default CompilationConfig so far.
     cconfig = CompilationConfig(use_inductor=False)
-    llm = LLM(model=weight_path, compilation_config=cconfig)
+    llm = LLM(model=model_name, compilation_config=cconfig)
     sampling_params = SamplingParams(temperature=0.7, max_tokens=32)
 
     requests = [
