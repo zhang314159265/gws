@@ -40,7 +40,7 @@ def kernel_fused(x, w, mean, rstd, dy, dx, interm_w, interm_b, M, N, MBLK: tl.co
 
 
 def triton_fused_1pass_bwd(x, w, b, mean, rstd, dy, _y_ignore):
-    dx = torch.full_like(x, 0)
+    dx = torch.empty_like(x)
 
     MBLK = 16 # 27% faster than inductor
     # MBLK = 8 # 1.146 tbgs

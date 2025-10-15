@@ -7,7 +7,13 @@ from .ref import ref_fwd, ref_bwd
 from .triton import triton_bwd
 from .triton_fused_loop import triton_fused_loop_bwd
 from .triton_fused_1pass import triton_fused_1pass_bwd
+from .triton_fused_1pass_smallload import triton_fused_1pass_smallload_bwd
 from ..bench import assert_close, bench
+
+def liger_bwd(x, w, b, mean, rstd, dy, _y_ignore):
+    from liger_kernel.ops.layer_norm import layer_norm_backward as _liger_bwd
+    dx, dw, db = _liger_bwd(dy, x, w, b, mean, rstd) 
+    return dx, dw, db
 
 def check_and_bench(fn):
     grads = fn(x, w, b, mean, rstd, dy, None)
@@ -41,7 +47,9 @@ assert_close(ref_grads, inductor_grads)
 bench = partial(bench, total_bytes=total_bytes)
 bench("baseline", lambda: ref_bwd(x, w, b, mean, rstd, dy, ref_y))
 bench("inductor", lambda: ref_bwd(x, w, b, mean, rstd, dy, inductor_y))
+check_and_bench(liger_bwd)  # liger bwd uses atomic_add
 check_and_bench(triton_fused_1pass_bwd)
+check_and_bench(triton_fused_1pass_smallload_bwd)
 check_and_bench(triton_fused_loop_bwd)
 check_and_bench(triton_bwd)
 
