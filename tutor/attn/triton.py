@@ -78,4 +78,67 @@ def attn_fwd(Q, K, V):
     attn_fwd_kernel[(cdiv(S, QYBLK), B * H)](
         Q, K, V, Y, rowmax, rowsum, S, D, scale, QYBLK, KVBLK
     )
-    return Y
+    return Y, rowmax, rowsum
+
+@triton.jit
+def attn_bwd_kernel_dv(
+    Q, K, V, dY,
+    dQ, dK, dV,
+    rowmaxptr, rowsumptr,
+    S, D: tl.constexpr, scale,
+    QYBLK: tl.constexpr, KVBLK: tl.constexpr,
+):
+    pid0 = tl.program_id(0)
+    pid1 = tl.program_id(1)
+
+    Q += pid1 * S * D
+    K += pid1 * S * D
+    V += pid1 * S * D
+    dQ += pid1 * S * D
+    dK += pid1 * S * D
+    dV += pid1 * S * D
+    dY += pid1 * S * D
+    rowmaxptr += pid1 * S
+    rowsumptr += pid1 * S
+
+    kvoff = pid0 * KVBLK
+    kvidx = kvoff + tl.arange(0, KVBLK)[:, None]
+    kvmask = kvidx < S
+    didx = tl.arange(0, D)[None, :]
+
+    # load K/V
+    Kval = tl.load(K + kvidx * D + didx, kvmask, other=0.0)
+    Vval = tl.load(V + kvidx * D + didx, kvmask, other=0.0)
+    dVval = tl.full([KVBLK, D], 0.0, dtype=tl.float32)
+
+    for qyoff in range(0, S, QYBLK):
+        qyidx = (qyoff + tl.arange(0, QYBLK))[:, None]
+        qymask = qyidx < S
+
+        Qval = tl.load(Q + qyidx * D + didx, qymask, other=0.0)
+        dYval = tl.load(dY + qyidx * D + didx, qymask, other=0.0)
+        rowmax = tl.load(rowmaxptr + qyidx, mask=qymask, other=0.0)  # dim already expanded
+        rowsum = tl.load(rowsumptr + qyidx, mask=qymask, other=0.0)
+
+        w = tl.dot(Qval, tl.trans(Kval)).to(tl.float32) * scale
+        w += tl.where(tl.trans(kvidx) <= qyidx, 0.0, float("-inf"))
+        sm_w = tl.exp(w - rowmax) / rowsum
+        dVval += tl.dot(tl.trans(sm_w.to(tl.float16)), dYval)
+
+    tl.store(dV + kvidx * D + didx, dVval, mask=kvmask)
+
+# XXX This version has a lot of recomputations!
+def attn_bwd(dY, Q, K, V, _Y_ignore, rowmax, rowsum):
+    B, H, S, D = Q.shape
+    dQ = torch.empty_like(Q)
+    dK = torch.empty_like(K)
+    dV = torch.empty_like(V)
+
+    QYBLK = 512 // 4 # TODO change to be the same as fwd for perf
+    KVBLK = 64
+    scale = 1.0 / math.sqrt(D)
+    attn_bwd_kernel_dv[(cdiv(S, KVBLK), B * H)](
+        Q, K, V, dY, dQ, dK, dV, rowmax, rowsum, S, D, scale, QYBLK, KVBLK,
+    )
+
+    return dQ, dK, dV
