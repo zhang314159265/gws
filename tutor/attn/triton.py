@@ -81,53 +81,6 @@ def attn_fwd(Q, K, V):
     return Y, rowmax, rowsum
 
 @triton.jit
-def attn_bwd_kernel_dv(
-    Q, K, V, dY,
-    dQ, dK, dV,
-    rowmaxptr, rowsumptr,
-    S, D: tl.constexpr, scale,
-    QYBLK: tl.constexpr, KVBLK: tl.constexpr,
-):
-    pid0 = tl.program_id(0)
-    pid1 = tl.program_id(1)
-
-    Q += pid1 * S * D
-    K += pid1 * S * D
-    V += pid1 * S * D
-    dQ += pid1 * S * D
-    dK += pid1 * S * D
-    dV += pid1 * S * D
-    dY += pid1 * S * D
-    rowmaxptr += pid1 * S
-    rowsumptr += pid1 * S
-
-    kvoff = pid0 * KVBLK
-    kvidx = kvoff + tl.arange(0, KVBLK)[:, None]
-    kvmask = kvidx < S
-    didx = tl.arange(0, D)[None, :]
-
-    # load K/V
-    Kval = tl.load(K + kvidx * D + didx, kvmask, other=0.0)
-    Vval = tl.load(V + kvidx * D + didx, kvmask, other=0.0)
-    dVval = tl.full([KVBLK, D], 0.0, dtype=tl.float32)
-
-    for qyoff in range(0, S, QYBLK):
-        qyidx = (qyoff + tl.arange(0, QYBLK))[:, None]
-        qymask = qyidx < S
-
-        Qval = tl.load(Q + qyidx * D + didx, qymask, other=0.0)
-        dYval = tl.load(dY + qyidx * D + didx, qymask, other=0.0)
-        rowmax = tl.load(rowmaxptr + qyidx, mask=qymask, other=0.0)  # dim already expanded
-        rowsum = tl.load(rowsumptr + qyidx, mask=qymask, other=0.0)
-
-        w = tl.dot(Qval, tl.trans(Kval)).to(tl.float32) * scale
-        w += tl.where(tl.trans(kvidx) <= qyidx, 0.0, float("-inf"))
-        sm_w = tl.exp(w - rowmax) / rowsum
-        dVval += tl.dot(tl.trans(sm_w.to(tl.float16)), dYval)
-
-    tl.store(dV + kvidx * D + didx, dVval, mask=kvmask)
-
-@triton.jit
 def attn_bwd_kernel_dq(
     Q, K, V, dY,
     dQ, dK, dV,
@@ -200,7 +153,7 @@ def attn_bwd_kernel_dq(
     tl.store(dQ + qyidx * D + didx, dQval, mask=qymask)
 
 @triton.jit
-def attn_bwd_kernel_dk(
+def attn_bwd_kernel_dkdv(
     Q, K, V, dY,
     dQ, dK, dV,
     dWWsumptr, rowmaxptr, rowsumptr,
@@ -227,6 +180,7 @@ def attn_bwd_kernel_dk(
     didx = tl.arange(0, D)[None, :]
 
     dKval = tl.full([KVBLK, D], 0.0, dtype=tl.float32)
+    dVval = tl.full([KVBLK, D], 0.0, dtype=tl.float32)
     Kval = tl.load(K + kvidx * D + didx, kvmask, other=0.0)
     Vval = tl.load(V + kvidx * D + didx, kvmask, other=0.0)
 
@@ -245,14 +199,18 @@ def attn_bwd_kernel_dk(
         W += tl.where(tl.trans(kvidx) <= qyidx, 0.0, float("-inf"))
         W = tl.exp(W - rowmax) / rowsum
 
+        # dv
+        dVval += tl.dot(tl.trans(W.to(tl.float16)), dYval)
+
+        # dk
         dW = tl.dot(dYval, tl.trans(Vval)).to(tl.float32)
         dW = dW * W - W * dWWsumval
         dW *= scale
         dW = dW.to(tl.float16)
-
         dKval += tl.dot(tl.trans(dW), Qval)
 
     tl.store(dK + kvidx * D + didx, dKval, mask=kvmask)
+    tl.store(dV + kvidx * D + didx, dVval, mask=kvmask)
 
 
 # XXX This version has a lot of recomputations!
@@ -266,17 +224,14 @@ def attn_bwd(dY, Q, K, V, _Y_ignore, rowmax, rowsum):
     QYBLK = 512 // 8
     KVBLK = 64
     scale = 1.0 / math.sqrt(D)
-    attn_bwd_kernel_dv[(cdiv(S, KVBLK), B * H)](
-        Q, K, V, dY, dQ, dK, dV, rowmax, rowsum, S, D, scale, QYBLK, KVBLK,
-    )
+
     attn_bwd_kernel_dq[(cdiv(S, QYBLK), B * H)](
         Q, K, V, dY, dQ, dK, dV, dWWsum, rowmax, rowsum, S, D, scale, QYBLK, KVBLK,
     )
 
-    attn_bwd_kernel_dk[(cdiv(S, KVBLK), B * H)](
+    attn_bwd_kernel_dkdv[(cdiv(S, KVBLK), B * H)](
         Q, K, V, dY, dQ, dK, dV, dWWsum, rowmax, rowsum, S, D, scale, QYBLK, KVBLK,
     )
 
-    # print(dWWsum); breakpoint()
     del dWWsum
     return dQ, dK, dV
