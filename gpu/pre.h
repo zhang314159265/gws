@@ -33,6 +33,7 @@ __device__ int4 loadInt4(void *ptr, int l1evict) {
   default:
     assert(false);
   }
+  return int4{0, 0, 0, 0}; // can not reach here
 }
 
 __device__ void storeInt4(void *ptr, int4 content) {
