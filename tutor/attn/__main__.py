@@ -24,7 +24,7 @@ eager_bwd_ms = do_bench(lambda: ref_attn_bwd(dY, Q, K, V, Y))
 print(f"{eager_fwd_ms=}")
 print(f"{eager_bwd_ms=}")
 
-if False:  # torch_trivial
+if True:  # torch_trivial
     # TODO: figure out why torch_trivial is faster than eager:
     # because I have non-representive shape (swapped H and S)
     torch_trivial_fwd_out = torch_trivial_attn_fwd(Q, K, V)
@@ -43,8 +43,9 @@ if True: # triton
     triton_fwd_ms = do_bench(lambda: triton_attn_fwd(Q, K, V))
     print(f"{triton_fwd_ms=}")
 
-    dQ, dK, dV = triton_attn_bwd(dY, Q, K, V, None, rowmax, rowsum)
-    assert_close(ref_bwd_out[0], dQ)
-    assert False, "hlt"
+    triton_bwd_out = triton_attn_bwd(dY, Q, K, V, None, rowmax, rowsum)
+    assert_close(ref_bwd_out, triton_bwd_out)
+    triton_bwd_ms = do_bench(lambda: triton_attn_bwd(dY, Q, K, V, None, rowmax, rowsum))
+    print(f"{triton_bwd_ms=}")
 
 print("bye")
