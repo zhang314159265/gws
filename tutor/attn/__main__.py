@@ -42,6 +42,5 @@ if True: # triton
     assert_close(ref_fwd_out, triton_fwd_out)
     triton_fwd_ms = do_bench(lambda: triton_attn_fwd(Q, K, V))
     print(f"{triton_fwd_ms=}")
-    exit(0)  # TODO remove
 
 print("bye")

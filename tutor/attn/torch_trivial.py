@@ -14,7 +14,7 @@ def attn_fwd(Q, K, V):
     mask = torch.full((W.size(-2), W.size(-1)), True, device=Q.device)
     mask = mask.tril()
     mask = torch.where(mask, 0.0, float("-inf"))
-    # W += mask # TODO bring back mask
+    W += mask
 
     # softmax
     W = torch.softmax(W, dim=-1)
@@ -37,7 +37,7 @@ def attn_bwd(dY, Q, K, V, Y):
         mask = torch.full((W.size(-2), W.size(-1)), True, device=Q.device)
         mask = mask.tril()
         mask = torch.where(mask, 0.0, float("-inf"))
-        # W += mask # TODO bring this back
+        W += mask
     
         # softmax
         W = torch.softmax(W, dim=-1)

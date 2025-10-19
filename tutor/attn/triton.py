@@ -44,6 +44,9 @@ def attn_fwd_kernel(
         
         w = tl.dot(Qval, tl.trans(Kval)).to(tl.float32) * scale
 
+        # mask
+        w += tl.where(tl.trans(kvidx) <= qyidx, 0.0, float("-inf"))
+
         blkmax = tl.max(w, axis=1)
 
         # update rowmax/rowsum
