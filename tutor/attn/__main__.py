@@ -44,7 +44,7 @@ if True: # triton
     print(f"{triton_fwd_ms=}")
 
     dQ, dK, dV = triton_attn_bwd(dY, Q, K, V, None, rowmax, rowsum)
-    assert_close(ref_bwd_out[2], dV)
+    assert_close(ref_bwd_out[0], dQ)
     assert False, "hlt"
 
 print("bye")
