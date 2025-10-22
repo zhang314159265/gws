@@ -28,6 +28,15 @@ def check_and_bench(fn, name=None):
     assert_close(ref_grads, grads)
     bench(name or fn.__name__, lambda: fn(x, w, rsqrt, dy, None))
 
+def check_and_bench_inductor(name, mode):
+    torch._dynamo.reset()
+    opt_ref_fwd = torch.compile(ref_fwd, mode=mode)
+    inductor_y = opt_ref_fwd(x, w, eps, return_rsqrt=False)
+    inductor_grads = ref_bwd(x, w, rsqrt, dy, inductor_y)
+    assert_close(ref_grads, inductor_grads)
+    
+    bench(name, lambda: ref_bwd(x, w, rsqrt, dy, inductor_y))
+
 # setup inputs
 torch.manual_seed(1337)
 eps = 1e-5
@@ -44,16 +53,11 @@ ref_grads = ref_bwd(x, w, rsqrt, dy, ref_y)
 
 total_bytes = x.nbytes * 2 + w.nbytes * 2 + dy.nbytes + rsqrt.nbytes
 
-
-# run inductor
-opt_ref_fwd = torch.compile(ref_fwd)
-inductor_y = opt_ref_fwd(x, w, eps, return_rsqrt=False)
-inductor_grads = ref_bwd(x, w, rsqrt, dy, inductor_y)
-assert_close(ref_grads, inductor_grads)
-
 bench = partial(bench, total_bytes=total_bytes)
 bench("baseline", lambda: ref_bwd(x, w, rsqrt, dy, ref_y))
-bench("inductor", lambda: ref_bwd(x, w, rsqrt, dy, inductor_y))
+check_and_bench_inductor("inductor", "default")
+check_and_bench_inductor("inductor_max_autotune", "max-autotune")
+
 dy_clone = dy.clone()
 check_and_bench(liger_bwd) # out of box perf is very bad. Need enlarge grid size by 32x
 dy = dy_clone

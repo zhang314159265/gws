@@ -20,6 +20,14 @@ def check_and_bench(fn):
     assert_close(ref_grads, grads)
     bench(fn.__name__, lambda: fn(x, w, b, mean, rstd, dy, None))
 
+def check_and_bench_inductor(name, mode):
+    torch._dynamo.reset()
+    opt_ref_fwd = torch.compile(ref_fwd, mode=mode)
+    inductor_y = opt_ref_fwd(x, w, b, eps, return_mean_rstd=False)
+    inductor_grads = ref_bwd(x, w, b, mean, rstd, dy, inductor_y)
+    assert_close(ref_grads, inductor_grads)
+    bench(name, lambda: ref_bwd(x, w, b, mean, rstd, dy, inductor_y))
+
 # setup inputs
 torch.manual_seed(1337)
 eps = 1e-5
@@ -39,14 +47,11 @@ ref_grads = ref_bwd(x, w, b, mean, rstd, dy, ref_y)
 total_bytes = x.nbytes * 2 + w.nbytes * 2 + b.nbytes + mean.nbytes + rstd.nbytes + dy.nbytes
 
 # run inductor
-opt_ref_fwd = torch.compile(ref_fwd)
-inductor_y = opt_ref_fwd(x, w, b, eps, return_mean_rstd=False)
-inductor_grads = ref_bwd(x, w, b, mean, rstd, dy, inductor_y)
-assert_close(ref_grads, inductor_grads)
 
 bench = partial(bench, total_bytes=total_bytes)
 bench("baseline", lambda: ref_bwd(x, w, b, mean, rstd, dy, ref_y))
-bench("inductor", lambda: ref_bwd(x, w, b, mean, rstd, dy, inductor_y))
+check_and_bench_inductor("inductor", "default")
+check_and_bench_inductor("inductor_max_autotune", "max-autotune")
 check_and_bench(liger_bwd)  # liger bwd uses atomic_add
 check_and_bench(triton_fused_1pass_bwd)
 check_and_bench(triton_fused_1pass_smallload_bwd)
