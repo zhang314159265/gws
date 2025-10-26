@@ -8,6 +8,7 @@ from .triton import triton_bwd
 from .triton_fused_loop import triton_fused_loop_bwd
 from .triton_fused_1pass import triton_fused_1pass_bwd
 from .triton_fused_1pass_smallload import triton_fused_1pass_smallload_bwd
+from .cuda import cuda_bwd
 from ..bench import assert_close, bench
 
 def liger_bwd(x, w, b, mean, rstd, dy, _y_ignore):
@@ -31,8 +32,8 @@ def check_and_bench_inductor(name, mode):
 # setup inputs
 torch.manual_seed(1337)
 eps = 1e-5
-M = 1152 * 500
-N = 384
+M, N = 1152 * 500, 384
+# M, N = 32768, 768
 dtype = torch.bfloat16
 wbdtype = torch.bfloat16
 x = torch.randn(M, N, dtype=dtype, device="cuda", requires_grad=True)
@@ -50,6 +51,7 @@ total_bytes = x.nbytes * 2 + w.nbytes * 2 + b.nbytes + mean.nbytes + rstd.nbytes
 
 bench = partial(bench, total_bytes=total_bytes)
 bench("baseline", lambda: ref_bwd(x, w, b, mean, rstd, dy, ref_y))
+check_and_bench(cuda_bwd)
 check_and_bench_inductor("inductor", "default")
 check_and_bench_inductor("inductor_max_autotune", "max-autotune")
 check_and_bench(liger_bwd)  # liger bwd uses atomic_add

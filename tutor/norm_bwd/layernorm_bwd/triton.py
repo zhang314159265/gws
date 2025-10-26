@@ -57,9 +57,9 @@ def kernel_dw_db(x, mean, rstd, dy, dw, db, N, M, RBLOCK: tl.constexpr):
 
 
 def triton_bwd(x, w, b, mean, rstd, dy, _y_ignore):
-    dx = torch.full_like(x, 0)
-    dw = torch.full_like(w, 0)
-    db = torch.full_like(b, 0)
+    dx = torch.empty_like(x)
+    dw = torch.empty_like(w)
+    db = torch.empty_like(b)
 
     XBLOCK_dx = 2
     kernel_dx[(cdiv(x.size(0), XBLOCK_dx),)](
