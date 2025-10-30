@@ -4,6 +4,7 @@ __pycache__/
 a.out
 skip-checkin/
 *.so
+*.o
 *.cubin
 build/
 checkpoints/
