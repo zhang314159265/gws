@@ -4,7 +4,6 @@ from torch import distributed
 import os
 
 from vllm import LLM, SamplingParams
-from vllm.config import CompilationConfig, CompilationLevel
 
 model_name = "Qwen/Qwen3-0.6B"
 
