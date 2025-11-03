@@ -1,23 +1,40 @@
 import torch
 from torch import nn
 from torch import distributed
+import contextlib
 import os
 
 from vllm import LLM, SamplingParams
 
-model_name = "Qwen/Qwen3-0.6B"
+class script_args:
+    model_name = "Qwen/Qwen3-0.6B"
+    profile = True
 
 if __name__ == "__main__":
-    llm = LLM(model=model_name)
-    sampling_params = SamplingParams(temperature=0.7, max_tokens=32)
+    if script_args.profile:
+        profile = torch.profiler.profile(with_stack=True)
+    else:
+        profile = contextlib.nullcontext()
 
+
+    llm = LLM(model=script_args.model_name)
+    sampling_params = SamplingParams(temperature=0.7, max_tokens=32)
+    
     requests = [
         "Tell me a joke.",
         "How to estimate the value of pi in mathematics?",
         "How does quicksort works?",
     ]
-    outputs = llm.generate(requests, sampling_params)
+
+    with profile:
+        outputs = llm.generate(requests, sampling_params)
 
     assert len(outputs) == len(requests)
     for i, req_text in enumerate(requests):
         print(f"Response for request {i}: {outputs[i].outputs[0].text}") 
+
+    if script_args.profile:
+        path = "/tmp/profile.json"
+        profile.export_chrome_trace(path)
+        from create_perfetto_link import create_perflink
+        create_perflink(path)
