@@ -6,6 +6,8 @@ import os
 
 from vllm import LLM, SamplingParams
 
+os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
+
 class script_args:
     model_name = "Qwen/Qwen3-0.6B"
     profile = True
