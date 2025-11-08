@@ -3,6 +3,8 @@ import torch.nn.functional as F
 from torch.nn.attention.flex_attention import flex_attention, create_block_mask
 import math
 
+flex_attention = torch.compile(flex_attention)
+
 def manual_attn(q, k, v):
     score = q @ k.transpose(-1, -2)
 
