@@ -10,7 +10,8 @@ os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
 
 class script_args:
     model_name = "Qwen/Qwen3-0.6B"
-    profile = True
+    profile = False
+    compile = False
 
 if __name__ == "__main__":
     if script_args.profile:
@@ -19,7 +20,13 @@ if __name__ == "__main__":
         profile = contextlib.nullcontext()
 
 
-    llm = LLM(model=script_args.model_name)
+    if script_args.compile:
+        compilation_config = None
+    else:
+        from vllm.config import CompilationConfig, CUDAGraphMode, CompilationMode
+        compilation_config = CompilationConfig(cudagraph_mode=CUDAGraphMode.NONE, mode=CompilationMode.NONE)
+
+    llm = LLM(model=script_args.model_name, compilation_config=compilation_config)
     sampling_params = SamplingParams(temperature=0.7, max_tokens=32)
     
     requests = [
