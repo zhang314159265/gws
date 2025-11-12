@@ -1,10 +1,7 @@
-"""
-TODO:
-2. backward with indices
-"""
-
 import torch
 import torch.nn.functional as F
+
+torch.use_deterministic_algorithms(True)
 
 def padlist(x):
     if isinstance(x, (list, tuple)):
@@ -62,10 +59,10 @@ def my_max_pool2d(x, kernel_size, stride, padding, dilation, ceil_mode, return_i
 def my_max_pool2d_bwd(x, y, indices, dy):
     dx = torch.zeros_like(x)
     N, C, H, W = x.shape
+   
+    """ Equivalent python code
     idx0 = indices // W
     idx1 = indices % W
-    
-    # TODO: how to use a pytorch op to do this
     for n in range(N):
         for c in range(C):
             for h in range(H):
@@ -74,7 +71,18 @@ def my_max_pool2d_bwd(x, y, indices, dy):
                     x = idx0[n][c][h][w]
                     y = idx1[n][c][h][w]
                     dx[n][c][x][y] += dyval
-    return dx
+    """
+    dxview = dx.view(-1, H * W)
+    indices = indices.view(-1, H * W)
+    dy = dy.view(-1, H * W)
+
+    if True:  # two alternative implementations
+        dxview.scatter_add_(1, indices, dy)
+        return dx
+    else:
+        out = dxview.scatter_add(1, indices, dy)
+        out.resize_as_(dx)
+        return out
 
 N, C, H, W = 2, 3, 16, 16
 x = torch.randn(N, C, H, W, device="cpu", requires_grad=True)
