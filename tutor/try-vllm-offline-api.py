@@ -7,7 +7,7 @@ import os
 from vllm import LLM, SamplingParams
 
 os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
-os.environ["VLLM_ATTENTION_BACKEND"] = "TRITON_ATTN"
+os.environ["VLLM_ATTENTION_BACKEND"] = "FLEX_ATTENTION"
 
 class script_args:
     model_name = "Qwen/Qwen3-0.6B"
