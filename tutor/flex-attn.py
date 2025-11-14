@@ -5,7 +5,7 @@ import math
 import os
 
 COMPILE = os.environ.get("COMPILE", "1") == "1"
-USE_FLEX_DECODING = os.environ.get("USE_FLEX_DECODING", "1") == "1"
+USE_FLEX_DECODING = os.environ.get("USE_FLEX_DECODING", "0") == "1"
 
 if COMPILE:
     flex_attention = torch.compile(flex_attention)
