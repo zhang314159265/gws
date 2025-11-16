@@ -5,8 +5,6 @@ kernel itself. The following things are excluded
 - setup BlockMask for flex-attention
 - etc.
 
-TODO
-- add flash attention and flash infer into the benchmark
 """
 
 import math
@@ -23,7 +21,7 @@ flex_attention_compiled = torch.compile(flex_attention, fullgraph=True)
 
 class script_args:
     batch_size = 8
-    kv_seq_len = 32 # TODO this is very small for testing purpose
+    kv_seq_len = 1024
     page_table_block_size = 16
     # XXX 70000 is too large and cause int64 indexing. Trigger some flex
     # decoding bug
@@ -217,6 +215,67 @@ def run_flash_attn(query, kv_cache, page_table):
         return output
     return f
 
+def run_flash_infer(query, kv_cache, page_table):
+    """
+    vllm flashinfer backend has 4 general cases:
+    1. prefill with trtllm kernels
+    2. prefill with flashinfer kernels
+    3. decode with trtllm kernels
+    4. decode with flashinfer kernels
+    This function only covers case 3 for now.
+    """
+    from vllm.utils.flashinfer import use_trtllm_attention
+    from flashinfer.decode import trtllm_batch_decode_with_kv_cache
+    sa = script_args
+    assert use_trtllm_attention(
+        sa.num_query_head,
+        sa.num_kv_head,
+        sa.batch_size,
+        sa.kv_seq_len,
+        kv_cache_dtype="auto",
+        q_dtype=query.dtype,
+        is_prefill=False,
+        has_sinks=False,
+        has_spec=False,
+    )
+
+    decode_query = query.contiguous()
+    workspace_buffer = torch.zeros(
+        394 * 1024 * 1024,
+        dtype=torch.uint8,
+        device="cuda",
+    )
+    kv_cache_permute = kv_cache.permute([1, 0, 3, 2, 4]).contiguous()
+    assert kv_cache_permute.is_contiguous()
+    assert workspace_buffer.is_contiguous()
+    assert page_table.is_contiguous()
+    output = torch.empty_like(query)
+    batch_size = script_args.batch_size
+    # NOTE seq_lens means kv seq lens rather than q seq lens!
+    seq_lens = torch.ones(batch_size, device="cuda", dtype=torch.int32) * script_args.kv_seq_len
+    max_seq_len = script_args.kv_seq_len
+    scale = 1.0 / math.sqrt(script_args.head_dim)
+
+    def f():
+        trtllm_batch_decode_with_kv_cache(
+            query=decode_query,
+            kv_cache=kv_cache_permute,
+            workspace_buffer=workspace_buffer,
+            block_tables=page_table,
+            seq_lens=seq_lens,
+            max_seq_len=max_seq_len,
+            bmm1_scale=scale,
+            bmm2_scale=1.0,
+            window_left=-1,
+            sinks=None,
+            o_sf_scale=None,
+            out=output,
+            q_len_per_req=1,
+        )
+        return output
+
+    return f
+
 def run_triton_attn(query, kv_cache, page_table):
     from vllm.attention.ops.triton_unified_attention import unified_attention
 
@@ -309,6 +368,7 @@ f_flex_attn = run_flex_attn(query, kv_cache, page_table, force_use_flex_attentio
 f_flex_decode = run_flex_attn(query, kv_cache, page_table, force_use_flex_attention=False)
 # print("flexdecode", f_flex_decode()[0])
 f_flash_attn = run_flash_attn(query, kv_cache, page_table)
+f_flash_infer = run_flash_infer(query, kv_cache, page_table)
 # print("flashattn", f_flash_attn()[0])
 f_triton_attn = run_triton_attn(query, kv_cache, page_table)
 # print("tritonattn", f_triton_attn()[0])
@@ -327,8 +387,11 @@ def verify_and_bench(label, ref, func):
     print(f"{label}: {ms:.3f} ms")
 
 verify_and_bench("naive", ref, f_naive)
-verify_and_bench("triton_attn", ref, f_triton_attn)
+
 verify_and_bench("flash_attn", ref, f_flash_attn)
+verify_and_bench("flash_infer", ref, f_flash_infer)
+
+verify_and_bench("triton_attn", ref, f_triton_attn)
 verify_and_bench("flex_attn", ref, f_flex_attn)
 verify_and_bench("flex_decode", ref, f_flex_decode)
 
