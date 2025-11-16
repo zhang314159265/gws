@@ -20,16 +20,16 @@ flex_attention_compiled = torch.compile(flex_attention, fullgraph=True)
 # flex_attention_compiled = flex_attention
 
 class script_args:
-    batch_size = 8
-    kv_seq_len = 1024
+    batch_size = 4
+    kv_seq_len = 256
     page_table_block_size = 16
     # XXX 70000 is too large and cause int64 indexing. Trigger some flex
     # decoding bug
     # num_page_table_blocks = 70000  # vllm reserves about this many blocks for llama3-8B on B200
     num_page_table_blocks = 10000  # vllm reserves about this many blocks for llama3-8B on B200
     num_query_head = 32
-    # num_kv_head = 8
-    num_kv_head = 16 # larger kvhead to make sure flex-decoding is not bypassed
+    num_kv_head = 8
+    # num_kv_head = 16 # larger kvhead to make sure flex-decoding is not bypassed
     head_dim = 128
 
 def create_page_table():
@@ -60,7 +60,8 @@ def create_page_table():
     for blk_id in range(1, batch_size * nblock + 1):
         row = (blk_id - 1) % batch_size
         col = (blk_id - 1) // batch_size
-        page_table[row, col] = blk_id
+        # make sure a offset can be handled properly
+        page_table[row, col] = blk_id + 245
     return page_table
 
 query = torch.randn([script_args.batch_size, script_args.num_query_head, script_args.head_dim], dtype=torch.bfloat16, device="cuda")
