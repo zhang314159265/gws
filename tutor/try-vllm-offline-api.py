@@ -7,7 +7,7 @@ import os
 from vllm import LLM, SamplingParams
 
 os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
-os.environ["VLLM_ATTENTION_BACKEND"] = os.getenv("VLLM_ATTENTION_BACKEND", "FLEX_ATTENTION")
+# os.environ["VLLM_ATTENTION_BACKEND"] = os.getenv("VLLM_ATTENTION_BACKEND", "FLEX_ATTENTION")
 
 class script_args:
     model_name = "Qwen/Qwen3-0.6B"
@@ -28,12 +28,15 @@ if __name__ == "__main__":
         compilation_config = CompilationConfig(cudagraph_mode=CUDAGraphMode.NONE, mode=CompilationMode.NONE)
 
     llm = LLM(model=script_args.model_name, compilation_config=compilation_config)
-    sampling_params = SamplingParams(temperature=0.7, max_tokens=32)
+    # sampling_params = SamplingParams(temperature=0.7, max_tokens=128)
+    sampling_params = SamplingParams(temperature=0, max_tokens=128)
     
     requests = [
-        "Tell me a joke.",
+        # "Tell me a joke.",
         "How to estimate the value of pi in mathematics?",
-        "How does quicksort works?",
+        "How to estimate the value of pi in mathematics?",
+        "How to estimate the value of pi in mathematics?",
+        # "How does quicksort works?",
     ]
 
     with profile:
