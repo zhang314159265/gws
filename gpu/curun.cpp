@@ -62,6 +62,15 @@ void runKernel(long _func, int gridX, int gridY, int gridZ, int blockX, int bloc
     argsPtr[i] = &args[i];
   }
 
+  if (shared > 48 * 1024) {
+    // need this to raise the max shared memory limit
+    CUDA_CHECK(cuFuncSetAttribute(
+      func,
+      CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
+      shared
+    ));
+  }
+
   CUDA_CHECK(cuLaunchKernel(
     func,
     gridX, gridY, gridZ,

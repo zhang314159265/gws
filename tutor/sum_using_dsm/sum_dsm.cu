@@ -1,0 +1,136 @@
+#include "cooperative_groups.h"
+
+namespace cg = cooperative_groups;
+extern __shared__ float buffer[];
+
+__device__ float _sumrow(int N) {
+  cg::cluster_group cluster = cg::this_cluster();
+  int cluster_rank = cluster.block_rank();
+  int cluster_size = cluster.size() / blockDim.x;
+
+  #if 0
+  if (cluster_rank == 0 && blockIdx.x == 0 && threadIdx.x == 0) {
+    printf("cluster_size %d\n", cluster_size);
+  }
+  #endif
+
+  int num_warps = blockDim.x / 32;
+  float accum = 0.0;
+  int laneId = threadIdx.x % 32;
+  int warpId = threadIdx.x / 32;
+
+  for (int i = threadIdx.x; i < N / 8; i += blockDim.x) {
+    float val = buffer[i];
+    accum += val;
+  }
+
+  // warp shuffle
+  for (int mask = 1; mask <= 16; mask *= 2) {
+    accum += __shfl_xor_sync(0xffffffff, accum, mask);
+  }
+
+  float *redbuf = buffer + (N / 8);
+
+  // block shuffle
+  if (num_warps > 1) {
+    // multi-warp reduction
+    if (laneId == 0) {
+      redbuf[warpId] = accum;
+    }
+    __syncthreads();
+  
+    if (warpId == 0) {
+      if (laneId < num_warps) {
+        accum = redbuf[laneId];
+      } else {
+        accum = 0;
+      }
+      for (int mask = 1; mask < num_warps; mask *= 2) {
+        accum += __shfl_xor_sync(0xffffffff, accum, mask);
+      }
+      if (laneId == 0) {
+        redbuf[0] = accum;
+      }
+    }
+  
+    __syncthreads();
+  }
+
+  // block cluster shuffle
+  if (cluster_size > 1) {
+    cluster.sync();
+
+    if (cluster_rank != 0) {
+      float *rank0addr = cluster.map_shared_rank(&redbuf[cluster_rank], 0);
+      *rank0addr = redbuf[0];
+    }
+    cluster.sync();
+    if (cluster_rank == 0 && warpId == 0) {
+      if (laneId < cluster_size) {
+        accum = redbuf[laneId];
+      } else {
+        accum = 0;
+      }
+      for (int mask = 1; mask < cluster_size; mask *= 2) {
+        accum += __shfl_xor_sync(0xffffffff, accum, mask);
+      }
+      if (laneId == 0) {
+        redbuf[0] = accum;
+      }
+    }
+    cluster.sync();
+    if (cluster_rank != 0) {
+      float *rank0addr = cluster.map_shared_rank(&redbuf[0], 0);
+      redbuf[0] = *rank0addr;
+    }
+    cluster.sync();
+  }
+
+  return redbuf[0];
+}
+
+__device__ void fullfill_sm(float *rowptr, int N) {
+  cg::cluster_group cluster = cg::this_cluster();
+  int cluster_rank = cluster.block_rank();
+  assert(N % 8 == 0);
+
+  rowptr += (N / 8) * cluster_rank;
+  assert(N % 32 == 0);
+  for (int i = threadIdx.x * 4; i < N / 8; i += blockDim.x * 4) {
+    float4 vec = __ldg((float4*) &rowptr[i]);
+    float *sub = (float *) &vec;
+    for (int j = 0; j < 4; ++j) {
+      buffer[i + j] = sub[j];
+    }
+  }
+
+  cluster.sync();
+}
+
+extern "C" __global__ void
+__cluster_dims__(8, 1, 1)
+sum_dsm_kernel(float* x, float* y, int M, int N) {
+  cg::cluster_group cluster = cg::this_cluster();
+  int cluster_rank = cluster.block_rank();
+
+  int num_warps = blockDim.x / 32;
+  assert(num_warps > 0 && ((num_warps & (num_warps - 1)) == 0));
+
+  int rowIdx = blockIdx.x / 8;
+  assert(rowIdx < M);
+
+  float *rowptr = x + rowIdx * N;
+  fullfill_sm(rowptr, N);
+  float sum = _sumrow(N);
+
+  y += rowIdx * N + (N / 8) * cluster_rank;
+
+  assert(N % 32 == 0);
+  for (int i = threadIdx.x * 4; i < N / 8; i += blockDim.x * 4) {
+    float out4[4];
+    for (int j = 0; j < 4; ++j) {
+      out4[j] = buffer[i + j] + sum;
+    }
+    *(int4*) (y + i) = *(int4 *) out4;
+  }
+}

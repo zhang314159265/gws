@@ -1,7 +1,9 @@
 import os
 import subprocess
+import torch
 
 H100_ARCH = "sm_90a"
+B200_ARCH = "sm_100"
 
 def _compile_file(inpath, suffix, arch):
     assert inpath.endswith(suffix)
@@ -16,9 +18,22 @@ def _compile_file(inpath, suffix, arch):
     subprocess.run(cmd.split(), check=True)
     return cubinpath
 
+def detect_arch(arch):
+    if arch:
+        return arch
 
-def compile_cuda(cudapath, arch=H100_ARCH):
+    device_name = torch.cuda.get_device_properties(0).name
+    if device_name == "NVIDIA B200":
+        return B200_ARCH
+    elif device_name == "NVIDIA H100":
+        return H100_ARCH
+    else:
+        raise RuntimeError(f"Unrecognized device name {device_name}")
+
+def compile_cuda(cudapath, arch=None):
+    arch = detect_arch(arch)
     return _compile_file(cudapath, ".cu", arch)
 
-def compile_ptx(ptxpath, arch=H100_ARCH):
+def compile_ptx(ptxpath, arch=None):
+    arch = detect_arch(arch)
     return _compile_file(ptxpath, ".ptx", arch)
