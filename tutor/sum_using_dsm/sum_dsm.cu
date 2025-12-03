@@ -148,12 +148,6 @@ __device__ float _sumrow_bf16(int N) {
   int cluster_rank = cluster.block_rank();
   int cluster_size = cluster.size() / blockDim.x;
 
-  #if 0
-  if (cluster_rank == 0 && blockIdx.x == 0 && threadIdx.x == 0) {
-    printf("cluster_size %d\n", cluster_size);
-  }
-  #endif
-
   int num_warps = blockDim.x / 32;
   float accum = 0.0;
   int laneId = threadIdx.x % 32;
@@ -241,8 +235,9 @@ __device__ void fullfill_sm_bf16(bfloat16 *rowptr, int N) {
   for (int i = threadIdx.x * 8; i < N / 8; i += blockDim.x * 8) {
     int4 vec = __ldg((int4*) &rowptr[i]);
     bfloat16 *sub = (bfloat16 *) &vec;
-    for (int j = 0; j < 8; ++j) {
-      buffer[i + j] = sub[j];
+    // speedup from 2.713TBGS to 2.851TBGS
+    for (int j = 0; j < 8; j += 2) {
+      *(int32_t *) &buffer[i + j] = *(int32_t *) &sub[j];
     }
   }
 
@@ -269,8 +264,14 @@ __device__ void sum_dsm_kernel_bf16(bfloat16 *x, bfloat16 *y, int M, int N) {
   assert(N % 64 == 0);
   for (int i = threadIdx.x * 8; i < N / 8; i += blockDim.x * 8) {
     bfloat16 out4[8];
-    for (int j = 0; j < 8; ++j) {
-      out4[j] = (bfloat16) ((float) buffer[i + j] + sum);
+    for (int j = 0; j < 8; j += 2) {
+      // This operation levarge SM item size (4bytes) speedup from
+      // 2.282TBGS -> 2.713TBGS
+      int32_t ival = *(int32_t*) &buffer[i + j];
+      bfloat16* pair = (bfloat16*) &ival;
+      for (int k = 0; k < 2; ++k) {
+        out4[j + k] = (bfloat16) ((float) pair[k] + sum);
+      }
     }
     *(int4*) (y + i) = *(int4 *) out4;
   }
