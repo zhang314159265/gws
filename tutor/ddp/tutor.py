@@ -1,3 +1,6 @@
+"""
+A standalone tutorial for DDP.
+"""
 from torch import nn
 import torch
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
