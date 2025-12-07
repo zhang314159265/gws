@@ -12,10 +12,7 @@ import torch
 from torch.optim import SGD
 import torch.distributed as dist
 import hashlib
-
-def printall(msg):
-    rank = torch.distributed.get_rank()
-    print(f"Rank {rank}: {msg}")
+from .utils import printall, print0
 
 class MLP(nn.Module):
     def __init__(self):
@@ -51,20 +48,33 @@ def process_main(rank):
     print(f"current_device is {torch.cuda.current_device()}")
 
     model = MLP().to("cuda")
-    model = DDP(model)
+
+    mode = os.getenv("mode", "raw")
+    expected_hash = "a43a3bd5"  # need change if seed/#gpu/model/inputs etc changed
+    print0(f"mode is {mode}")
     datagen = DataGenerator()
     optim = SGD(model.parameters(), lr=0.01)
+    if mode == "torch":
+        model = DDP(model)
+    
+        for _ in range(2):
+            # train for two steps
+            x, label = datagen.generate(32)
+            probs = model(x)
+            loss = F.binary_cross_entropy(probs.flatten(), label)
+            loss.backward()
+            optim.step()
+            optim.zero_grad(set_to_none=True)
+   
+        assert model.module.param_hash() == expected_hash
+    elif mode == "raw":
+        from .raw import raw_ddp
+        raw_ddp(model, datagen, optim)
+        assert model.param_hash() == expected_hash, f"Actual hash: {model.param_hash()}"
+    else:
+        raise RuntimeError(f"Unrecognized mode: {mode}")
 
-    for _ in range(2):
-        # train for two steps
-        x, label = datagen.generate(32)
-        probs = model(x)
-        loss = F.binary_cross_entropy(probs.flatten(), label)
-        loss.backward()
-        optim.step()
-        optim.zero_grad(set_to_none=True)
-
-    printall(model.module.param_hash())
+    printall("PASS!")
     dist.destroy_process_group()
 
 if __name__ == "__main__":
