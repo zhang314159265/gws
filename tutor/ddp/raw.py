@@ -3,6 +3,7 @@ import torch.distributed as dist
 from torch.distributed.distributed_c10d import _get_default_group
 import torch
 import torch.nn.functional as F
+from .train_step import train_step
 
 # TODO sync buffers
 def sync_parameters(model, coalesce=True):
@@ -30,11 +31,6 @@ def raw_ddp(model, datagen, optim):
     # printall(f"Initial hash: {model.param_hash()}")
 
     for stepno in range(2):
-        x, label = datagen.generate(32)
-        probs = model(x)
-        loss = F.binary_cross_entropy(probs.flatten(), label)
-        loss.backward()
-        sync_grads(model)
-        optim.step()
-        optim.zero_grad(set_to_none=True)
-        # printall(f"after step {stepno}, hash {model.param_hash()}")
+        def _all_reduce_fn():
+            sync_grads(model)
+        train_step(model, datagen, optim, inject_all_reduce=_all_reduce_fn)
