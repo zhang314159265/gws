@@ -21,7 +21,7 @@ flex_attention_compiled = torch.compile(flex_attention, fullgraph=True)
 
 class script_args:
     batch_size = 4
-    kv_seq_len = 256
+    kv_seq_len = 128
     page_table_block_size = 16
     # XXX 70000 is too large and cause int64 indexing. Trigger some flex
     # decoding bug
@@ -238,6 +238,7 @@ def run_flash_infer(query, kv_cache, page_table):
         is_prefill=False,
         has_sinks=False,
         has_spec=False,
+        dcp_world_size=1,
     )
 
     decode_query = query.contiguous()
