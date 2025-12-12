@@ -13,6 +13,7 @@ import triton
 from torch.nn.attention.flex_attention import flex_attention, BlockMask
 import torch.nn.functional as F
 import functools
+from torch._inductor.utils import do_bench_using_profiling
 
 torch.manual_seed(1337)
 
@@ -20,7 +21,7 @@ flex_attention_compiled = torch.compile(flex_attention, fullgraph=True)
 # flex_attention_compiled = flex_attention
 
 class script_args:
-    batch_size = 4
+    batch_size = 8
     kv_seq_len = 128
     page_table_block_size = 16
     # XXX 70000 is too large and cause int64 indexing. Trigger some flex
@@ -377,7 +378,7 @@ f_triton_attn = run_triton_attn(query, kv_cache, page_table)
 
 ref = f_naive()
 
-def verify_and_bench(label, ref, func):
+def verify_and_bench(label, ref, func, profile=False, cudagraph=True):
     tol = dict(atol=1e-2, rtol=1e-2)
     out = func()
     try:
@@ -385,16 +386,29 @@ def verify_and_bench(label, ref, func):
         print(f"\033[32m{label} Accuracy test pass!\033[0m")
     except:
         print(f"\033[31m{label} Accuracy test fail!\033[0m")
-    ms = triton.testing.do_bench(func)
+    do_bench = do_bench_using_profiling
+    # do_bench = triton.testing.do_bench
+    ms = do_bench(func)
+    if profile:
+        if cudagraph:
+            graph = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(graph):
+                func()
+            func = lambda: graph.replay()
+        with torch.profiler.profile() as p:
+            func()
+        path = f"/tmp/{label}.json"
+        print(f"Trace writtern to {path}")
+        p.export_chrome_trace(path)
     print(f"{label}: {ms:.3f} ms")
 
 verify_and_bench("naive", ref, f_naive)
 
-verify_and_bench("flash_attn", ref, f_flash_attn)
-verify_and_bench("flash_infer", ref, f_flash_infer)
+verify_and_bench("flash_attn", ref, f_flash_attn, profile=True)
+verify_and_bench("flash_infer", ref, f_flash_infer, profile=True)
 
-verify_and_bench("triton_attn", ref, f_triton_attn)
-verify_and_bench("flex_attn", ref, f_flex_attn)
-verify_and_bench("flex_decode", ref, f_flex_decode)
+verify_and_bench("triton_attn", ref, f_triton_attn, profile=True)
+verify_and_bench("flex_attn", ref, f_flex_attn, profile=True)
+verify_and_bench("flex_decode", ref, f_flex_decode, profile=True)
 
 print("pass")
