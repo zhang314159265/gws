@@ -71,8 +71,10 @@ def process_main(rank):
     elif mode == "myddp":
         model = MyDDP(model)
 
+        print0(f"hash before training started {model.module.param_hash()}")
         for _ in range(2):
             train_step(model, datagen, optim)
+            print0(f"hash after an iteration {model.module.param_hash()}")
 
         assert model.module.param_hash() == expected_hash
     else:
