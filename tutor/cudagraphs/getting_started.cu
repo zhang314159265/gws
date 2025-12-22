@@ -75,7 +75,11 @@ void run_experiment_cuda_graphs(float *d_out, float *d_in, cudaStream_t stream) 
   std::cout << "CudaGraphs: " << elapse.count() << " ms" << std::endl;
 }
 
+#ifdef DEF_MAIN
 int main(void) {
+#else
+int run(void) {
+#endif
   float *h_out, *h_in;
   float *d_out, *d_in;
   h_out = (float *) malloc(N * sizeof(*h_out));
