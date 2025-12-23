@@ -49,6 +49,10 @@ void run_experiment_sync_after_step(float *d_out, float *d_in, cudaStream_t stre
   std::cout << "SyncAfterStep: " << elapse.count() << " ms" << std::endl;
 }
 
+/*
+ * Dot file generated for this cudagraph: https://gist.github.com/shunting314/1b7a70487687124b62cc7a1782d56689
+ * Png file: https://github.com/zhang314159265/gws/blob/0ccab46252e1b95ab47491fb378744111504565d/cuda_graph.png
+ */
 void run_experiment_cuda_graphs(float *d_out, float *d_in, cudaStream_t stream) {
   int threads = 256;
   int blocks = (N + threads - 1) / threads;
@@ -65,6 +69,9 @@ void run_experiment_cuda_graphs(float *d_out, float *d_in, cudaStream_t stream) 
         short_kernel<<<blocks, threads, 0, stream>>>(d_out, d_in);
       }
       cudaStreamEndCapture(stream, &graph);
+      const char *path = "/tmp/cuda_graph.dot";
+      cudaGraphDebugDotPrint(graph, path, cudaGraphDebugDotFlagsVerbose);
+      std::cout << "Cudagraph debug dot file is written to " << path << std::endl;
       cudaGraphInstantiate(&instance, graph, NULL, NULL, 0);
     }
     cudaGraphLaunch(instance, stream);
