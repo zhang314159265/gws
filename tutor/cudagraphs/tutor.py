@@ -30,10 +30,15 @@ warmup_input = torch.randn(NITEM)
 run(warmup_input, steps=5)
 
 # capture
-graph = torch.cuda.CUDAGraph()
+graph = torch.cuda.CUDAGraph(keep_graph=True)
+graph.enable_debug_mode()
 capture_input = warmup_input  # reuse warmup_input
 with torch.cuda.graph(graph):
     capture_output = run(capture_input)
+
+graph_path = "/tmp/cuda_graph.dot"
+graph.debug_dump(graph_path)
+print(f"Cuda graph dot file is written to {graph_path}")
 
 test_input = torch.randn(NITEM)
 
