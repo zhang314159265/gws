@@ -3,10 +3,22 @@
 #include <assert.h>
 #include <chrono>
 #include <iostream>
+#include <sstream>
 
 #define NSTEP 1000
 #define NKERNEL 20
 #define N 500000
+
+#define CUDA_CHECK(call) do { \
+  auto err = call; \
+  if (err != cudaSuccess) { \
+    auto unused_consume_the_error = cudaGetLastError(); \
+    std::stringstream ss; \
+    ss << __FILE__ << ":" << __LINE__ << " " << __func__ << ": cuda error: " \
+      << cudaGetErrorString(err); \
+    throw std::runtime_error(ss.str()); \
+  } \
+} while (0)
 
 __global__ void short_kernel(float *out_ptr, float *in_ptr) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -68,11 +80,15 @@ void run_experiment_cuda_graphs(float *d_out, float *d_in, cudaStream_t stream) 
       for (int j = 0; j < NKERNEL; ++j) {
         short_kernel<<<blocks, threads, 0, stream>>>(d_out, d_in);
       }
+      #if INJECT_CPU_GPU_COPY
+      float fval;
+      CUDA_CHECK(cudaMemcpy(&fval, d_out, sizeof(float), cudaMemcpyDeviceToHost));
+      #endif
       cudaStreamEndCapture(stream, &graph);
       const char *path = "/tmp/cuda_graph.dot";
       cudaGraphDebugDotPrint(graph, path, cudaGraphDebugDotFlagsVerbose);
       std::cout << "Cudagraph debug dot file is written to " << path << std::endl;
-      cudaGraphInstantiate(&instance, graph, NULL, NULL, 0);
+      CUDA_CHECK(cudaGraphInstantiate(&instance, graph, NULL, NULL, 0));
     }
     cudaGraphLaunch(instance, stream);
     cudaStreamSynchronize(stream);
