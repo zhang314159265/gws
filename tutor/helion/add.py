@@ -2,7 +2,7 @@ import torch
 import helion
 import helion.language as hl
 
-@helion.kernel(use_default_config=True)
+@helion.kernel(autotune_effort="none")
 def helion_add(x, y):
     # TODO broadcasting and type promotion
     z = torch.empty_like(x)
