@@ -2,7 +2,10 @@ import torch
 import helion
 import helion.language as hl
 
-@helion.kernel(autotune_effort="none")
+@helion.kernel(
+    autotune_effort="none"
+    # configs=[helion.Config(block_sizes=[16, 32]), ] # helion.Config(block_sizes=[32, 64]),],
+)
 def helion_add(x, y):
     # TODO broadcasting and type promotion
     z = torch.empty_like(x)
