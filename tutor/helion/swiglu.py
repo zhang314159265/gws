@@ -11,7 +11,7 @@ def ref_fwbw(x1, x2):
     out.sum().backward()
     return out
 
-@helion.kernel(use_default_config=True)
+@helion.kernel(autotune_effort="none")
 def helion_swiglu_fwd(a, b):
     out = torch.empty_like(a)
     M = out.numel()
@@ -26,7 +26,7 @@ def helion_swiglu_fwd(a, b):
         out_flat[tile] = out_vals
     return out
 
-@helion.kernel(use_default_config=True)
+@helion.kernel(autotune_effort="none")
 def helion_swiglu_bwd(dout, x1, x2):
     dx1 = torch.empty_like(x1)
     dx2 = torch.empty_like(x2)

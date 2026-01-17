@@ -2,7 +2,7 @@ import torch
 import helion
 import helion.language as hl
 
-@helion.kernel(use_default_config=True)
+@helion.kernel(autotune_effort="none")
 def helion_rmsnorm(x, w, eps):
     M, N = x.shape
     assert list(w.shape) == [N]
