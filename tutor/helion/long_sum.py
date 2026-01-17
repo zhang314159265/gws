@@ -2,7 +2,7 @@ import torch
 import helion
 import helion.language as hl
 
-@helion.kernel(use_default_config=True)
+@helion.kernel(autotune_effort="none")
 def helion_long_sum(x):
     m, n = x.shape
     y = torch.empty(m, device=x.device, dtype=x.dtype)
@@ -19,7 +19,7 @@ def helion_long_sum(x):
         y[tile_m] = acc.sum(dim=-1)
     return y
 
-x = torch.randn(2048, 2048, device="cuda", dtype=torch.bfloat16)
+x = torch.randn(1024, 2048, device="cuda", dtype=torch.bfloat16)
 ref = torch.sum(x, dim=-1)
 act = helion_long_sum(x)
 torch.testing.assert_close(ref, act)
