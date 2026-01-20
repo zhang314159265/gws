@@ -2,6 +2,7 @@ import torch
 from triton.testing import do_bench
 from .cuda_add import cuda_add
 from .cutlass_add_basic import cutlass_add_basic
+from .cutlass_add_tiled import cutlass_add_tiled
 import functools
 
 def bench(variant, fn, *, total_nbytes, ref):
@@ -21,5 +22,9 @@ ref = x + y
 total_nbytes = x.nbytes * 3
 bench = functools.partial(bench, total_nbytes=total_nbytes, ref=ref)
 bench("torch", lambda: x + y)
-bench("cuda_add", lambda: cuda_add(x, y))
+# bench("cuda_add", lambda: cuda_add(x, y))
 bench("cutlass_add_basic", lambda: cutlass_add_basic(x, y))
+
+SQRTN = 32 * 1024
+assert SQRTN * SQRTN == N
+bench("cutlass_add_tiled", lambda: cutlass_add_tiled(x.view(SQRTN, SQRTN), y.view(SQRTN, SQRTN)).view(-1))
