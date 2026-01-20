@@ -47,11 +47,11 @@ class CuModule:
     def sym(self, name):
         return CuFunction(findSym(self.cu_module, name))
 
-def open(path):
+def open(path, use_cutlass=False):
     if path.endswith(".cubin"):
         cubinpath = path
     elif path.endswith(".cu"):
-        cubinpath = compile_cuda(path)
+        cubinpath = compile_cuda(path, use_cutlass=use_cutlass)
     elif path.endswith(".ptx"):
         cubinpath = compile_ptx(path)
     else:
