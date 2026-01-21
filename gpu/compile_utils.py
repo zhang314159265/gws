@@ -10,8 +10,11 @@ def _compile_file(inpath, suffix, arch, use_cutlass=False):
     Need add the cutlass headers if use_cutlass is True
     """
     assert inpath.endswith(suffix)
-    cubinpath = os.path.basename(inpath).removesuffix(suffix) + ".cubin"
-    cubinpath = os.path.join("/tmp", cubinpath)
+    def _get_output_path(output_suffix):
+        output_path = os.path.basename(inpath).removesuffix(suffix) + output_suffix
+        return os.path.join("/tmp", output_path)
+
+    cubinpath = _get_output_path(".cubin")
     # print(f"{cubinpath=}")
 
     extra_args = []
@@ -31,6 +34,15 @@ def _compile_file(inpath, suffix, arch, use_cutlass=False):
     # print(cmd)
 
     subprocess.run(cmd.split(), check=True)
+
+    if os.getenv("SAVE_PTX") == "1":
+        ptxpath = _get_output_path(".ptx")
+        ptx_cmd = f"""
+            nvcc -ptx -I. {inpath} {" ".join(extra_args)} -o {ptxpath} -arch={arch}
+        """.strip()
+        subprocess.run(ptx_cmd.split(), check=True)
+        print(f"ptx file for {os.path.basename(inpath)} is written to {ptxpath}")
+
     return cubinpath
 
 def detect_arch(arch):
