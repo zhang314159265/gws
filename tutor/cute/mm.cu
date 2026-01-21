@@ -60,12 +60,17 @@ gemm_device(ProblemShape shape_MNK, CtaTiler cta_tiler,
   // tile
   auto cta_coord = make_coord(blockIdx.x, blockIdx.y, _);
   Tensor gA = local_tile(mA, cta_tiler, cta_coord, Step<_1, X, _1>{}); // (BLK_M, BLK_K, k)
-  Tensor gB = local_tile(mB, cta_tiler, cta_coord, Step<X, _1, _1>{});
-  Tensor gC = local_tile(mC, cta_tiler, cta_coord, Step<_1, _1, X>{});
+  Tensor gB = local_tile(mB, cta_tiler, cta_coord, Step<X, _1, _1>{}); // (BLK_N, BLK_K, k)
+  Tensor gC = local_tile(mC, cta_tiler, cta_coord, Step<_1, _1, X>{}); // (BLK_M, BLK_N)
 
   // shared memory buffers
+  #if 0
   __shared__ TA smemA[cosize_v<ASmemLayout>];
   __shared__ TB smemB[cosize_v<BSmemLayout>];
+  #else
+  __shared__ TA smemA[size_v<ASmemLayout>];
+  __shared__ TB smemB[size_v<BSmemLayout>];
+  #endif
   Tensor sA = make_tensor(make_smem_ptr(smemA), sA_layout);
   Tensor sB = make_tensor(make_smem_ptr(smemB), sB_layout);
 
@@ -91,8 +96,10 @@ gemm_device(ProblemShape shape_MNK, CtaTiler cta_tiler,
     copy(tAgA(_, _, k_tile), tAsA);
     copy(tBgB(_, _, k_tile), tBsB);
 
+    #if 0
     cp_async_fence();
     cp_async_wait<0>();
+    #endif
 
     __syncthreads();
 
@@ -140,8 +147,8 @@ gemm_nt(int m, int n, int k,
   auto tC = make_layout(make_shape(Int<16>{}, Int<16>{}));
 
   dim3 dimBlock(size(tC));
-  dim3 dimGrid(size(ceil_div(M, bM)),
-    size(ceil_div(N, bN)));
+  dim3 dimGrid(ceil_div(M, bM),
+    ceil_div(N, bN));
   gemm_device<<<dimGrid, dimBlock, 0, stream>>>(
     prob_shape, cta_tiler,
     A, dA, sA, tA,
