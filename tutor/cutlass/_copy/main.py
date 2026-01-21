@@ -2,6 +2,7 @@ import torch
 import functools
 from triton.testing import do_bench
 from .cutlass_basic import cutlass_basic
+from .cutlass_vectorized import cutlass_vectorized
 
 def bench(variant, fn, *, tot_nbytes, ref):
     act = fn()
@@ -21,4 +22,5 @@ ref = ref_fn(x)
 tot_nbytes = x.nbytes * 2
 bench = functools.partial(bench, tot_nbytes=tot_nbytes, ref=ref)
 bench("torch", lambda: ref_fn(x))
+bench("cutlass_vectorized", lambda: cutlass_vectorized(x))
 bench("cutlass_basic", lambda: cutlass_basic(x))
