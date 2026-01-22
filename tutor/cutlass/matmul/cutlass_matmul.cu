@@ -53,12 +53,18 @@ extern "C" __global__ void matmul_kernel(
   auto tCgC = local_partition(gC, tC, threadIdx.x);
   auto tCrC = make_tensor_like(tCgC);
 
+  auto mma = MMA_Atom<UniversalFMA<float, float, float, float>>{};
+
   clear(tCrC);
   for (int k_tile = 0; k_tile < size<2>(gA); ++k_tile) {
     copy(tAgA(_, _, k_tile), tAsA);
     copy(tBgB(_, _, k_tile), tBsB);
     __syncthreads();
+    #if 0
     gemm(tCsA, tCsB, tCrC);
+    #else
+    gemm(mma, tCsA, tCsB, tCrC);
+    #endif
     __syncthreads();
   }
   copy(tCrC, tCgC);
