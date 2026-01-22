@@ -2,6 +2,7 @@ import torch
 import functools
 from triton.testing import do_bench
 from .cutlass_matmul import cutlass_matmul
+from .cutlass_tiled_matmul import cutlass_tiled_matmul
 
 def bench(variant, fn, *, nbytes, nflops, ref):
     act = fn()
@@ -20,4 +21,5 @@ nbytes = x.nbytes + y.nbytes + ref.nbytes
 nflops = M * N * K * 2
 bench = functools.partial(bench, nbytes=nbytes, nflops=nflops, ref=ref)
 bench("torch", lambda: x @ y)
+bench("cutlass_tiled_matmul", lambda: cutlass_tiled_matmul(x, y))
 bench("cutlass_matmul", lambda: cutlass_matmul(x, y))
