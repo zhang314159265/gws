@@ -12,8 +12,8 @@ os.environ["VLLM_ATTENTION_BACKEND"] = os.getenv("VLLM_ATTENTION_BACKEND", "FLEX
 class script_args:
     # model_name = "Qwen/Qwen3-0.6B"
     model_name = "meta-llama/Meta-Llama-3-8B"
-    profile = True
-    compile = True
+    profile = False
+    compile = False
 
 if __name__ == "__main__":
     if script_args.profile:
@@ -29,16 +29,18 @@ if __name__ == "__main__":
         compilation_config = CompilationConfig(cudagraph_mode=CUDAGraphMode.NONE, mode=CompilationMode.NONE)
 
     llm = LLM(model=script_args.model_name, compilation_config=compilation_config)
-    sampling_params = SamplingParams(temperature=0.7, max_tokens=128)
-    # sampling_params = SamplingParams(temperature=0, max_tokens=128)
+    # sampling_params = SamplingParams(temperature=0.7, max_tokens=128)
+    sampling_params = SamplingParams(temperature=0, max_tokens=128)
     
     requests = [
         # "Tell me a joke.",
-        "How to estimate the value of pi in mathematics?",
-        "How to estimate the value of pi in mathematics?",
-        "How to estimate the value of pi in mathematics?",
-        "How to estimate the value of pi in mathematics?",
+        # "How to estimate the value of pi in mathematics?",
+        # "How to estimate the value of pi in mathematics?",
+        # "How to estimate the value of pi in mathematics?",
+        # "How to estimate the value of pi in mathematics?",
         # "How does quicksort works?",
+        "Show me how quick-sort works.",
+        # "Can you explain FFT to me?",
     ]
 
     if script_args.profile:

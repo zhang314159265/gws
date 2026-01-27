@@ -11,3 +11,4 @@ checkpoints/
 gpu/runner
 out/
 *.egg-info/
+artifact/
