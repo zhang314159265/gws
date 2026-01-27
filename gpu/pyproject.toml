@@ -7,4 +7,7 @@ name = "curun"
 version = "0.1"
 
 [tool.setuptools.packages.find]
-include = ["curun"]
+include = ["curun", "curun.example"]
+
+[tool.setuptools.package-data]
+"curun.example" = ["*.cu"]
