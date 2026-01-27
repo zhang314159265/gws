@@ -1,6 +1,6 @@
-from _curun import open as openCubin, sym as findSym, run as runKernel
+from ._curun import open as openCubin, sym as findSym, run as runKernel
 import torch
-from compile_utils import compile_cuda, compile_ptx
+from .compile_utils import compile_cuda, compile_ptx
 
 def padDim3(dims):
     if isinstance(dims, int):

@@ -12,7 +12,7 @@ ref = torch.ones(1024, device="cuda", dtype=torch.bfloat16) * 3
 
 eq_before = torch.allclose(c, ref)
 
-curun.open("add.cubin").sym("add")[32, 32 * 4](a, b, c, a.numel())
+curun.open("add.cu").sym("add")[32, 32 * 4](a, b, c, a.numel())
 
 eq_after = torch.allclose(c, ref)
 

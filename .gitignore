@@ -10,3 +10,4 @@ build/
 checkpoints/
 gpu/runner
 out/
+*.egg-info/

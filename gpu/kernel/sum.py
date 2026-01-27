@@ -1,6 +1,6 @@
 import torch
 import curun
-from util import bench, checkclose
+from curun.util import bench, checkclose
 
 M, N = 1024, 1024 * 1024
 

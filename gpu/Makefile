@@ -23,8 +23,4 @@ ptx_%:
 	mkdir -p out/
 	nvcc -ptx -I. kernel/$*.cu -o out/$*.ptx -arch=$(arch)
 
-curun:
-	g++ curun.cpp -shared -fPIC $(include_dirs) $(shell python -m pybind11 --includes) -o _curun.so -lcuda
-	python tutor.py
-
 .PHONY: runner
