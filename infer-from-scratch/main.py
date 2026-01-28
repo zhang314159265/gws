@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import functools
 import math
+import argparse
 
 torch.manual_seed(1337)
 
@@ -27,9 +28,9 @@ class config:
     # prompt = "What's the value of pi in mathematics?"
     # prompt = "Can you explain FFT to me?"
     # prompt = "Can you explain S&P index to me?"
-    # prompt = "Translate 'hello' to Chinese."
+    prompt = "Translate 'hello' to Chinese."
     # prompt = "Show me the C code for bubble sort."
-    prompt = "Explain KL-divergence."
+    # prompt = "Explain KL-divergence."
 
 class Tokenizer:
     def __init__(self):
@@ -238,26 +239,50 @@ def sample(logits):
     q = torch.empty_like(logits).exponential_()
     return (logits / config.temperature - q.log()).argmax().cpu().item()
 
+def generate(prompt):
+    all_tokens = tokenizer.encode(prompt)
+    print(all_tokens)
+    new_tokens = all_tokens
+    while len(all_tokens) < config.max_position_embeddings:
+        start_pos = len(all_tokens) - len(new_tokens)
+        x = torch.tensor(new_tokens, device="cuda", dtype=torch.int32)
+        with torch.no_grad():
+            newtoken = sample(model(x, start_pos))
+        # print(f"new token {newtoken}")
+        print(".", end="", flush=True)
+        if tokenizer.is_end_token(newtoken):
+            print("Encounter end token")
+            break
+        all_tokens.append(newtoken)
+        new_tokens = [newtoken]
+
+    print(tokenizer.decode(all_tokens))
+
+def interactive():
+    while True:
+        print("> ", end="")
+        prompt = input().strip()
+        if not prompt:
+            print("Done with the interactive mode")
+            break
+        generate(prompt)
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Inference tool.")
+    parser.add_argument("--interactive", action="store_true", help="Whether to run the tool in interactive mode")
+    return parser.parse_args()
+
+args = parse_args()
+
 state_dict = torch.load(config.checkpoint_file)
 torch.set_default_dtype(torch.bfloat16)
 with torch.device("cuda"):
     model = Model()
     Rope.precompute_freqs_cis()
 model.load_state_dict(state_dict)
-all_tokens = tokenizer.encode(config.prompt)
-print(all_tokens)
-new_tokens = all_tokens
-while len(all_tokens) < config.max_position_embeddings:
-    start_pos = len(all_tokens) - len(new_tokens)
-    x = torch.tensor(new_tokens, device="cuda", dtype=torch.int32)
-    with torch.no_grad():
-        newtoken = sample(model(x, start_pos))
-    # print(f"new token {newtoken}")
-    print(".", end="", flush=True)
-    if tokenizer.is_end_token(newtoken):
-        print("Encounter end token")
-        break
-    all_tokens.append(newtoken)
-    new_tokens = [newtoken]
 
-print(tokenizer.decode(all_tokens))
+if args.interactive:
+    print("Interactive mode")
+    interactive()
+else:
+    generate(config.prompt)
