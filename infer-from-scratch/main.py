@@ -21,12 +21,15 @@ class config:
     intermediate_size = int(4096 * 3.5)
     rope_theta = 500_000
     temperature = 0.7
+    max_position_embeddings = 8192
 
     # prompt = "Show me how quick-sort works."
     # prompt = "What's the value of pi in mathematics?"
     # prompt = "Can you explain FFT to me?"
     # prompt = "Can you explain S&P index to me?"
-    prompt = "Translate 'hello' to Chinese."
+    # prompt = "Translate 'hello' to Chinese."
+    # prompt = "Show me the C code for bubble sort."
+    prompt = "Explain KL-divergence."
 
 class Tokenizer:
     def __init__(self):
@@ -105,7 +108,7 @@ class Rope:
     freqs_cis = None
 
     @classmethod
-    def precompute_freqs_cis(cls, max_seq_len=1024):
+    def precompute_freqs_cis(cls, max_seq_len=config.max_position_embeddings):
         head_dim = config.hidden_size // config.num_q_heads
         freqs = 1.0 / config.rope_theta ** (torch.arange(0, head_dim, 2).float() / head_dim)
         t = torch.arange(max_seq_len).float()
@@ -113,10 +116,10 @@ class Rope:
         cls.freqs_cis = torch.polar(torch.ones_like(angles), angles)
 
     @classmethod
-    def apply_rope(cls, q):
+    def apply_rope(cls, q, start_pos):
         assert cls.freqs_cis is not None
         seqlen, num_head, head_dim = q.shape
-        freqs_cis = cls.freqs_cis[:seqlen]
+        freqs_cis = cls.freqs_cis[start_pos : start_pos + seqlen]
         q = q.transpose(0, 1)  # num_head, seqlen, head_dim
         assert seqlen <= freqs_cis.size(0)
 
@@ -135,25 +138,34 @@ class Attention(nn.Module):
         self.wv = nn.Linear(config.hidden_size, self.head_dim * config.num_kv_heads, bias=False)
         self.wo = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
 
-    def forward(self, x):
+        self.kvcache = torch.empty(2, config.max_position_embeddings, config.num_kv_heads, self.head_dim)
+
+    def forward(self, x, start_pos):
         q, k, v = self.wq(x), self.wk(x), self.wv(x)
         g = config.num_q_heads // config.num_kv_heads
 
-        seqlen = x.size(0)
+        seqlen_q = x.size(0)
+        seqlen_kv = seqlen_q + start_pos
 
         # a naive attention for now
-        q = q.view(seqlen, -1, self.head_dim)
-        k = k.view(seqlen, -1, self.head_dim)
-        v = v.view(seqlen, -1, self.head_dim)
+        q = q.view(seqlen_q, -1, self.head_dim)
+        k = k.view(seqlen_q, -1, self.head_dim)
+        v = v.view(seqlen_q, -1, self.head_dim)
 
-        q = Rope.apply_rope(q)
-        k = Rope.apply_rope(k)
+        q = Rope.apply_rope(q, start_pos)
+        k = Rope.apply_rope(k, start_pos)
+
+        # handle kv cache
+        self.kvcache[0, start_pos: start_pos + seqlen_q, :, :] = k
+        self.kvcache[1, start_pos: start_pos + seqlen_q, :, :] = v
+        k = self.kvcache[0, : start_pos + seqlen_q, :, :]
+        v = self.kvcache[1, : start_pos + seqlen_q, :, :]
 
         # expand k and v
         def _expand_kv(kv):
-            kv = kv.view(seqlen, -1, 1, self.head_dim)
+            kv = kv.view(seqlen_kv, -1, 1, self.head_dim)
             kv = kv.expand(-1, -1, g, -1).contiguous()
-            kv = kv.view(seqlen, -1, self.head_dim)
+            kv = kv.view(seqlen_kv, -1, self.head_dim)
             return kv
 
         k = _expand_kv(k)
@@ -167,13 +179,13 @@ class Attention(nn.Module):
         p /= math.sqrt(self.head_dim)
 
         # apply causal mask
-        mask = torch.full([seqlen, seqlen], float("-inf"), device="cuda")
-        mask = torch.triu(mask, diagonal=1)
+        mask = torch.full([seqlen_kv, seqlen_kv], float("-inf"), device="cuda")
+        mask = torch.triu(mask, diagonal=1)[-seqlen_q:]
         s = torch.softmax(p + mask[None, :, :], dim=-1)
 
         # compute output
         o = s @ v
-        o = o.transpose(0, 1).contiguous().view(seqlen, -1)
+        o = o.transpose(0, 1).contiguous().view(seqlen_q, -1)
         o = self.wo(o)
         return o
 
@@ -186,8 +198,8 @@ class TransformerLayer(nn.Module):
         self.ffn_norm = nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.feed_forward = FeedForward()
 
-    def forward(self, x):
-        h = x + self.attention(self.attention_norm(x))
+    def forward(self, x, start_pos):
+        h = x + self.attention(self.attention_norm(x), start_pos)
         y = h + self.feed_forward(self.ffn_norm(h))
         return y
 
@@ -208,10 +220,10 @@ class Model(nn.Module):
         self.norm = nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.output = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
-    def forward(self, prompt):
+    def forward(self, prompt, start_pos):
         x = self.tok_embeddings(prompt)
         for layer in self.layers:
-            x = layer(x)
+            x = layer(x, start_pos)
         x = self.norm(x)
         x = self.output(x[-1])  # only compute logits for the last token
         return x
@@ -234,16 +246,18 @@ with torch.device("cuda"):
 model.load_state_dict(state_dict)
 all_tokens = tokenizer.encode(config.prompt)
 print(all_tokens)
-prompt_len = len(all_tokens)
-for i in range(200):
-    x = torch.tensor(all_tokens, device="cuda", dtype=torch.int32)
+new_tokens = all_tokens
+while len(all_tokens) < config.max_position_embeddings:
+    start_pos = len(all_tokens) - len(new_tokens)
+    x = torch.tensor(new_tokens, device="cuda", dtype=torch.int32)
     with torch.no_grad():
-        newtoken = sample(model(x))
+        newtoken = sample(model(x, start_pos))
     # print(f"new token {newtoken}")
-    print(".", end="")
+    print(".", end="", flush=True)
     if tokenizer.is_end_token(newtoken):
         print("Encounter end token")
         break
     all_tokens.append(newtoken)
+    new_tokens = [newtoken]
 
 print(tokenizer.decode(all_tokens))
