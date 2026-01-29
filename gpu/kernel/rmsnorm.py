@@ -1,9 +1,10 @@
 import torch
 from torch import nn
-from util import register_custom_op, checkclose, bench, check_and_bench
+from curun.util import register_custom_op, checkclose, bench, check_and_bench
 import curun
 import functools
 from torch._inductor import config as inductor_config
+from pathlib import Path
 
 inductor_config.benchmark_kernel = False
 
@@ -29,7 +30,8 @@ def rmsnorm_py(x):
 
 compiled_rmsnorm_py = torch.compile(rmsnorm_py)
 
-cukernel = curun.open("kernel/rmsnorm.cu").sym("rmsnorm_kernel")
+parent_path = Path(__file__).parent
+cukernel = curun.open(str(parent_path / "rmsnorm.cu")).sym("rmsnorm_kernel")
 
 def run_kernel(kernel, x, num_warps=16):
     y = torch.empty_like(x)
@@ -48,15 +50,15 @@ def rmsnorm_cu_kernel(x):
 def rmsnorm_cu_kernel_wrapped_in_torch_compile(x):
     return torch.ops.kernel.rmsnorm(x)
 
-manualptxcukernel = curun.open("kernel/rmsnorm_from_cuda.ptx").sym("rmsnorm_kernel_from_cuda_ptx")
+manualptxcukernel = curun.open(str(parent_path / "rmsnorm_from_cuda.ptx")).sym("rmsnorm_kernel_from_cuda_ptx")
 def rmsnorm_manual_ptx_kernel(x):
     return run_kernel(manualptxcukernel, x)
 
-tritonptxcukernel = curun.open("kernel/rmsnorm_triton.ptx").sym("rmsnorm_kernel_triton_ptx")
+tritonptxcukernel = curun.open(str(parent_path / "rmsnorm_triton.ptx")).sym("rmsnorm_kernel_triton_ptx")
 def rmsnorm_triton_ptx_kernel(x):
     return run_kernel(tritonptxcukernel, x)
 
-tritonptxv4cukernel = curun.open("kernel/rmsnorm_triton_v4.ptx").sym("rmsnorm_kernel_triton_ptx_v4")
+tritonptxv4cukernel = curun.open(str(parent_path / "rmsnorm_triton_v4.ptx")).sym("rmsnorm_kernel_triton_ptx_v4")
 def rmsnorm_triton_ptx_v4_kernel(x):
     return run_kernel(tritonptxv4cukernel, x)
 
