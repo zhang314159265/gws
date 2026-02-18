@@ -612,16 +612,6 @@ def two_shot_all_reduce_bias_rms_norm_kernel_split_column(
         )
         acc += val
 
-    symm_mem_sync(
-        symm_mem_signal_pad_ptrs,
-        None,
-        rank,
-        world_size,
-        hasPreviousMemAccess=True,
-        hasSubsequentMemAccess=True,
-    )
-
-
     for remote_rank in range(world_size):
         buffer_ptr = tl.load(buffer_ptrs + remote_rank).to(tl.pointer_type(tl.bfloat16))
         buffer_ptr = tl.multiple_of(buffer_ptr, 16)
