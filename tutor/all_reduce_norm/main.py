@@ -141,7 +141,8 @@ def do_benchmark_with_event(
     ]
     return torch.tensor(latencies).median().item() * 1000  # micro-seconds
 
-def main(max_b: int = 512 * 32, max_t: int = 1, d_size: int = 5120):
+# def main(max_b: int = 512 * 32, max_t: int = 1, d_size: int = 5120):
+def main(max_b: int = 512 * 32, max_t: int = 1, d_size: int = 4096):
     local_rank = int(os.getenv("LOCAL_RANK"))
     dist.init_process_group(device_id=local_rank)
 
@@ -219,9 +220,10 @@ def create_benchmarks(b, t, d_size, device, dtype):
     all_functions = {
         "nccl_ring": nccl_all_reduce_bias_rms_norm,
         # "one_shot_bias_fused + rms_norm": one_shot_all_reduce_bias_with_rms_norm,
-        "two_shot_bias_fused + rms_norm": two_shot_all_reduce_bias_with_rms_norm,
+        # "two_shot_bias_fused + rms_norm": two_shot_all_reduce_bias_with_rms_norm,
         # "one_shot_bias_rms_norm_fused": one_shot_all_reduce_bias_rms_norm,
         "two_shot_bias_rms_norm_fused": two_shot_all_reduce_bias_rms_norm,
+        "two_shot_bias_rms_norm_fused_split_column": two_shot_all_reduce_bias_rms_norm_split_column,
     }
     all_benchmarks = {}
     for k, v in all_functions.items():
@@ -543,6 +545,183 @@ def one_shot_all_reduce_bias_rms_norm_kernel(
         world_size,
         hasPreviousMemAccess=True,
     )
+
+@triton.jit
+def two_shot_all_reduce_bias_rms_norm_kernel_split_column(
+    symm_mem_buffer_ptrs,
+    symm_mem_signal_pad_ptrs,
+    input_ptr,
+    bias_ptr,
+    w_ptr,
+    y_ptr,
+    eps: tl.constexpr,
+    D: tl.constexpr,
+    bt_stride: tl.constexpr,
+    rows_per_block: tl.constexpr,
+    rank: tl.constexpr,
+    world_size: tl.constexpr,
+    BLOCK_SIZE: tl.constexpr,
+):
+    """
+    This kernel assumes we don't need mask.
+    """
+    row_idx = tl.program_id(axis=0).to(tl.int64) * rows_per_block
+    bt_idx = row_idx
+    col_offsets = tl.arange(0, triton.next_power_of_2(D))
+
+    # Each block has to compute the RMSNorm one row per time, and
+    # the row size is D.
+    mask = col_offsets < D
+
+    col_per_rank: tl.constexpr = D // world_size
+    start_col = col_per_rank * rank
+    chunk_offsets = tl.arange(0, col_per_rank)
+
+    input_ptr = tl.multiple_of(input_ptr, 16)
+    bias_ptr = tl.multiple_of(bias_ptr, 16)
+    y_ptr = tl.multiple_of(y_ptr, 16)
+
+    offset = bt_idx * bt_stride
+    buffer_ptrs = symm_mem_buffer_ptrs.to(tl.pointer_type(tl.uint64))
+
+    # Copy the input, x, to the symmetric memory buffer.
+    buffer_ptr = tl.load(buffer_ptrs + rank).to(tl.pointer_type(tl.bfloat16))
+    buffer_ptr = tl.multiple_of(buffer_ptr, 16)
+    for i in tl.static_range(rows_per_block):
+        row = tl.load(input_ptr + offset + i * D + col_offsets, mask=mask)
+        tl.store(buffer_ptr + offset + i * D + col_offsets, row, mask=mask)
+
+    symm_mem_sync(
+        symm_mem_signal_pad_ptrs,
+        None,
+        rank,
+        world_size,
+        hasPreviousMemAccess=True,
+        hasSubsequentMemAccess=True,
+    )
+
+    # Two shot allreduce
+    local_rank_offsets = (row_idx + tl.arange(0, rows_per_block))[:, None] * bt_stride + (start_col + tl.arange(0, col_per_rank))[None, :]
+
+    acc = tl.load(bias_ptr + local_rank_offsets).to(tl.float32)
+    for remote_rank in range(world_size):
+        buffer_ptr = tl.load(buffer_ptrs + remote_rank).to(tl.pointer_type(tl.bfloat16))
+        buffer_ptr = tl.multiple_of(buffer_ptr, 16)
+        val = tl.load(buffer_ptr + local_rank_offsets).to(
+            tl.float32
+        )
+        acc += val
+
+    symm_mem_sync(
+        symm_mem_signal_pad_ptrs,
+        None,
+        rank,
+        world_size,
+        hasPreviousMemAccess=True,
+        hasSubsequentMemAccess=True,
+    )
+
+
+    for remote_rank in range(world_size):
+        buffer_ptr = tl.load(buffer_ptrs + remote_rank).to(tl.pointer_type(tl.bfloat16))
+        buffer_ptr = tl.multiple_of(buffer_ptr, 16)
+        tl.store(buffer_ptr + local_rank_offsets, acc)
+
+    symm_mem_sync(
+        symm_mem_signal_pad_ptrs,
+        None,
+        rank,
+        world_size,
+        hasPreviousMemAccess=True,
+        hasSubsequentMemAccess=True,
+    )
+
+    # The regular RMSNorm
+    buffer_ptr = tl.load(buffer_ptrs + rank).to(tl.pointer_type(tl.bfloat16))
+    buffer_ptr = tl.multiple_of(buffer_ptr, 16)
+    for i in tl.static_range(rows_per_block):
+        row = tl.load(buffer_ptr + offset + i * D + col_offsets, mask=mask).to(
+            tl.float32
+        )
+        variance = tl.sum(row * row, axis=0) / D
+        rstd = tl_rsqrt(variance + eps)
+
+        w = tl.load(w_ptr + col_offsets, mask=mask).to(tl.float32)
+        tl.store(y_ptr + offset + i * D + col_offsets, row * rstd * w, mask=mask)
+
+    symm_mem_sync(
+        symm_mem_signal_pad_ptrs,
+        None,
+        rank,
+        world_size,
+        hasPreviousMemAccess=True,
+    )
+
+def two_shot_all_reduce_bias_rms_norm_split_column(
+    symm_mem_input: torch.Tensor,
+    x: torch.Tensor,
+    bias: torch.Tensor,
+    rms_weight: torch.Tensor,
+    eps: float = 1.0e-5,
+    group: dist.ProcessGroup | None = None,
+) -> None:
+    """
+    Split column rather than row for reduce-scatter and all-gather.
+    """
+    w = rms_weight
+    y = torch.empty_like(x)
+    D = x.shape[-1]
+
+    assert y.shape == x.shape
+    assert y.dtype == x.dtype
+    assert y.stride() == x.stride(), (str(x.stride()), str(y.stride()))
+    assert w.is_contiguous()
+    assert w.shape == (D,)
+    assert x.is_contiguous()
+    assert y.is_contiguous()
+
+    total_rows = math.prod(x.shape[:-1])
+
+    # We only support certain total_rows to just demonstrate the idea.
+    BLOCK_SIZE = 1024
+    if total_rows < 2:
+        rows_per_block = 1
+    elif total_rows <= 32:
+        rows_per_block = 2
+    elif total_rows <= 64:
+        rows_per_block = 4
+    else:
+        rows_per_block = 8
+
+    num_blocks = total_rows // rows_per_block
+
+    num_warps = 32
+    group = group or dist.group.WORLD
+    symm_mem_hdl = symm_mem.rendezvous(symm_mem_input, group=group)
+    world_size = symm_mem_hdl.world_size
+    rank = symm_mem_hdl.rank
+
+    assert D % world_size == 0
+
+    kernel = two_shot_all_reduce_bias_rms_norm_kernel_split_column[(num_blocks,)](
+        symm_mem_hdl.buffer_ptrs_dev,
+        symm_mem_hdl.signal_pad_ptrs_dev,
+        x,
+        bias,
+        w,
+        y,
+        eps,
+        D=D,
+        bt_stride=D,
+        rows_per_block=rows_per_block,
+        rank=rank,
+        world_size=world_size,
+        BLOCK_SIZE=BLOCK_SIZE,
+        num_warps=num_warps,
+    )
+
+    return y
+
 
 @triton.jit
 def two_shot_all_reduce_bias_rms_norm_kernel(
