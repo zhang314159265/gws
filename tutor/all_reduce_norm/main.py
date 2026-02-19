@@ -548,6 +548,7 @@ def one_shot_all_reduce_bias_rms_norm_kernel(
 
 @triton.jit
 def two_shot_all_reduce_bias_rms_norm_kernel_split_column(
+    local_ptr,
     symm_mem_buffer_ptrs,
     symm_mem_signal_pad_ptrs,
     input_ptr,
@@ -585,11 +586,9 @@ def two_shot_all_reduce_bias_rms_norm_kernel_split_column(
     buffer_ptrs = symm_mem_buffer_ptrs.to(tl.pointer_type(tl.uint64))
 
     # Copy the input, x, to the symmetric memory buffer.
-    buffer_ptr = tl.load(buffer_ptrs + rank).to(tl.pointer_type(tl.bfloat16))
-    buffer_ptr = tl.multiple_of(buffer_ptr, 16)
     for i in tl.static_range(rows_per_block):
         row = tl.load(input_ptr + offset + i * D + col_offsets, mask=mask)
-        tl.store(buffer_ptr + offset + i * D + col_offsets, row, mask=mask)
+        tl.store(local_ptr + offset + i * D + col_offsets, row, mask=mask)
 
     symm_mem_sync(
         symm_mem_signal_pad_ptrs,
@@ -627,8 +626,9 @@ def two_shot_all_reduce_bias_rms_norm_kernel_split_column(
     )
 
     # The regular RMSNorm
-    buffer_ptr = tl.load(buffer_ptrs + rank).to(tl.pointer_type(tl.bfloat16))
-    buffer_ptr = tl.multiple_of(buffer_ptr, 16)
+    # buffer_ptr = tl.load(buffer_ptrs + rank).to(tl.pointer_type(tl.bfloat16))
+    # buffer_ptr = tl.multiple_of(buffer_ptr, 16)
+    buffer_ptr = local_ptr
     for i in tl.static_range(rows_per_block):
         row = tl.load(buffer_ptr + offset + i * D + col_offsets, mask=mask).to(
             tl.float32
@@ -694,6 +694,7 @@ def two_shot_all_reduce_bias_rms_norm_split_column(
     assert D % world_size == 0
 
     kernel = two_shot_all_reduce_bias_rms_norm_kernel_split_column[(num_blocks,)](
+        symm_mem_input,
         symm_mem_hdl.buffer_ptrs_dev,
         symm_mem_hdl.signal_pad_ptrs_dev,
         x,
