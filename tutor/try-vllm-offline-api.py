@@ -9,9 +9,12 @@ from vllm import LLM, SamplingParams
 os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
 os.environ["VLLM_ATTENTION_BACKEND"] = os.getenv("VLLM_ATTENTION_BACKEND", "FLEX_ATTENTION")
 
+# may need the following line to use libstdc++ in conda env rather than system
+# LD_LIBRARY_PATH=/home/dev/.conda/envs/pytorch/lib/
+
 class script_args:
     # model_name = "Qwen/Qwen3-0.6B"
-    model_name = "meta-llama/Meta-Llama-3-8B"
+    model_name = "meta-llama/Meta-Llama-3-8B-Instruct"
     profile = False
     compile = False
 
@@ -30,7 +33,7 @@ if __name__ == "__main__":
 
     llm = LLM(model=script_args.model_name, compilation_config=compilation_config)
     # sampling_params = SamplingParams(temperature=0.7, max_tokens=128)
-    sampling_params = SamplingParams(temperature=0, max_tokens=128)
+    sampling_params = SamplingParams(temperature=0, max_tokens=128 * 4)
     
     requests = [
         # "Tell me a joke.",
