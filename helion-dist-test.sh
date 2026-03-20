@@ -22,7 +22,7 @@ function commited_tests() {
     echo "M========== matmul reduce scatter =========="
     HELION_FORCE_AUTOTUNE=1 torchrun --nproc-per-node=8 examples/distributed/matmul_reduce_scatter.py
 
-    echo "========== allgather matmul ============="
+    echo "M========== allgather matmul ============="
     HELION_FORCE_AUTOTUNE=1 torchrun --nproc-per-node=8 examples/distributed/all_gather_matmul.py
 }
 
