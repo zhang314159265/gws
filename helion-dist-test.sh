@@ -1,9 +1,8 @@
 set -x
 
-export CHECK_CONFIG_CONSISTANCY=1
-export HELION_DEBUG_DISTRIBUTED=1  # this one deprecates CHECK_CONFIG_CONSISTANCY
+export HELION_DEBUG_DISTRIBUTED=1 
 
-export HELION_AUTOTUNE_FOR_DISTRIBUTED_KERNEL=1
+cd ~/ws/helion
 
 function commited_tests() {
     echo "M============== UNIT TEST ============="
@@ -24,6 +23,9 @@ function commited_tests() {
 
     echo "M========== allgather matmul ============="
     HELION_FORCE_AUTOTUNE=1 torchrun --nproc-per-node=8 examples/distributed/all_gather_matmul.py
+
+    echo "M=========== 2d parallel matmul ============"
+    HELION_FORCE_AUTOTUNE=1 torchrun --nproc-per-node=8 examples/distributed/two_dim_matmul.py
 }
 
 function candidate_tests() {
