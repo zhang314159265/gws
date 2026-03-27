@@ -25,11 +25,12 @@ function commited_tests() {
     HELION_FORCE_AUTOTUNE=1 torchrun --nproc-per-node=8 examples/distributed/all_gather_matmul.py
 
     echo "M=========== 2d parallel matmul ============"
-    HELION_FORCE_AUTOTUNE=1 torchrun --nproc-per-node=8 examples/distributed/two_dim_matmul.py
+    HELION_FORCE_AUTOTUNE=1 torchrun --nproc-per-node=8 examples/distributed/two_dim_parallel_matmul.py
+    echo "M=========== $?"
 }
 
 function candidate_tests() {
-    echo
+    echo "M=========== $?"
 }
 
 time commited_tests 2>&1 | tee /tmp/helion-dist.log
