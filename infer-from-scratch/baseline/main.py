@@ -11,8 +11,8 @@ def print_once(msg):
     print(msg)
 
 class config:
-    checkpoint_file = "artifact/meta-llama/Meta-Llama-3-8B/original/consolidated.00.pth"
-    tokenizer_file = "artifact/meta-llama/Meta-Llama-3-8B/original/tokenizer.model"
+    checkpoint_file = "artifact/meta-llama/Meta-Llama-3-8B-Instruct/original/consolidated.00.pth"
+    tokenizer_file = "artifact/meta-llama/Meta-Llama-3-8B-Instruct/original/tokenizer.model"
     vocab_size = 128256
     num_layers = 32
     num_q_heads = 32
@@ -28,8 +28,8 @@ class config:
     # prompt = "What's the value of pi in mathematics?"
     # prompt = "Can you explain FFT to me?"
     # prompt = "Can you explain S&P index to me?"
-    prompt = "Translate 'hello' to Chinese."
-    # prompt = "Show me the C code for bubble sort."
+    # prompt = "Translate 'hello' to Chinese."
+    prompt = "Show me the C code for bubble sort."
     # prompt = "Explain KL-divergence."
 
 class Tokenizer:
