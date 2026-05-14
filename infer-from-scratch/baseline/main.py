@@ -88,7 +88,9 @@ class Tokenizer:
 tokenizer = Tokenizer()
 
 # test the round-trip of tokenizer
-# print(tokenizer.decode(tokenizer.encode(config.prompt)))
+print(tokenizer.encode(config.prompt))
+print(tokenizer.decode(tokenizer.encode(config.prompt)))
+exit()
 
 class FeedForward(nn.Module):
     def __init__(self):
