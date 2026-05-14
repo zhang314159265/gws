@@ -6,22 +6,24 @@ import json
 
 class Downloader:
     def __init__(self, args):
-        self.args = args
+        self.model = args.model
+        self.token = args.token
+        self.output_dir = os.path.join(args.output_dir, self.model)
 
     def ls_url(self, dirname=""):
-        return f"https://huggingface.co/api/models/{self.args.model}/tree/main/{dirname}"
+        return f"https://huggingface.co/api/models/{self.model}/tree/main/{dirname}"
 
     def file_url(self, filename):
-        return f"https://huggingface.co/{self.args.model}/resolve/main/{filename}"
+        return f"https://huggingface.co/{self.model}/resolve/main/{filename}"
 
     def download_url(self, url):
         r = requests.get(url)
         return r.text
 
     def download_file(self, url_path, expected_size):
-        local_path = os.path.join(self.args.output_dir, url_path)
+        local_path = os.path.join(self.output_dir, url_path)
         headers = dict(
-            Authorization=f"Bearer {self.args.token}",
+            Authorization=f"Bearer {self.token}",
         )
         with open(local_path, "wb") as f:
             full_url = self.file_url(url_path)
@@ -32,7 +34,7 @@ class Downloader:
             f.write(r.content)
 
     def recursive_download(self, url_dir):
-        os.makedirs(os.path.join(self.args.output_dir, url_dir), exist_ok=True)
+        os.makedirs(os.path.join(self.output_dir, url_dir), exist_ok=True)
         ls_str = requests.get(self.ls_url(url_dir)).text
         ls_json = json.loads(ls_str)
 
