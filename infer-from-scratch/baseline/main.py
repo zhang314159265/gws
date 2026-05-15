@@ -36,20 +36,7 @@ class config:
 from tokenizer import Tokenizer
 tokenizer = Tokenizer(config.tokenizer_file)
 
-class FeedForward(nn.Module):
-    def __init__(self):
-        super().__init__()
-        # gate
-        self.w1 = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
-        # up
-        self.w3 = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
-        # down
-        self.w2 = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
-
-    def forward(self, x):
-        gate = self.w1(x)
-        up = self.w3(x)
-        return self.w2(gate * torch.sigmoid(gate) * up)
+from model import FeedForward
 
 class Rope:
     freqs_cis = None
@@ -143,7 +130,7 @@ class TransformerLayer(nn.Module):
         self.attention_norm = nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.attention = Attention()
         self.ffn_norm = nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.feed_forward = FeedForward()
+        self.feed_forward = FeedForward(config)
 
     def forward(self, x, start_pos):
         h = x + self.attention(self.attention_norm(x), start_pos)
