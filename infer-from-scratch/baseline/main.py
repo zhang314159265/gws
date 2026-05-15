@@ -32,65 +32,8 @@ class config:
     prompt = "Show me the C code for bubble sort."
     # prompt = "Explain KL-divergence."
 
-class Tokenizer:
-    def __init__(self):
-        import tiktoken
-        from tiktoken.load import load_tiktoken_bpe
-
-        path = config.tokenizer_file
-        # copied from the llama3 repo
-        pat_str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"
-        mergeable_ranks = load_tiktoken_bpe(path)
-
-        num_special_tokens = 256
-        special_tokens = [
-            "<|begin_of_text|>",
-            "<|end_of_text|>",
-            "<|reserved_special_token_0|>",
-            "<|reserved_special_token_1|>",
-            "<|reserved_special_token_2|>",
-            "<|reserved_special_token_3|>",
-            "<|start_header_id|>",
-            "<|end_header_id|>",
-            "<|reserved_special_token_4|>",
-            "<|eot_id|>",  # end of turn
-        ] + [
-            f"<|reserved_special_token_{i}|>"
-            for i in range(5, num_special_tokens - 5)
-        ]
-
-        assert len(mergeable_ranks) == 128000
-        special_tokens_dict = {
-            s: i + 128000 for i, s in enumerate(special_tokens)
-        }
-
-        self.model = tiktoken.Encoding(
-            name="mytokenizer",
-            pat_str=pat_str,
-            mergeable_ranks=mergeable_ranks,
-            special_tokens=special_tokens_dict,
-        )
-        print(f"vocab size is {self.model.n_vocab}")
-
-        self.bos = 128000
-        self.eos = 128001
-        self.eot = 128009
-
-    def encode(self, s, bos=True):
-        return [self.bos] + self.model.encode(s)
-
-    def decode(self, tokens):
-        return self.model.decode(tokens)
-
-    def is_end_token(self, tok):
-        return tok == self.eos or tok == self.eot
-        
-tokenizer = Tokenizer()
-
-# test the round-trip of tokenizer
-print(tokenizer.encode(config.prompt))
-print(tokenizer.decode(tokenizer.encode(config.prompt)))
-exit()
+from tokenizer import Tokenizer
+tokenizer = Tokenizer(config.tokenizer_file)
 
 class FeedForward(nn.Module):
     def __init__(self):

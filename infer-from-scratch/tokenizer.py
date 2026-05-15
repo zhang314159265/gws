@@ -22,12 +22,14 @@ class Tokenizer:
 
     def __init__(self, path):
         self.bytes2rank = load_tokenizer(path)
-        self.rank2bytes = {rank: _bytes for _bytes, rank in self.bytes2rank.items()}
-        print(f"{len(self.bytes2rank)=}")
-
         self.bos = 128000
         self.eos = 128001
         self.eot = 128009
+        self.bytes2rank[b"<|begin_of_text|>"] = self.bos
+
+        self.rank2bytes = {rank: _bytes for _bytes, rank in self.bytes2rank.items()}
+        print(f"{len(self.bytes2rank)=}")
+
 
     def encode_segment(self, text):
         if DEBUG:
@@ -70,6 +72,9 @@ class Tokenizer:
                 breakpoint()
                 raise
         return bytes(allbytes).decode("utf-8")
+
+    def is_end_token(self, t):
+        return t in [self.eos, self.eot]
 
 if __name__ == "__main__":
     tokenizer = Tokenizer("artifact/meta-llama/Meta-Llama-3-8B-Instruct/original/tokenizer.model")
