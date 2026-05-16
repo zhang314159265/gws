@@ -36,32 +36,8 @@ class config:
 from tokenizer import Tokenizer
 tokenizer = Tokenizer(config.tokenizer_file)
 
-from model import FeedForward
-
-class Rope:
-    freqs_cis = None
-
-    @classmethod
-    def precompute_freqs_cis(cls, max_seq_len=config.max_position_embeddings):
-        head_dim = config.hidden_size // config.num_q_heads
-        freqs = 1.0 / config.rope_theta ** (torch.arange(0, head_dim, 2).float() / head_dim)
-        t = torch.arange(max_seq_len).float()
-        angles = torch.outer(t, freqs)
-        cls.freqs_cis = torch.polar(torch.ones_like(angles), angles)
-
-    @classmethod
-    def apply_rope(cls, q, start_pos):
-        assert cls.freqs_cis is not None
-        seqlen, num_head, head_dim = q.shape
-        freqs_cis = cls.freqs_cis[start_pos : start_pos + seqlen]
-        q = q.transpose(0, 1)  # num_head, seqlen, head_dim
-        assert seqlen <= freqs_cis.size(0)
-
-        q = q.contiguous().view(num_head, seqlen, -1, 2)
-        c_q = torch.view_as_complex(q.float())
-        q = torch.view_as_real(c_q * freqs_cis).flatten(-2).to(dtype=q.dtype)
-        q = q.transpose(0, 1)
-        return q
+from ffn import FeedForward
+from rope import Rope
 
 class Attention(nn.Module):
     def __init__(self):
@@ -86,8 +62,8 @@ class Attention(nn.Module):
         k = k.view(seqlen_q, -1, self.head_dim)
         v = v.view(seqlen_q, -1, self.head_dim)
 
-        q = Rope.apply_rope(q, start_pos)
-        k = Rope.apply_rope(k, start_pos)
+        q = Rope.apply(q, start_pos)
+        k = Rope.apply(k, start_pos)
 
         # handle kv cache
         self.kvcache[0, start_pos: start_pos + seqlen_q, :, :] = k
@@ -183,33 +159,37 @@ def generate(prompt):
     decode_tokens = 0
     prefill_start = time.perf_counter()
 
-    while len(all_tokens) < config.max_position_embeddings:
-        start_pos = len(all_tokens) - len(new_tokens)
-        x = torch.tensor(new_tokens, device="cuda", dtype=torch.int32)
-        with torch.no_grad():
-            newtoken = sample(model(x, start_pos))
-        # .item() inside sample() syncs CUDA, so perf_counter sees real GPU time
+    try:
+        while len(all_tokens) < config.max_position_embeddings:
+            start_pos = len(all_tokens) - len(new_tokens)
+            x = torch.tensor(new_tokens, device="cuda", dtype=torch.int32)
+            with torch.no_grad():
+                newtoken = sample(model(x, start_pos))
+            # .item() inside sample() syncs CUDA, so perf_counter sees real GPU time
 
-        if prefill_time is None:
-            prefill_time = time.perf_counter() - prefill_start
-            decode_start = time.perf_counter()
-        else:
-            decode_tokens += 1
+            if prefill_time is None:
+                prefill_time = time.perf_counter() - prefill_start
+                decode_start = time.perf_counter()
+            else:
+                decode_tokens += 1
 
-        # print(f"new token {newtoken}")
-        print(".", end="", flush=True)
-        if tokenizer.is_end_token(newtoken):
-            print("Encounter end token")
-            break
-        all_tokens.append(newtoken)
-        new_tokens = [newtoken]
+            # print(f"new token {newtoken}")
+            print(".", end="", flush=True)
+            if tokenizer.is_end_token(newtoken):
+                print("Encounter end token")
+                break
+            all_tokens.append(newtoken)
+            new_tokens = [newtoken]
+    except KeyboardInterrupt:
+        print("\n[interrupted -- showing partial output]")
 
     decode_time = (time.perf_counter() - decode_start) if decode_start else 0.0
 
     print(tokenizer.decode(all_tokens))
     print()
     print(f"Prompt:  {n_prompt} tokens")
-    print(f"Prefill: {prefill_time * 1000:.1f} ms ({n_prompt / prefill_time:.1f} tok/s)")
+    if prefill_time is not None:
+        print(f"Prefill: {prefill_time * 1000:.1f} ms ({n_prompt / prefill_time:.1f} tok/s)")
     if decode_tokens > 0:
         print(f"Decode:  {decode_tokens} tokens in {decode_time:.2f} s ({decode_tokens / decode_time:.1f} tok/s)")
 
@@ -233,7 +213,7 @@ state_dict = torch.load(config.checkpoint_file)
 torch.set_default_dtype(torch.bfloat16)
 with torch.device("cuda"):
     model = Model()
-    Rope.precompute_freqs_cis()
+    Rope.precompute_cis(config)
 model.load_state_dict(state_dict)
 
 if args.interactive:
