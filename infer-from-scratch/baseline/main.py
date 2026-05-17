@@ -36,75 +36,16 @@ class config:
 from tokenizer import Tokenizer
 tokenizer = Tokenizer(config.tokenizer_file)
 
+from attn import Attention
 from ffn import FeedForward
 from rope import Rope
-
-class Attention(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.head_dim = config.hidden_size // config.num_q_heads
-        self.wq = nn.Linear(config.hidden_size, self.head_dim * config.num_q_heads, bias=False)
-        self.wk = nn.Linear(config.hidden_size, self.head_dim * config.num_kv_heads, bias=False)
-        self.wv = nn.Linear(config.hidden_size, self.head_dim * config.num_kv_heads, bias=False)
-        self.wo = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
-
-        self.kvcache = torch.empty(2, config.max_position_embeddings, config.num_kv_heads, self.head_dim)
-
-    def forward(self, x, start_pos):
-        q, k, v = self.wq(x), self.wk(x), self.wv(x)
-        g = config.num_q_heads // config.num_kv_heads
-
-        seqlen_q = x.size(0)
-        seqlen_kv = seqlen_q + start_pos
-
-        # a naive attention for now
-        q = q.view(seqlen_q, -1, self.head_dim)
-        k = k.view(seqlen_q, -1, self.head_dim)
-        v = v.view(seqlen_q, -1, self.head_dim)
-
-        q = Rope.apply(q, start_pos)
-        k = Rope.apply(k, start_pos)
-
-        # handle kv cache
-        self.kvcache[0, start_pos: start_pos + seqlen_q, :, :] = k
-        self.kvcache[1, start_pos: start_pos + seqlen_q, :, :] = v
-        k = self.kvcache[0, : start_pos + seqlen_q, :, :]
-        v = self.kvcache[1, : start_pos + seqlen_q, :, :]
-
-        # expand k and v
-        def _expand_kv(kv):
-            kv = kv.view(seqlen_kv, -1, 1, self.head_dim)
-            kv = kv.expand(-1, -1, g, -1).contiguous()
-            kv = kv.view(seqlen_kv, -1, self.head_dim)
-            return kv
-
-        k = _expand_kv(k)
-        v = _expand_kv(v)
-
-        q = q.transpose(0, 1)  # num_head, seqlen, head_dim
-        k = k.transpose(0, 1)
-        v = v.transpose(0, 1)
-
-        p = q @ k.transpose(1, 2)  # bmm
-        p /= math.sqrt(self.head_dim)
-
-        # apply causal mask
-        mask = torch.full([seqlen_kv, seqlen_kv], float("-inf"), device="cuda")
-        mask = torch.triu(mask, diagonal=1)[-seqlen_q:]
-        s = torch.softmax(p + mask[None, :, :], dim=-1)
-
-        # compute output
-        o = s @ v
-        o = o.transpose(0, 1).contiguous().view(seqlen_q, -1)
-        o = self.wo(o)
-        return o
 
 class TransformerLayer(nn.Module):
     def __init__(self):
         super().__init__()
-      
+
         self.attention_norm = nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.attention = Attention()
+        self.attention = Attention(config)
         self.ffn_norm = nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.feed_forward = FeedForward(config)
 
@@ -216,8 +157,9 @@ with torch.device("cuda"):
     Rope.precompute_cis(config)
 model.load_state_dict(state_dict)
 
-if args.interactive:
-    print("Interactive mode")
-    interactive()
-else:
-    generate(config.prompt)
+with torch.device("cuda"):
+    if args.interactive:
+        print("Interactive mode")
+        interactive()
+    else:
+        generate(config.prompt)
