@@ -20,13 +20,25 @@ class Attention(nn.Module):
         seqlen, num_head, head_dim = kv.shape
         return kv[:, :, None, :].expand(-1, -1, g, -1).reshape(seqlen, num_head * g, head_dim)
 
-    def apply_mask(self, score, start_pos):
+    def apply_mask_trivial(self, score, start_pos):
         _, q_seqlen, kv_seqlen = score.shape
         assert kv_seqlen - q_seqlen == start_pos
+        if q_seqlen == 1:
+            return score
         mask = torch.full([kv_seqlen, kv_seqlen], float("-inf"))
         mask = torch.triu(mask, diagonal=1)
         mask = mask[start_pos: start_pos + q_seqlen]
         return score + mask
+
+    def apply_mask_triton(self, score, start_pos):
+        _, q_seqlen, kv_seqlen = score.shape
+        assert kv_seqlen - q_seqlen == start_pos
+        if q_seqlen == 1:
+            return score
+
+        raise NotImplementedError("Triton version not implemented yet")
+
+    apply_mask = apply_mask_trivial
 
     def forward(self, x, start_pos):
         seqlen, hidden_size = x.shape
