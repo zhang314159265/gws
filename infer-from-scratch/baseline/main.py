@@ -40,31 +40,8 @@ from attn import Attention
 from ffn import FeedForward
 from rope import Rope
 from trm_layer import TransformerLayer
+from trm import Transformer
 
-
-class Model(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        # embed
-        self.tok_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        # layers
-        self.layers = nn.ModuleList([
-            TransformerLayer(config)
-            for _ in range(config.num_layers)
-        ])
-
-        # unembed
-        self.norm = nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.output = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-
-    def forward(self, prompt, start_pos):
-        x = self.tok_embeddings(prompt)
-        for layer in self.layers:
-            x = layer(x, start_pos)
-        x = self.norm(x)
-        x = self.output(x[-1])  # only compute logits for the last token
-        return x
 
 def sample(logits):
     if config.temperature == 0:
@@ -140,7 +117,7 @@ args = parse_args()
 state_dict = torch.load(config.checkpoint_file)
 torch.set_default_dtype(torch.bfloat16)
 with torch.device("cuda"):
-    model = Model()
+    model = Transformer(config)
     Rope.precompute_cis(config)
 model.load_state_dict(state_dict)
 
