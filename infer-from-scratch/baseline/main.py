@@ -39,20 +39,7 @@ tokenizer = Tokenizer(config.tokenizer_file)
 from attn import Attention
 from ffn import FeedForward
 from rope import Rope
-
-class TransformerLayer(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        self.attention_norm = nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.attention = Attention(config)
-        self.ffn_norm = nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.feed_forward = FeedForward(config)
-
-    def forward(self, x, start_pos):
-        h = x + self.attention(self.attention_norm(x), start_pos)
-        y = h + self.feed_forward(self.ffn_norm(h))
-        return y
+from trm_layer import TransformerLayer
 
 
 class Model(nn.Module):
@@ -63,7 +50,7 @@ class Model(nn.Module):
         self.tok_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
         # layers
         self.layers = nn.ModuleList([
-            TransformerLayer()
+            TransformerLayer(config)
             for _ in range(config.num_layers)
         ])
 
