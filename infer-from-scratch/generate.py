@@ -2,49 +2,35 @@ import torch
 import time
 from sample import sample
 
+@torch.no_grad
 def generate(prompt, tokenizer, model, config):
-    all_tokens = tokenizer.encode(prompt)
-    print(all_tokens)
-    new_tokens = all_tokens
-    n_prompt = len(all_tokens)
+    tokens = tokenizer.encode(prompt)
+    print(tokens)
+    n_input_tokens = len(tokens)
 
-    prefill_time = None
-    decode_start = None
-    decode_tokens = 0
+    torch.cuda.synchronize()
     prefill_start = time.perf_counter()
+    tokens.append(sample(model(torch.tensor(tokens, dtype=torch.int32), 0), config))
+    torch.cuda.synchronize()  # optional since .item in sample causes sync
+    prefill_time = time.perf_counter() - prefill_start
+    decode_start = time.perf_counter()
 
     try:
-        while len(all_tokens) < config.max_position_embeddings:
-            start_pos = len(all_tokens) - len(new_tokens)
-            x = torch.tensor(new_tokens, device="cuda", dtype=torch.int32)
-            with torch.no_grad():
-                newtoken = sample(model(x, start_pos), config)
-            # .item() inside sample() syncs CUDA, so perf_counter sees real GPU time
-
-            if prefill_time is None:
-                prefill_time = time.perf_counter() - prefill_start
-                decode_start = time.perf_counter()
-            else:
-                decode_tokens += 1
-
-            # print(f"new token {newtoken}")
+        while len(tokens) <= config.max_position_embeddings:
             print(".", end="", flush=True)
-            if tokenizer.is_end_token(newtoken):
-                print("Encounter end token")
+            new_token = sample(model(torch.tensor(tokens[-1:], dtype=torch.int32), start_pos=len(tokens) - 1), config)
+            if tokenizer.is_end_token(new_token):
                 break
-            all_tokens.append(newtoken)
-            new_tokens = [newtoken]
+            tokens.append(new_token)
     except KeyboardInterrupt:
-        print("\n[interrupted -- showing partial output]")
+        print("\n[Interrupted. Show partial output]")
 
-    decode_time = (time.perf_counter() - decode_start) if decode_start else 0.0
+    decode_time = time.perf_counter() - decode_start
 
-    print(tokenizer.decode(all_tokens))
     print()
-    print(f"Prompt:  {n_prompt} tokens")
-    if prefill_time is not None:
-        print(f"Prefill: {prefill_time * 1000:.1f} ms ({n_prompt / prefill_time:.1f} tok/s)")
-    if decode_tokens > 0:
-        print(f"Decode:  {decode_tokens} tokens in {decode_time:.2f} s ({decode_tokens / decode_time:.1f} tok/s)")
+    print(tokenizer.decode(tokens))
 
+    n_output_tokens = len(tokens) - n_input_tokens
 
+    print(f"Prefill {n_input_tokens} tokens in {prefill_time * 1000:.1f} ms ({n_input_tokens / prefill_time:.1f} tok/s)")
+    print(f"Decode {n_output_tokens} tokens in {decode_time * 1000:.1f} ms ({n_output_tokens / decode_time:.1f} tok/s)")
