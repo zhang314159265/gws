@@ -21,7 +21,7 @@ from rope import Rope
 from trm_layer import TransformerLayer
 from trm import Transformer
 from generate import generate
-
+from args import parse_args
 
 def interactive():
     while True:
@@ -32,11 +32,6 @@ def interactive():
             print("Done with the interactive mode")
             break
         generate(prompt, tokenizer, model, config)
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Inference tool.")
-    parser.add_argument("--interactive", action="store_true", help="Whether to run the tool in interactive mode")
-    return parser.parse_args()
 
 args = parse_args()
 
