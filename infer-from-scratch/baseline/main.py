@@ -22,6 +22,7 @@ from trm_layer import TransformerLayer
 from trm import Transformer
 from generate import generate
 from args import parse_args
+from model import get_model
 
 def interactive():
     while True:
@@ -34,13 +35,9 @@ def interactive():
         generate(prompt, tokenizer, model, config)
 
 args = parse_args()
-
-state_dict = torch.load(config.checkpoint_file)
 torch.set_default_dtype(torch.bfloat16)
 with torch.device("cuda"):
-    model = Transformer(config)
-    Rope.precompute_cis(config)
-model.load_state_dict(state_dict)
+    model = get_model(config)
 
 with torch.device("cuda"):
     if args.interactive:
