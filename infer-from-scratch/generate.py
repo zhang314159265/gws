@@ -4,6 +4,7 @@ from sample import sample
 
 @torch.no_grad
 def generate(prompt, tokenizer, model, config):
+    torch.manual_seed(1337)
     tokens = tokenizer.encode(prompt)
     print(tokens)
     n_input_tokens = len(tokens)
@@ -34,3 +35,11 @@ def generate(prompt, tokenizer, model, config):
 
     print(f"Prefill {n_input_tokens} tokens in {prefill_time * 1000:.1f} ms ({n_input_tokens / prefill_time:.1f} tok/s)")
     print(f"Decode {n_output_tokens} tokens in {decode_time * 1000:.1f} ms ({n_output_tokens / decode_time:.1f} tok/s)")
+
+def interactive(tokenizer, model, config):
+    while True:
+        print("> ", end="")
+        prompt = input()
+        if prompt is None:
+            break
+        generate(prompt, tokenizer, model, config)

@@ -4,13 +4,6 @@ import functools
 import math
 import argparse
 import time
-
-torch.manual_seed(1337)
-
-@functools.cache
-def print_once(msg):
-    print(msg)
-
 from config import config
 from tokenizer import Tokenizer
 tokenizer = Tokenizer(config.tokenizer_file)
@@ -20,19 +13,9 @@ from ffn import FeedForward
 from rope import Rope
 from trm_layer import TransformerLayer
 from trm import Transformer
-from generate import generate
+from generate import generate, interactive
 from args import parse_args
 from model import get_model
-
-def interactive():
-    while True:
-        print("> ", end="")
-        torch.manual_seed(1337)
-        prompt = input().strip()
-        if not prompt:
-            print("Done with the interactive mode")
-            break
-        generate(prompt, tokenizer, model, config)
 
 args = parse_args()
 torch.set_default_dtype(torch.bfloat16)
@@ -41,7 +24,6 @@ with torch.device("cuda"):
 
 with torch.device("cuda"):
     if args.interactive:
-        print("Interactive mode")
-        interactive()
+        interactive(tokenizer, model, config)
     else:
         generate(config.prompt, tokenizer, model, config)

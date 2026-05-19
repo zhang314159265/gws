@@ -47,7 +47,7 @@ class Tokenizer:
                     best_idx = idx
             if best_rank is None:
                 break
-            parts = parts[:idx] + [parts[idx] + parts[idx + 1]] + parts[idx + 2:]
+            parts = parts[:best_idx] + [parts[best_idx] + parts[best_idx + 1]] + parts[best_idx + 2:]
    
         if DEBUG:
             for part in parts:
