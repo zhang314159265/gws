@@ -2,7 +2,7 @@ from torch import nn
 
 from attn import Attention
 from ffn import MoEFeedForward
-from rmsnorm import RMSNorm
+from torch.nn import RMSNorm
 
 
 class TransformerLayer(nn.Module):

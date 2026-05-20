@@ -3,7 +3,7 @@ from torch import nn
 import math
 
 from rope import Rope
-from rmsnorm import RMSNorm
+from torch.nn import RMSNorm
 
 
 class Attention(nn.Module):

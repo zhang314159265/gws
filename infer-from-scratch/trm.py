@@ -1,6 +1,6 @@
 from torch import nn
 from trm_layer import TransformerLayer
-from rmsnorm import RMSNorm
+from torch.nn import RMSNorm
 
 
 class Transformer(nn.Module):
