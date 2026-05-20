@@ -1,7 +1,7 @@
 from torch import nn
 
 from attn import Attention
-from ffn import MoEFeedForward
+from old_ffn import MoEFeedForward
 from torch.nn import RMSNorm
 
 
