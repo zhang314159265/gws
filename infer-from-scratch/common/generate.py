@@ -12,19 +12,13 @@ def generate(args, prompt, tokenizer, model, config):
 
     torch.cuda.synchronize()
     prefill_start = time.perf_counter()
-    tokens.append(sample(model(torch.tensor(tokens, dtype=torch.int32), torch.tensor(0, dtype=torch.int32)), config))
+    tokens.append(sample(model(torch.tensor(tokens, dtype=torch.int32), 0), config))
     torch.cuda.synchronize()  # optional since .item in sample causes sync
     prefill_time = time.perf_counter() - prefill_start
     decode_start = time.perf_counter()
 
     cap = len(tokens) + 15 if args.profile else config.max_position_embeddings
     profile_ctx = torch.profiler.profile() if args.profile else contextlib.nullcontext()
-    if not args.disable_cudagraphs:
-        persistent_tokens = torch.tensor([0], dtype=torch.int32)
-        persistent_position = torch.tensor(0, dtype=torch.int32)
-        g = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(g):
-            persistent_output = model(persistent_tokens, persistent_position)
     try:
         with profile_ctx:
             while len(tokens) <= cap:
@@ -32,8 +26,7 @@ def generate(args, prompt, tokenizer, model, config):
 
                 record_ctx = torch.profiler.record_function(f"tok_{len(tokens)}") if args.profile else contextlib.nullcontext()
                 with record_ctx:
-                    logits = model(torch.tensor(tokens[-1:], dtype=torch.int32), start_pos=torch.tensor(len(tokens) - 1, dtype=torch.int32))
-                    new_token = sample(logits, config)
+                    new_token = sample(model(torch.tensor(tokens[-1:], dtype=torch.int32), start_pos=len(tokens) - 1), config)
                 if tokenizer.is_end_token(new_token):
                     break
                 tokens.append(new_token)
