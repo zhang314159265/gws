@@ -5,11 +5,14 @@ import torch
 from safetensors import safe_open
 from trm import Transformer
 from rope import Rope
+from num_params import get_num_params, get_num_active_params
 
 def _get_model(config):
+    model = Transformer(config)
+    print(f"Num params {get_num_params(model):_}")
+    print(f"Num active params {get_num_active_params(model, config):_}")
     state_dict = load_safetensors(config)
     state_dict = remap_state_dict(state_dict)
-    model = Transformer(config)
     model.load_state_dict(state_dict)
     Rope.precompute_cis(config)
     return model
