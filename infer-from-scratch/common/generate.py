@@ -19,9 +19,12 @@ def generate(args, prompt, tokenizer, model, config):
 
     cap = len(tokens) + 15 if args.profile else config.max_position_embeddings
     profile_ctx = torch.profiler.profile() if args.profile else contextlib.nullcontext()
-    # if not args.disable_cudagraphs:
-    #     persistent_input = torch.tensor(0, dtype=torch.int32)
-    #     persistent_output = model(torch.tensor(tokens[-1:], dtype=torch.int32), start_pos=len(tokens) - 1)
+    if not args.disable_cudagraphs:
+        persistent_tokens = torch.tensor([0], dtype=torch.int32)
+        persistent_position = torch.tensor(0, dtype=torch.int32)
+        g = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(g):
+            persistent_output = model(persistent_tokens, persistent_position)
     try:
         with profile_ctx:
             while len(tokens) <= cap:
@@ -29,7 +32,8 @@ def generate(args, prompt, tokenizer, model, config):
 
                 record_ctx = torch.profiler.record_function(f"tok_{len(tokens)}") if args.profile else contextlib.nullcontext()
                 with record_ctx:
-                    new_token = sample(model(torch.tensor(tokens[-1:], dtype=torch.int32), start_pos=torch.tensor(len(tokens) - 1, dtype=torch.int32)), config)
+                    logits = model(torch.tensor(tokens[-1:], dtype=torch.int32), start_pos=torch.tensor(len(tokens) - 1, dtype=torch.int32))
+                    new_token = sample(logits, config)
                 if tokenizer.is_end_token(new_token):
                     break
                 tokens.append(new_token)
