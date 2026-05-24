@@ -10,7 +10,8 @@ tokenizer = Tokenizer(config.tokenizer_file)
 model = get_model(config)
 
 with torch.device("cuda"):
-    if parse_args().interactive:
-        interactive(tokenizer, model, config)
+    args = parse_args()
+    if args.interactive:
+        interactive(args, tokenizer, model, config)
     else:
-        generate(config.prompt, tokenizer, model, config)
+        generate(args, config.prompt, tokenizer, model, config)
