@@ -15,6 +15,7 @@ class Attention(nn.Module):
         self.cache = torch.empty(2, config.max_position_embeddings, config.num_kv_heads, head_dim)
 
         self.temperature = math.sqrt(self.head_dim)
+        self.positions = torch.arange(0, config.max_position_embeddings, dtype=torch.int32)
 
     def expand_kv(self, kv, g):
         seqlen, num_head, head_dim = kv.shape
@@ -51,10 +52,16 @@ class Attention(nn.Module):
         k = Rope.apply(k, start_pos)
 
         # update kv cache
-        self.cache[0, start_pos: start_pos + seqlen, :, :] = k
-        self.cache[1, start_pos: start_pos + seqlen, :, :] = v
-        k = self.cache[0, :start_pos + seqlen, :, :]
-        v = self.cache[1, :start_pos + seqlen, :, :]
+        if seqlen > 1:
+            self.cache[0, start_pos: start_pos + seqlen, :, :] = k
+            self.cache[1, start_pos: start_pos + seqlen, :, :] = v
+            k = self.cache[0, :start_pos + seqlen, :, :]
+            v = self.cache[1, :start_pos + seqlen, :, :]
+        else:
+            self.cache[0].index_copy_(0, start_pos.long(), k)
+            self.cache[1].index_copy_(0, start_pos.long(), v)
+            k = self.cache[0]
+            v = self.cache[1]
 
         # expand kv
         g = q.size(1) // k.size(1)
@@ -73,7 +80,11 @@ class Attention(nn.Module):
         score = score / self.temperature
 
         # apply mask
-        score = self.apply_mask(score, start_pos)
+        if seqlen > 1:
+            score = self.apply_mask(score, start_pos)
+        else:
+            mask = torch.where(self.positions <= start_pos, 0.0, float("-inf"))
+            score += mask
 
         # do softmax
         score = torch.softmax(score, dim=-1)

@@ -12,11 +12,20 @@ def generate(args, prompt, tokenizer, model, config):
 
     torch.cuda.synchronize()
     prefill_start = time.perf_counter()
-    tokens.append(sample(model(torch.tensor(tokens, dtype=torch.int32), 0), config))
+    tokens.append(sample(model(torch.tensor(tokens, dtype=torch.int32), torch.tensor(0, dtype=torch.int32)), config))
     torch.cuda.synchronize()  # optional since .item in sample causes sync
     prefill_time = time.perf_counter() - prefill_start
-    decode_start = time.perf_counter()
 
+    # capture cudagraphs
+    if not args.disable_cudagraphs:
+        persistent_tokens = torch.tensor([0], dtype=torch.int32)
+        persistent_positions = torch.tensor(0, dtype=torch.int32)
+
+        g = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(g):
+            persistent_logits = model(persistent_tokens, persistent_positions)
+
+    decode_start = time.perf_counter()
     cap = len(tokens) + 15 if args.profile else config.max_position_embeddings
     profile_ctx = torch.profiler.profile() if args.profile else contextlib.nullcontext()
     try:
@@ -26,7 +35,14 @@ def generate(args, prompt, tokenizer, model, config):
 
                 record_ctx = torch.profiler.record_function(f"tok_{len(tokens)}") if args.profile else contextlib.nullcontext()
                 with record_ctx:
-                    new_token = sample(model(torch.tensor(tokens[-1:], dtype=torch.int32), start_pos=len(tokens) - 1), config)
+                    if not args.disable_cudagraphs:
+                        persistent_tokens[0] = tokens[-1]
+                        persistent_positions.fill_(len(tokens) - 1)
+                        g.replay()
+                        logits = persistent_logits
+                    else:
+                        logits = model(torch.tensor(tokens[-1:], dtype=torch.int32), start_pos=torch.tensor(len(tokens) - 1, dtype=torch.int32))
+                    new_token = sample(logits, config)
                 if tokenizer.is_end_token(new_token):
                     break
                 tokens.append(new_token)

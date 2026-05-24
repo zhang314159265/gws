@@ -21,7 +21,10 @@ class Rope:
         Assume no batch dimension (i.e. batch-size == 1).
         """
         seqlen, num_head, head_dim = qk.shape
-        cis = cls.cis[start_pos : start_pos + seqlen, :]
+        if seqlen > 1:
+            cis = cls.cis[start_pos : start_pos + seqlen, :]
+        else:
+            cis = cls.cis.index_select(0, start_pos)
         qk = qk.transpose(0, 1)
         real = qk[..., ::2] * cis[..., ::2] - qk[..., 1::2] * cis[..., 1::2]
         imag = qk[..., ::2] * cis[..., 1::2] + qk[..., 1::2] * cis[..., ::2]
