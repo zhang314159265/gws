@@ -14,7 +14,12 @@ def _get_model(config):
     state_dict = load_safetensors(config)
     state_dict = remap_state_dict(state_dict)
     model.load_state_dict(state_dict)
+
     Rope.precompute_cis(config)
+
+    for sub in model.modules():
+        if hasattr(sub, "_group_expert_weights"):
+            sub._group_expert_weights()
     return model
 
 def get_model(config):

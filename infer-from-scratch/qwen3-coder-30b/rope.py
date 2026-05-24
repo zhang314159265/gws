@@ -38,5 +38,11 @@ class Rope:
     def apply(cls, qk, start_pos):
         seqlen, _, _ = qk.shape
 
-        return (qk * cls.cos[start_pos: start_pos + seqlen, None, :]
-            + cls.rotate(qk) * cls.sin[start_pos: start_pos + seqlen, None, :])
+        if seqlen > 1:
+            cos = cls.cos[start_pos: start_pos + seqlen, None, :]
+            sin = cls.sin[start_pos: start_pos + seqlen, None, :]
+        else:
+            cos = cls.cos[:, None, :].index_select(0, start_pos)
+            sin = cls.sin[:, None, :].index_select(0, start_pos)
+
+        return qk * cos + cls.rotate(qk) * sin
