@@ -2,13 +2,7 @@ import torch
 from trm import Transformer
 from rope import Rope
 import time
-
-def get_num_params(model):
-    tot = 0
-
-    for param in model.parameters():
-        tot += param.numel()
-    return tot
+from num_params import get_num_params
 
 def _get_model(config):
     state_dict = torch.load(config.checkpoint_file)
