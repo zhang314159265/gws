@@ -2,6 +2,7 @@ import torch
 import triton
 import triton.language as tl
 import functools
+import os
 
 from common import bench
 
@@ -35,10 +36,10 @@ def non_persistent_reduction_kernel(x, y, xnumel, rnumel, XBLK: tl.constexpr):
     # XXX Need use tl.float32 rather than torch.float32
     accum = tl.full([XBLK, RBLK], 0, dtype=tl.float32)
     for roff in range(0, rnumel, RBLK):
-        ridx = rbase + roff 
+        ridx = rbase + roff
         rmask = ridx < rnumel
 
-        xval = tl.load(x + xidx * rnumel + ridx, xmask and rmask)
+        xval = tl.load(x + xidx * rnumel + ridx, xmask & rmask)
         accum = accum + xval
 
     yval = tl.sum(accum, axis=1)[:, None]
@@ -73,7 +74,7 @@ def blk_ptr_kernel(x, y, xnumel, rnumel, XBLK: tl.constexpr):
 def launch(kernel, x):
     # torch.empty may return the previously released memory without changing.
     # Use zeros instead.
-    y = torch.zeros(x.size(0), device="cuda") 
+    y = torch.zeros(x.size(0), device="cuda")
 
     XBLK = 2
     kernel[(triton.cdiv(x.size(0), XBLK),)](x, y, x.size(0), x.size(1), XBLK)
@@ -84,11 +85,16 @@ M = 1024 * 512 + 1
 N = 2048 + 1 # +1 on purpose
 x = torch.randn(M, N, device="cuda")
 
-print("Benchmark the block-ptr kernel")
-bench(lambda x: x.sum(dim=-1), functools.partial(launch, blk_ptr_kernel), (x,))
+FILTER = os.getenv("FILTER", "")
 
-print("Benchmark the persistent reduction")
-bench(lambda x: x.sum(dim=-1), functools.partial(launch, persistent_reduction_kernel), (x,))
+if not FILTER or "blkptr" in FILTER:
+    print("Benchmark the block-ptr kernel")
+    bench(lambda x: x.sum(dim=-1), functools.partial(launch, blk_ptr_kernel), (x,))
 
-print("Benchmark the non-persistent reduction")
-bench(lambda x: x.sum(dim=-1), functools.partial(launch, non_persistent_reduction_kernel), (x,))
+if not FILTER or "persistent" in FILTER:
+    print("Benchmark the persistent reduction")
+    bench(lambda x: x.sum(dim=-1), functools.partial(launch, persistent_reduction_kernel), (x,))
+
+if not FILTER or "loop" in FILTER:
+    print("Benchmark the non-persistent reduction")
+    bench(lambda x: x.sum(dim=-1), functools.partial(launch, non_persistent_reduction_kernel), (x,))
