@@ -16,7 +16,7 @@ def persistent_reduction_kernel(x, y, xnumel, rnumel: tl.constexpr, XBLK: tl.con
 
     xoff = tl.program_id(0) * XBLK + tl.arange(0, XBLK)[:, None]
     roff = tl.arange(0, RBLK)[None, :]
-    xval = tl.load(x + xoff * rnumel + roff, xoff < xnumel and roff < rnumel)
+    xval = tl.load(x + xoff * rnumel + roff, (xoff < xnumel) & (roff < rnumel))
     # why this not work
     # https://gist.github.com/shunting314/1f23f33032ea3d90cc1e2f75eb89d77f
     # yval = xval.sum(axis=1, keep_dims=True)
