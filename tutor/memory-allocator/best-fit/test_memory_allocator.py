@@ -182,6 +182,18 @@ def test_coalesce_with_following_free_region():
     assert a.allocate(7) == 3
 
 
+def test_free_between_two_holes_keeps_all_reachable():
+    a = MemoryAllocator(10)
+    for _ in range(5):
+        a.allocate(2)           # 0,2,4,6,8 -> full
+    assert a.free(0) == 2
+    assert a.free(8) == 2
+    assert a.free(4) == 2       # inserted between @0 and @8, no coalescing
+    assert a.allocate(2) == 0
+    assert a.allocate(2) == 4
+    assert a.allocate(2) == 8   # would be -1 if the middle insert orphaned it
+
+
 # --------------------------------------------------------------------------
 # A short end-to-end scenario
 # --------------------------------------------------------------------------

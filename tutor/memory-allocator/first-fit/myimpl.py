@@ -1,11 +1,12 @@
+from __future__ import annotations
 from dataclasses import dataclass
 
-@dataclass
+@dataclass(slots=True)
 class FreeNode:
     start: int
     size: int
-    prev = None
-    next = None
+    prev: FreeNode | None = None
+    next: FreeNode | None = None
 
     @property
     def end(self):
@@ -45,8 +46,8 @@ class MemoryAllocator:
         return ptr
 
     def insert_node_at(self, node, left, right):
-        node.left = left
-        node.right = right
+        node.prev = left
+        node.next = right
 
         if left:
             left.next = node
