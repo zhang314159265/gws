@@ -13,6 +13,11 @@ import flax.linen as nn
 from flax.training import train_state
 import optax
 import time
+import os
+
+profile_dir = "/tmp/jax_profile"
+num_profiling_step = 10
+do_profile = os.getenv("DO_PROFILE") == "1"
 
 def display_sample(x, y):
     import matplotlib.pyplot as plt
@@ -103,12 +108,32 @@ state = train_state.TrainState.create(
     tx=optax.sgd(learning_rate=1e-3)
 )
 
+global_step = 0
+num_warmup_step = 1
+profile_active = False
 for epoch_id in range(nepoch):
     start_ts = time.perf_counter()
     for x, label in data_loader("train"):
-        state, loss = train_step(state, x, label)
+        # skip warmup (jit compilation)
+        if global_step == num_warmup_step and do_profile:
+            print(f"Profile will be written to {profile_dir}")
+            jax.profiler.start_trace(profile_dir)
+            profile_active = True
+            
+        with jax.profiler.StepTraceAnnotation("train_step", step_num=global_step):
+            state, loss = train_step(state, x, label)
+        global_step += 1
+
+        if global_step == num_warmup_step + num_profiling_step and profile_active:
+            jax.block_until_ready(state)
+            jax.profiler.stop_trace()
+            profile_active = False
     acc = compute_accuracy()
     elapse = time.perf_counter() - start_ts
     print(f"epoch {epoch_id}: accuracy {acc * 100:.2f}%, elapse {elapse:.3f} seconds")
+
+if profile_active:
+    jax.block_until_ready(state)
+    jax.profiler.stop_trace()
 
 print("Done")
